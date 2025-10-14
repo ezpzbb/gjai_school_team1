@@ -46,3 +46,32 @@ backend/models/*.h5
 # Temporary files
 tmp/
 temp/
+
+# TypeScript
+*.tsbuildinfo
+
+# Package lock files (keep only in subdirectories)
+package-lock.json
+
+# Vite
+.vite/
+
+# Next.js (if used in future)
+.next/
+out/
+
+# Cache
+.cache/
+.parcel-cache/
+
+# AI Models and large files
+*.onnx
+*.pt
+*.h5
+*.pkl
+*.model
+
+# Database
+*.db
+*.sqlite
+*.sqlite3

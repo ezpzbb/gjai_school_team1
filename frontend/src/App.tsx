@@ -1,1 +1,49 @@
-// 메인 앱 컴포넌트 - 라우팅 및 전역 설정
+import React from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import MainPage from "./pages/MainPage";
+import AuthTemplate from "./pages/AuthTemplate";
+import LoginForm from "./components/LoginForm";
+import GoogleCallback from "./pages/GoogleCallback";
+import RegisterForm from "./components/RegisterForm";
+import Home from "./pages/Home";
+import Camera from "./pages/Camera";
+import Management from "./pages/Management";
+import Settings from "./pages/Settings";
+import Alert from "./components/Alert";
+import AppProvider from "./providers/AppProvider";
+
+// ScrollToTop 컴포넌트 import
+import ScrollToTop from "./components/ScrollToTop";
+
+const App: React.FC = () => {
+  return (
+    <AppProvider>
+      <Alert />
+
+      <BrowserRouter>
+        {/* 경로 변경 시 항상 최상단으로 스크롤 */}
+        <ScrollToTop />
+
+        <Routes>
+          {/* 메인 레이아웃 하위 페이지 */}
+          <Route path="/" element={<MainPage />}>
+            <Route index element={<Home />} />
+            <Route path="camera" element={<Camera />} />
+            <Route path="management" element={<Management />} />
+            <Route path="settings" element={<Settings />} />
+          </Route>
+
+          {/* 인증 관련 페이지 (로그인/회원가입 등) */}
+          <Route path="/auth" element={<AuthTemplate />}>
+            <Route index element={<LoginForm />} />
+            <Route path="login" element={<LoginForm />} />
+            <Route path="google/callback" element={<GoogleCallback />} />
+            <Route path="register" element={<RegisterForm />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </AppProvider>
+  );
+};
+
+export default App;
