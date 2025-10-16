@@ -1,7 +1,11 @@
-// Vite 설정 - 개발 서버 및 빌드 설정
 import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
 export default defineConfig({
+  plugins: [react()],
+  css: {
+    postcss: './postcss.config.ts', // 명시적 경로
+  },
   server: {
     proxy: {
       '/api': {
