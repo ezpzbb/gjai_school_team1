@@ -8,7 +8,11 @@ yarn-error.log*
 dist/
 build/
 
+# Environment variables
 .env
+.env.local
+.env.development
+.env.production
 
 # IDE
 .vscode/
@@ -30,13 +34,16 @@ pids/
 *.seed
 *.pid.lock
 
-# Coverage directory used by tools like istanbul
+# Coverage
 coverage/
 
 # AI Models (large files)
-backend/models/*.onnx
-backend/models/*.pt
-backend/models/*.h5
+backend/models/*
+*.onnx
+*.pt
+*.h5
+*.pkl
+*.model
 
 # Temporary files
 tmp/
@@ -45,26 +52,16 @@ temp/
 # TypeScript
 *.tsbuildinfo
 
-# Package lock files (keep only in subdirectories)
-package-lock.json
-
 # Vite
 .vite/
 
-# Next.js (if used in future)
+# Next.js
 .next/
 out/
 
 # Cache
 .cache/
 .parcel-cache/
-
-# AI Models and large files
-*.onnx
-*.pt
-*.h5
-*.pkl
-*.model
 
 # Database
 *.db
