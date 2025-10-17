@@ -23,7 +23,7 @@ AI 모델을 활용한 실시간 차량 탐지 및 관리 시스템입니다.
 ### Backend
 - Node.js + Express + TypeScript
 - Socket.IO (실시간 통신)
-- MongoDB (데이터베이스)
+- Mysql(데이터베이스)
 - Node-Cron (스케줄링)
 - JWT (인증)
 
