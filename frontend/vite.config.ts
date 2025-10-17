@@ -3,20 +3,14 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  css: {
-    postcss: './postcss.config.ts', // 명시적 경로
-  },
   server: {
+    port: 5173,
     proxy: {
-      '/api': {
-        target: 'http://localhost:5000',
+      '/api/users': {
+        // '/api/users'로 요청을 받아 백엔드의 '/api/users'로 그대로 전달
+        target: 'http://localhost:3001',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
-      },
-      '/stream': {
-        target: 'http://localhost:5000',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/stream/, ''),
+        // rewrite 제거 또는 명시적으로 유지
       },
     },
   },
