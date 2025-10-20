@@ -8,7 +8,11 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { initializeDatabase, closeDatabase } from './config/db';
+
+
+
 import userRoutes from './routes/UserRoutes';
+import cctvRouter from './routes/cctvRoutes';
 
 dotenv.config();
 
@@ -59,6 +63,7 @@ app.use('/api/uploads', express.static(uploadsPath));
 
 // API 라우트
 app.use('/api/users', userRoutes);
+app.use('/api', cctvRouter);
 
 // 기본 엔드포인트
 app.get('/', (_req: Request, res: Response) => {
