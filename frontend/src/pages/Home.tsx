@@ -3,7 +3,7 @@ import { useAuth } from '../providers/AuthProvider';
 import KakaoMap from '../components/KakaoMap'; // 👈 추가!
 
 const Home: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
   return (
     <div className="p-8">

@@ -36,7 +36,7 @@ const KakaoMap: React.FC = () => {
       existingScript.addEventListener("load", () => {
         if (window.kakao && window.kakao.maps && mapRef.current) {
           const options = {
-            center: new window.kakao.maps.LatLng(37.5665, 126.9780),
+            center: new window.kakao.maps.LatLng(36.35, 127.38),
             level: 3,
           };
           new window.kakao.maps.Map(mapRef.current, options);
@@ -54,7 +54,7 @@ const KakaoMap: React.FC = () => {
       if (window.kakao && window.kakao.maps && mapRef.current) {
         window.kakao.maps.load(() => {
           const options = {
-            center: new window.kakao.maps.LatLng(37.5665, 126.9780),
+            center: new window.kakao.maps.LatLng(36.35, 127.38),
             level: 3,
           };
           new window.kakao.maps.Map(mapRef.current, options);
