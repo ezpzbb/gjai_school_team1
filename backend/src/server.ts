@@ -101,7 +101,7 @@ async function start() {
     // Socket.IO 설정
     setupSocket(server);
 
-    const PORT = process.env.PORT || 3001;
+    const PORT = process.env.PORT || 3002;
     server.listen(PORT, () => {
       console.log(`🚀 서버가 포트 ${PORT}에서 시작되었습니다.`);
       console.log(`📍 환경: ${process.env.NODE_ENV || 'development'}`);
