@@ -27,10 +27,10 @@ const Header: React.FC = () => {
     return () => document.removeEventListener("mousedown", handleOutside);
   }, [menuOpen]);
 
-  // 네비게이션 항목
+  // 네비게이션 항목 (지도 경로를 /kakao-map으로 변경)
   const navItems = [
     { key: "dashboard", label: "대시보드", path: "/dashboard" },
-    { key: "map", label: "지도", path: "/map" },
+    { key: "map", label: "지도", path: "/kakao-map" }, // KakaoMapPage.tsx로 이동하도록 경로 변경
   ];
 
   const handleMenuClick = () => {
