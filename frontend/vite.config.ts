@@ -6,13 +6,10 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api/users': {
-        target: 'http://localhost:3002',
+      '/api': {
+        target: 'http://localhost:3002', // 모든 /api 요청을 3002로 프록시
         changeOrigin: true,
-      },
-      '/api/cctv': {
-        target: 'http://localhost:3002',
-        changeOrigin: true,
+        secure: false,
       },
     },
   },

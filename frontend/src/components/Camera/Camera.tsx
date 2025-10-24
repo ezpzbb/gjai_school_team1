@@ -4,17 +4,18 @@ import Hls from 'hls.js';
 interface CameraProps {
   apiEndpoint: string | null;
   location?: string;
+  cctv_id: number; // cctv_id 추가
   isPopup?: boolean;
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
 }
 
-const Camera: React.FC<CameraProps> = ({ apiEndpoint, location, isPopup, isFavorite, onToggleFavorite }) => {
+const Camera: React.FC<CameraProps> = ({ apiEndpoint, location, cctv_id, isPopup, isFavorite, onToggleFavorite }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
 
   useEffect(() => {
-    console.log('Camera: Received apiEndpoint:', apiEndpoint);
+    console.log('Camera: Received apiEndpoint:', apiEndpoint, 'cctv_id:', cctv_id);
     if (!apiEndpoint || !videoRef.current) return;
 
     if (Hls.isSupported()) {
@@ -25,6 +26,7 @@ const Camera: React.FC<CameraProps> = ({ apiEndpoint, location, isPopup, isFavor
       hls.on(Hls.Events.ERROR, (_event, data) => {
         console.error('HLS error:', {
           apiEndpoint,
+          cctv_id,
           type: data.type,
           details: data.details,
           fatal: data.fatal,
@@ -34,7 +36,7 @@ const Camera: React.FC<CameraProps> = ({ apiEndpoint, location, isPopup, isFavor
     } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
       videoRef.current.src = apiEndpoint;
       videoRef.current.play().catch((error) => {
-        console.error('Video play error:', { apiEndpoint, error });
+        console.error('Video play error:', { apiEndpoint, cctv_id, error });
       });
     } else {
       console.error('HLS is not supported in this browser.');
@@ -46,7 +48,7 @@ const Camera: React.FC<CameraProps> = ({ apiEndpoint, location, isPopup, isFavor
         hlsRef.current = null;
       }
     };
-  }, [apiEndpoint]);
+  }, [apiEndpoint, cctv_id]);
 
   if (!apiEndpoint) {
     return (
@@ -100,7 +102,7 @@ const Camera: React.FC<CameraProps> = ({ apiEndpoint, location, isPopup, isFavor
         alignItems: 'center',
         backgroundColor: '#000',
         padding: '10px',
-        minHeight: '160px', // 최소 높이 설정
+        minHeight: '160px',
       }}>
         <video
           ref={videoRef}
@@ -108,13 +110,13 @@ const Camera: React.FC<CameraProps> = ({ apiEndpoint, location, isPopup, isFavor
           autoPlay
           muted
           style={{
-            width: isPopup ? '340px' : '100%', // 패딩 고려한 크기
+            width: isPopup ? '340px' : '100%',
             height: '100%',
             maxWidth: '100%',
             maxHeight: '100%',
             objectFit: 'contain',
           }}
-          onError={(e) => console.error('Video loading error:', { apiEndpoint, error: e })}
+          onError={(e) => console.error('Video loading error:', { apiEndpoint, cctv_id, error: e })}
         >
           브라우저가 비디오를 지원하지 않습니다.
         </video>
@@ -131,10 +133,10 @@ const Camera: React.FC<CameraProps> = ({ apiEndpoint, location, isPopup, isFavor
         borderTop: '1px solid #34495e',
       }}>
         <button
-          onClick={onToggleFavorite} // 버튼이 사라지지 않도록 확인
+          onClick={onToggleFavorite}
           style={{
             padding: '8px 16px',
-            backgroundColor: '#f39c12', // 노란색 고정
+            backgroundColor: '#f39c12',
             color: 'black',
             border: 'none',
             borderRadius: '6px',

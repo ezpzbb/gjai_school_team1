@@ -1,5 +1,3 @@
-// Express 앱 설정 - 미들웨어, 라우트, 소켓 설정
-
 import express, { Express, Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -9,6 +7,7 @@ import path from 'path';
 import { Pool, createPool } from 'mysql2/promise';
 import { setupCCTVRoutes } from './routes/cctvRoutes';
 import userRoutes from './routes/UserRoutes';
+import favoriteRoutes from './routes/FavoriteRoutes';
 
 export const initializeApp = async (): Promise<Express> => {
   const app: Express = express();
@@ -63,6 +62,7 @@ export const initializeApp = async (): Promise<Express> => {
   // API 라우트
   app.use('/api/users', userRoutes);
   app.use('/api', setupCCTVRoutes(dbPool));
+  app.use('/api/favorites', favoriteRoutes(dbPool)); 
 
   // 기본 엔드포인트
   app.get('/', (_req: Request, res: Response) => {
