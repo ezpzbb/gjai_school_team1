@@ -67,3 +67,5 @@ out/
 *.db
 *.sqlite
 *.sqlite3
+
+cctv.ts
