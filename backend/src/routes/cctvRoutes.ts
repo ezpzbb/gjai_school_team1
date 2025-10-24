@@ -1,48 +1,35 @@
-import express from 'express';
-import { Request, Response } from 'express';
+import { Router, Request, Response } from 'express';
+import { Pool } from 'mysql2/promise';
+import { CCTVService } from '../services/cctvService';
 
-const router = express.Router();
+const router = Router();
 
-// 🔍 CCTV 위치 데이터 API
-router.get('/locations', (req: Request, res: Response) => {
-  try {
-    // 테스트용 CCTV 데이터 반환
-    const cctvData = [
-      {
-        id: 'cctv_001',
-        lat: 37.5665,
-        lng: 126.9780,
-        videoUrl: 'https://sample-videos.com/zip/10/mp4/SampleVideo_1280x720_1mb.mp4',
-        name: '서울시청 앞'
-      },
-      {
-        id: 'cctv_002',
-        lat: 37.5700,
-        lng: 126.9769,
-        videoUrl: 'https://sample-videos.com/zip/10/mp4/SampleVideo_1280x720_1mb.mp4',
-        name: '광화문 광장'
-      },
-      {
-        id: 'cctv_003',
-        lat: 37.5620,
-        lng: 126.9830,
-        videoUrl: 'https://sample-videos.com/zip/10/mp4/SampleVideo_1280x720_1mb.mp4',
-        name: '명동 거리'
-      }
-    ];
+export const setupCCTVRoutes = (dbPool: Pool): Router => {
+  const cctvService = new CCTVService(dbPool);
 
-    // 성공 응답 형식
-    res.json({
-      success: true,
-      data: cctvData,
-      count: cctvData.length
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: 'CCTV 데이터 처리 중 오류 발생'
-    });
-  }
-});
+  router.get('/cctv/locations', async (req: Request, res: Response) => {
+    try {
+      console.log('CCTVRoutes: Handling /api/cctv/locations request', {
+        method: req.method,
+        url: req.originalUrl,
+      });
+      const cctvLocations = await cctvService.getCCTVLocations();
+      console.log('CCTVRoutes: CCTV locations fetched:', cctvLocations);
+      res.status(200).json({
+        success: true,
+        data: cctvLocations,
+      });
+    } catch (error: any) {
+      console.error('CCTVRoutes: Error in /api/cctv/locations:', {
+        message: error.message,
+        stack: error.stack,
+      });
+      res.status(500).json({
+        success: false,
+        message: `Failed to fetch CCTV locations: ${error.message}`,
+      });
+    }
+  });
 
-export default router;
+  return router;
+};

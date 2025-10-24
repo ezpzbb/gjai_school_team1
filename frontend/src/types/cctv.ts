@@ -1,4 +1,5 @@
-// 카메라 모델 - CCTV 카메라 정보 데이터베이스 스키마 및 Mongoose 모델 정의
+// cctv 타입 정의
+
 
 export interface CCTV {
   cctv_id: number;
