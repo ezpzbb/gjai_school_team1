@@ -135,7 +135,7 @@ const KakaoMap: React.FC = () => {
     if (mapInstance.current && cctvLocations.length > 0) {
       updateMarkers();
     }
-  }, [cctvLocations, favorites]);
+  }, [cctvLocations]); // favorites 제거하여 즐겨찾기 변경 시 마커 업데이트 방지
 
   const initializeMap = () => {
     if (!mapRef.current || !window.kakao || !window.kakao.maps) {
@@ -189,28 +189,6 @@ const KakaoMap: React.FC = () => {
         container.style.height = '300px';
         container.style.padding = '5px';
 
-        const closeButton = document.createElement('button');
-        closeButton.innerText = '×';
-        closeButton.style.position = 'absolute';
-        closeButton.style.top = '10px';
-        closeButton.style.right = '10px';
-        closeButton.style.width = '24px';
-        closeButton.style.height = '24px';
-        closeButton.style.borderRadius = '50%';
-        closeButton.style.background = '#ff4444';
-        closeButton.style.color = 'white';
-        closeButton.style.border = 'none';
-        closeButton.style.fontSize = '16px';
-        closeButton.style.cursor = 'pointer';
-        closeButton.style.zIndex = '20';
-        closeButton.onclick = () => {
-          if (overlayRef.current) {
-            overlayRef.current.setMap(null);
-            overlayRef.current = null;
-          }
-        };
-        container.appendChild(closeButton);
-
         const root = createRoot(container);
         root.render(
           <Camera
@@ -220,6 +198,12 @@ const KakaoMap: React.FC = () => {
             isPopup
             isFavorite={favorites.includes(cctv.cctv_id)}
             onToggleFavorite={() => toggleFavorite(cctv.cctv_id, favorites.includes(cctv.cctv_id))}
+            onClose={() => {
+              if (overlayRef.current) {
+                overlayRef.current.setMap(null);
+                overlayRef.current = null;
+              }
+            }}
           />
         );
 
