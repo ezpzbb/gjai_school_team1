@@ -5,15 +5,18 @@ import './index.css';
 import App from './App';
 import AuthProvider from './providers/AuthProvider';
 import AppProvider from './providers/AppProvider';
+import { DataProvider } from './providers/DataProvider';
 
 const root = createRoot(document.getElementById('root')!);
 root.render(
   <StrictMode>
     <AppProvider>
       <AuthProvider>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
+        <DataProvider>  
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </DataProvider>
       </AuthProvider>
     </AppProvider>
   </StrictMode>

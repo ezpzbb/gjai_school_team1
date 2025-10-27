@@ -4,12 +4,13 @@ import { useAuth } from './providers/AuthProvider';
 import MainPage from './pages/MainPage';
 import LoginForm from './components/LoginForm';
 import Home from './pages/Home';
-import KakaoMapPage from './pages/KakaoMapPage';
+import FavoritePage from './pages/FavoritePage';
+import KakaoMap from './components/KakaoMap';
 
 const App: React.FC = () => {
   const { isLoggedIn, isLoading } = useAuth();
 
-  console.log('App: Rendering', { isLoading, isLoggedIn }); // 디버깅 로그
+  console.log('App: Rendering', { isLoading, isLoggedIn });
 
   if (isLoading) {
     console.log('App: isLoading=true, showing loading state');
@@ -29,7 +30,11 @@ const App: React.FC = () => {
         />
         <Route
           path="/kakao-map"
-          element={isLoggedIn ? <KakaoMapPage /> : <Navigate to="/auth/login" />}
+          element={isLoggedIn ? <KakaoMap /> : <Navigate to="/auth/login" />}
+        />
+        <Route
+          path="/favorite"
+          element={isLoggedIn ? <FavoritePage /> : <Navigate to="/auth/login" />}
         />
       </Route>
       <Route path="/auth/login" element={<LoginForm />} />

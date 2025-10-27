@@ -1,134 +1,130 @@
 import { CCTV } from '../types/cctv';
 import { Favorite } from '../types/Favorite';
 
-export const fetchCCTVLocations = async (): Promise<CCTV[]> => {
-  try {
-    const response = await fetch('/api/cctv/locations', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-    });
+const cache: { [key: string]: { data: any; timestamp: number } } = {};
+const CACHE_DURATION = 5 * 60 * 1000; // 5분 캐시
 
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`HTTP error! status: ${response.status}, response: ${text}, url: /api/cctv/locations`);
-    }
-
-    const data = await response.json();
-    if (!data.success) {
-      throw new Error(data.message || 'Failed to fetch CCTV locations');
-    }
-
-    console.log('CCTV locations fetched:', data.data);
-    return data.data as CCTV[];
-  } catch (error) {
-    console.error('Error fetching CCTV locations:', error);
-    return [];
+export const fetchCCTVLocations = async (retries = 3, delay = 2000): Promise<{ success: boolean; data: CCTV[] }> => {
+  const cacheKey = 'cctv_locations';
+  const cached = cache[cacheKey];
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    console.log('fetchCCTVLocations: Returning cached data', cached.data);
+    return cached.data;
   }
+
+  const attemptFetch = async (attempt: number): Promise<{ success: boolean; data: CCTV[] }> => {
+    try {
+      console.log('fetchCCTVLocations: Fetching data');
+      const response = await fetch('/api/cctv/locations', {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}, response: ${await response.text()}, url: /api/cctv/locations`);
+      }
+      const result = await response.json();
+      if (!result.success || !Array.isArray(result.data)) {
+        throw new Error('CCTV locations response is invalid');
+      }
+      cache[cacheKey] = { data: result, timestamp: Date.now() };
+      console.log('fetchCCTVLocations: Data fetched successfully', result);
+      return result;
+    } catch (error: any) {
+      console.error('fetchCCTVLocations: Error fetching data:', error);
+      if (error.message.includes('429') && attempt > 0) {
+        console.log(`fetchCCTVLocations: Retrying (${attempt} retries left)...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return attemptFetch(attempt - 1);
+      }
+      throw error;
+    }
+  };
+
+  return attemptFetch(retries);
 };
 
-export const addFavorite = async (cctv_id: number): Promise<Favorite | null> => {
-  try {
-    const token = localStorage.getItem('token'); // 'authToken' → 'token'
-    console.log('addFavorite: token=', token);
-    if (!token) {
-      console.warn('No token found. Redirecting to login.');
-      window.location.href = '/login';
-      return null;
-    }
-    const response = await fetch('/api/favorites', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      credentials: 'include',
-      body: JSON.stringify({ cctv_id }),
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      if (response.status === 401) {
-        console.warn('Unauthorized request. Redirecting to login.');
-        window.location.href = '/login';
-      }
-      throw new Error(`HTTP error! status: ${response.status}, response: ${text}, url: /api/favorites`);
-    }
-
-    const data = await response.json();
-    console.log('Favorite added:', data);
-    return data as Favorite;
-  } catch (error) {
-    console.error('Error adding favorite for cctv_id:', cctv_id, error);
-    return null;
+export const getUserFavorites = async (retries = 3, delay = 2000): Promise<Favorite[]> => {
+  const token = localStorage.getItem('token');
+  console.log('getUserFavorites: token=', token);
+  const cacheKey = 'user_favorites';
+  const cached = cache[cacheKey];
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    console.log('getUserFavorites: Returning cached data', cached.data);
+    return cached.data;
   }
+
+  const attemptFetch = async (attempt: number): Promise<Favorite[]> => {
+    try {
+      const response = await fetch('/api/favorites/user/me', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}, response: ${await response.text()}, url: /api/favorites/user/me`);
+      }
+      const data = await response.json();
+      if (!Array.isArray(data)) {
+        throw new Error('User favorites response is not an array');
+      }
+      cache[cacheKey] = { data, timestamp: Date.now() };
+      console.log('getUserFavorites: Data fetched successfully, count:', data.length, data);
+      return data;
+    } catch (error: any) {
+      console.error('getUserFavorites: Error fetching data:', error);
+      if (error.message.includes('429') && attempt > 0) {
+        console.log(`getUserFavorites: Retrying (${attempt} retries left)...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return attemptFetch(attempt - 1);
+      }
+      throw error;
+    }
+  };
+
+  return attemptFetch(retries);
 };
 
-export const getUserFavorites = async (): Promise<Favorite[]> => {
-  try {
-    const token = localStorage.getItem('token'); // 'authToken' → 'token'
-    console.log('getUserFavorites: token=', token);
-    if (!token) {
-      console.warn('No token found. Returning empty favorites.');
-      return [];
-    }
-    const response = await fetch('/api/favorites/user/me', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      credentials: 'include',
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      if (response.status === 401) {
-        console.warn('Unauthorized request. Redirecting to login.');
-        window.location.href = '/login';
-      }
-      throw new Error(`HTTP error! status: ${response.status}, response: ${text}, url: /api/favorites/user/me`);
-    }
-
-    const data = await response.json();
-    console.log('User favorites fetched:', data);
-    return data as Favorite[];
-  } catch (error) {
-    console.error('Error fetching user favorites:', error);
-    return [];
+export const addFavorite = async (cctv_id: number): Promise<void> => {
+  const token = localStorage.getItem('token');
+  console.log('addFavorite: Adding favorite for cctv_id:', cctv_id);
+  const response = await fetch('/api/favorites', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ cctv_id }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to add favorite: ${await response.text()}`);
   }
+  delete cache['user_favorites'];
+  console.log('addFavorite: Cache invalidated for user_favorites');
 };
 
 export const removeFavorite = async (cctv_id: number): Promise<void> => {
-  try {
-    const token = localStorage.getItem('token'); // 'authToken' → 'token'
-    console.log('removeFavorite: token=', token);
-    if (!token) {
-      console.warn('No token found. Redirecting to login.');
-      window.location.href = '/login';
-      return;
-    }
-    const response = await fetch(`/api/favorites/me/${cctv_id}`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      credentials: 'include',
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      if (response.status === 401) {
-        console.warn('Unauthorized request. Redirecting to login.');
-        window.location.href = '/login';
-      }
-      throw new Error(`HTTP error! status: ${response.status}, response: ${text}, url: /api/favorites/me/${cctv_id}`);
-    }
-    console.log('Favorite removed for cctv_id:', cctv_id);
-  } catch (error) {
-    console.error('Error removing favorite for cctv_id:', cctv_id, error);
+  const token = localStorage.getItem('token');
+  if (!token) {
+    throw new Error('No authentication token found');
   }
+  console.log('removeFavorite: Removing favorite for cctv_id:', cctv_id, 'token:', token);
+  const response = await fetch(`/api/favorites/me/${cctv_id}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) {
+    let errorText;
+    try {
+      errorText = await response.json();
+      errorText = errorText.error || JSON.stringify(errorText);
+    } catch {
+      errorText = await response.text();
+    }
+    throw new Error(`Failed to remove favorite: ${errorText}, status: ${response.status}`);
+  }
+  delete cache['user_favorites'];
+  console.log('removeFavorite: Cache invalidated for user_favorites');
 };

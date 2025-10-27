@@ -27,10 +27,11 @@ const Header: React.FC = () => {
     return () => document.removeEventListener("mousedown", handleOutside);
   }, [menuOpen]);
 
-  // 네비게이션 항목 (지도 경로를 /kakao-map으로 변경)
+  // 네비게이션 항목 (지도 경로를 /kakao-map으로 변경, 딥러닝분석 추가)
   const navItems = [
     { key: "dashboard", label: "대시보드", path: "/dashboard" },
-    { key: "map", label: "지도", path: "/kakao-map" }, // KakaoMapPage.tsx로 이동하도록 경로 변경
+    { key: "map", label: "지도", path: "/kakao-map" },
+    { key: "favorite", label: "딥러닝분석", path: "/favorite" }, // FavoritePage.tsx로 이동
   ];
 
   const handleMenuClick = () => {
@@ -45,7 +46,7 @@ const Header: React.FC = () => {
           <img src="/logo.svg" alt="Logo" className="h-10 w-auto" />
         </Link>
 
-        {/* 중앙: 네비게이션 (대시보드, 지도) */}
+        {/* 중앙: 네비게이션 (대시보드, 지도, 딥러닝분석) */}
         <div className="hidden lg:flex absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
           <div className="flex items-center space-x-4">
             {navItems.map((item) => {
