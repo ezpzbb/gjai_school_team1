@@ -4,6 +4,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import dotenv from 'dotenv';
 import { initializeApp } from './app';
 import { initializeDatabase, closeDatabase } from './config/db';
+import { startCctvScheduler, stopCctvScheduler } from './scheduler';
 
 dotenv.config();
 
@@ -50,6 +51,8 @@ async function start() {
       console.log(`🚀 서버가 포트 ${PORT}에서 시작되었습니다.`);
       console.log(`📍 환경: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🌐 CORS Origin: ${process.env.CORS_ORIGIN || 'http://localhost:5173'}`);
+
+      startCctvScheduler();
     });
   } catch (error) {
     console.error('서버 시작 실패:', error);
@@ -60,11 +63,13 @@ async function start() {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('서버 종료 중...');
+  stopCctvScheduler();
   await closeDatabase();
   process.exit(0);
 });
 process.on('SIGINT', async () => {
   console.log('서버 종료 중...');
+  stopCctvScheduler();
   await closeDatabase();
   process.exit(0);
 });

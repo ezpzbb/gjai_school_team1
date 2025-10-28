@@ -8,6 +8,7 @@ import { Pool, createPool } from 'mysql2/promise';
 import { setupCCTVRoutes } from './routes/cctvRoutes';
 import userRoutes from './routes/UserRoutes';
 import favoriteRoutes from './routes/FavoriteRoutes';
+import { updateCctvData } from './cctvUpdater';
 
 export const initializeApp = async (): Promise<Express> => {
   const app: Express = express();
@@ -68,6 +69,16 @@ export const initializeApp = async (): Promise<Express> => {
   app.get('/', (_req: Request, res: Response) => {
     res.send('Hello from Express with WebSocket!');
   });
+
+  // cctv 데이터 업데이트 엔드포인트 (테스트용)
+  app.get('/api/admin/update-cctv', async (req, res) => {
+  try {
+    await updateCctvData();
+    res.json({ success: true, message: 'CCTV 데이터 수동 업데이트 완료' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
   // 에러 핸들링 미들웨어
   app.use((err: Error, req: Request, res: Response, next: Function) => {
