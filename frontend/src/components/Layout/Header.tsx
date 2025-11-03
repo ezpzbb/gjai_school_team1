@@ -39,7 +39,7 @@ const Header: React.FC = () => {
   };
 
   return (
-    <header className="fixed top-0 left-64 right-0 z-50 bg-white border-b border-gray-200 px-6 py-4 rounded-bl-lg shadow-sm">
+    <header className="fixed top-2 left-[calc(16rem+1rem)] right-2 z-50 bg-white border border-gray-300 px-6 py-4 rounded-lg shadow-lg">
       <div className="container mx-auto flex items-center justify-between text-gray-900">
         {/* 중앙: 네비게이션 (대시보드, 지도, 딥러닝분석) */}
         <div className="hidden lg:flex absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">

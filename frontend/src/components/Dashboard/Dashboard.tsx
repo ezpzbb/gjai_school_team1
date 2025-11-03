@@ -99,7 +99,7 @@ const Dashboard: React.FC = () => {
   }, [events]);
 
   return (
-    <div className="fixed top-16 right-0.5 w-80 h-[calc(100vh-4rem)] overflow-y-auto bg-white border-l border-gray-200 p-4 z-40 rounded-l-lg shadow-sm">
+    <div className="fixed top-[calc(2rem+4rem+0.5rem)] right-2 w-80 h-[calc(100vh-2rem-4rem-0.5rem-2rem)] overflow-y-auto bg-white border border-gray-300 p-4 z-40 rounded-lg shadow-lg">
       {/* 즐겨찾기 섹션 */}
       {favoriteCCTVs.length > 0 && (
         <>

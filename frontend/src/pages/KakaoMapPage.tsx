@@ -6,7 +6,7 @@ const KakaoMapPage: React.FC = () => {
   return (
     <>
       <Dashboard />
-      <div className="fixed left-64 right-[calc(20rem+0.5rem)] top-16 bottom-0 p-4">
+      <div className="fixed left-[calc(16rem+1rem+0.5rem)] right-[calc(20rem+0.5rem+0.5rem)] top-[calc(2rem+4rem+0.5rem)] bottom-2 p-4">
         <KakaoMap />
       </div>
     </>

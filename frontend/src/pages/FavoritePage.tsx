@@ -97,9 +97,9 @@ const FavoritePage: React.FC = () => {
   return (
     <>
       <Dashboard />
-      <div className="p-4 pr-80">
-        <h1 className="text-2xl font-bold mb-4 text-gray-900">즐겨찾기</h1>
-        <div className="grid grid-cols-2 gap-4">
+      <div className="fixed left-[calc(16rem+1rem+0.5rem)] right-[calc(20rem+0.5rem+0.5rem)] top-[calc(2rem+4rem+0.5rem)] bottom-2 overflow-y-auto p-4">
+        
+        <div className="grid grid-cols-2 gap-6">
           {displayedFavorites.map((favorite) => {
             const cctv = cctvLocations.find((loc) => loc.cctv_id === favorite.cctv_id);
             if (!cctv) {
@@ -107,14 +107,18 @@ const FavoritePage: React.FC = () => {
               return null;
             }
             return (
-              <Camera
+              <div
                 key={favorite.cctv_id}
-                apiEndpoint={cctv.api_endpoint}
-                location={cctv.location}
-                cctv_id={cctv.cctv_id}
-                isFavorite={favorites.some((fav) => fav.cctv_id === cctv.cctv_id)}
-                onToggleFavorite={() => handleToggleFavorite(cctv.cctv_id, favorites.some((fav) => fav.cctv_id === cctv.cctv_id))}
-              />
+                className="border border-gray-300 rounded-lg shadow-md overflow-hidden bg-white"
+              >
+                <Camera
+                  apiEndpoint={cctv.api_endpoint}
+                  location={cctv.location}
+                  cctv_id={cctv.cctv_id}
+                  isFavorite={favorites.some((fav) => fav.cctv_id === cctv.cctv_id)}
+                  onToggleFavorite={() => handleToggleFavorite(cctv.cctv_id, favorites.some((fav) => fav.cctv_id === cctv.cctv_id))}
+                />
+              </div>
             );
           })}
         </div>

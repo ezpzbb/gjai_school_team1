@@ -666,8 +666,6 @@ const KakaoMap: React.FC = () => {
     });
 
     if (marker) {
-      // 마커 클릭 이벤트 시뮬레이션
-      const clickEvent = new MouseEvent('click', { bubbles: true });
       // 카카오맵 API의 이벤트 트리거는 직접 호출 불가능하므로
       // 마커의 위치를 기준으로 오버레이 표시
       if (overlayRef.current) {
