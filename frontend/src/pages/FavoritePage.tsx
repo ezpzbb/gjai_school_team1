@@ -4,6 +4,7 @@ import { CCTV } from '../types/cctv';
 import { Favorite } from '../types/Favorite';
 import { fetchCCTVLocations, getUserFavorites, addFavorite, removeFavorite } from '../services/api';
 import Camera from '../components/Camera/Camera';
+import Dashboard from '../components/Dashboard/Dashboard';
 
 const FavoritePage: React.FC = () => {
   const { isLoggedIn } = useAuth();
@@ -94,31 +95,34 @@ const FavoritePage: React.FC = () => {
   const displayedFavorites = favorites.slice(0, 4);
 
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">즐겨찾기</h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {displayedFavorites.map((favorite) => {
-          const cctv = cctvLocations.find((loc) => loc.cctv_id === favorite.cctv_id);
-          if (!cctv) {
-            console.warn('FavoritePage: CCTV not found for cctv_id:', favorite.cctv_id);
-            return null;
-          }
-          return (
-            <Camera
-              key={favorite.cctv_id}
-              apiEndpoint={cctv.api_endpoint}
-              location={cctv.location}
-              cctv_id={cctv.cctv_id}
-              isFavorite={favorites.some((fav) => fav.cctv_id === cctv.cctv_id)}
-              onToggleFavorite={() => handleToggleFavorite(cctv.cctv_id, favorites.some((fav) => fav.cctv_id === cctv.cctv_id))}
-            />
-          );
-        })}
+    <>
+      <Dashboard />
+      <div className="p-4 pr-80">
+        <h1 className="text-2xl font-bold mb-4">즐겨찾기</h1>
+        <div className="grid grid-cols-2 gap-4">
+          {displayedFavorites.map((favorite) => {
+            const cctv = cctvLocations.find((loc) => loc.cctv_id === favorite.cctv_id);
+            if (!cctv) {
+              console.warn('FavoritePage: CCTV not found for cctv_id:', favorite.cctv_id);
+              return null;
+            }
+            return (
+              <Camera
+                key={favorite.cctv_id}
+                apiEndpoint={cctv.api_endpoint}
+                location={cctv.location}
+                cctv_id={cctv.cctv_id}
+                isFavorite={favorites.some((fav) => fav.cctv_id === cctv.cctv_id)}
+                onToggleFavorite={() => handleToggleFavorite(cctv.cctv_id, favorites.some((fav) => fav.cctv_id === cctv.cctv_id))}
+              />
+            );
+          })}
+        </div>
+        <div>
+          <p>표시된 즐겨찾기 수: {displayedFavorites.length}</p>
+        </div>
       </div>
-      <div>
-        <p>표시된 즐겨찾기 수: {displayedFavorites.length}</p>
-      </div>
-    </div>
+    </>
   );
 };
 

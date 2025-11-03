@@ -39,13 +39,8 @@ const Header: React.FC = () => {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-b from-black to-transparent px-6 py-4">
+    <header className="fixed top-0 left-64 right-0 z-50 bg-gradient-to-b from-black to-transparent px-6 py-4 rounded-bl-lg">
       <div className="container mx-auto flex items-center justify-between text-white">
-        {/* 좌측: 로고 (메인 페이지로 랜딩) */}
-        <Link to="/" className="flex items-center">
-          <img src="/logo.svg" alt="Logo" className="h-10 w-auto" />
-        </Link>
-
         {/* 중앙: 네비게이션 (대시보드, 지도, 딥러닝분석) */}
         <div className="hidden lg:flex absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
           <div className="flex items-center space-x-4">
@@ -69,7 +64,7 @@ const Header: React.FC = () => {
         </div>
 
         {/* 우측: 프로필/로그인 */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-4 ml-auto">
           {isLoggedIn ? (
             <>
               {/* 프로필/유저 메뉴 (계정관리, 로그아웃) */}

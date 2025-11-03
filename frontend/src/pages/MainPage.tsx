@@ -12,7 +12,7 @@ const MainPage: React.FC = () => {
       <div className="flex pt-16">
         <Sidebar />
         {/* 사이드바 너비(64)만큼 왼쪽 패딩 추가 */}
-        <main className="flex-grow ml-64 container mx-auto px-6 py-4">
+        <main className="flex-grow ml-64 container mx-auto px-6 py-4 mt-4">
           <Outlet />
         </main>
       </div>

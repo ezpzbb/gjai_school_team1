@@ -13,10 +13,17 @@ const Sidebar: React.FC = () => {
   ];
 
   return (
-    <aside className="fixed left-0 top-16 bottom-0 w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
+    <aside className="fixed left-0 top-0 bottom-0 w-64 bg-gray-800 border-r border-gray-700 flex flex-col rounded-r-lg">
+      {/* 최상단: 로고 */}
+      <div className="p-4 mb-2">
+        <Link to="/" className="flex items-center">
+          <img src="/logo.svg" alt="Logo" className="h-10 w-auto" />
+        </Link>
+      </div>
+
       {/* 네비게이션 메뉴 */}
       <nav className="flex-1 p-4">
-        <div className="flex flex-col space-y-2">
+        <div className="flex flex-col space-y-3">
           {navItems.map((item) => {
             const isActive =
               pathname === item.path || pathname.startsWith(item.path);
@@ -39,7 +46,7 @@ const Sidebar: React.FC = () => {
       </nav>
 
       {/* 하단 설정 버튼 */}
-      <div className="p-4 border-t border-gray-700">
+      <div className="p-4 border-t border-gray-700 mt-2">
         <Link
           to="/settings"
           className={`w-full px-4 py-3 rounded-lg transition flex items-center ${

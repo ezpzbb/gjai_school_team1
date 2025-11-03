@@ -1,13 +1,17 @@
 import React from 'react';
 import KakaoMap from '../components/KakaoMap';
+import Dashboard from '../components/Dashboard/Dashboard';
 
-const Home: React.FC = () => {
+const KakaoMapPage: React.FC = () => {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '20px' }}>
-      <h1>CCTV 지도</h1>
-      <KakaoMap />
-    </div>
+    <>
+      <Dashboard />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '20px', paddingRight: '340px' }}>
+        <h1>CCTV 지도</h1>
+        <KakaoMap />
+      </div>
+    </>
   );
 };
 
-export default Home;
+export default KakaoMapPage;
