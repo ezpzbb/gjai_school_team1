@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  publicDir: 'public', // public 폴더를 정적 파일 서빙용으로 명시
   server: {
     port: 5173,
     proxy: {

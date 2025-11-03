@@ -4,7 +4,8 @@ import { Server as SocketIOServer } from 'socket.io';
 import dotenv from 'dotenv';
 import { initializeApp } from './app';
 import { initializeDatabase, closeDatabase } from './config/db';
-import { startCctvScheduler, stopCctvScheduler } from './scheduler';
+import { startCctvScheduler, stopCctvScheduler, startEventScheduler, stopEventScheduler } from './scheduler';
+import { setupSocketHandlers } from './socket';
 
 dotenv.config();
 
@@ -26,24 +27,8 @@ async function start() {
       },
     });
 
-    // Socket.IO 설정
-    io.on('connection', (socket) => {
-      console.log(`클라이언트 연결됨: ${socket.id}`);
-
-      socket.on('join-room', (room: string) => {
-        socket.join(room);
-        console.log(`클라이언트 ${socket.id}가 방 ${room}에 입장했습니다.`);
-      });
-
-      socket.on('leave-room', (room: string) => {
-        socket.leave(room);
-        console.log(`클라이언트 ${socket.id}가 방 ${room}에서 퇴장했습니다.`);
-      });
-
-      socket.on('disconnect', () => {
-        console.log(`클라이언트 연결 해제됨: ${socket.id}`);
-      });
-    });
+    // Socket.IO 이벤트 핸들러 설정
+    setupSocketHandlers(io);
 
     // 서버 시작
     const PORT = process.env.PORT || 3002;
@@ -52,7 +37,9 @@ async function start() {
       console.log(`📍 환경: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🌐 CORS Origin: ${process.env.CORS_ORIGIN || 'http://localhost:5173'}`);
 
+      // 스케줄러 시작
       startCctvScheduler();
+      startEventScheduler();
     });
   } catch (error) {
     console.error('서버 시작 실패:', error);
@@ -64,12 +51,14 @@ async function start() {
 process.on('SIGTERM', async () => {
   console.log('서버 종료 중...');
   stopCctvScheduler();
+  stopEventScheduler();
   await closeDatabase();
   process.exit(0);
 });
 process.on('SIGINT', async () => {
   console.log('서버 종료 중...');
   stopCctvScheduler();
+  stopEventScheduler();
   await closeDatabase();
   process.exit(0);
 });

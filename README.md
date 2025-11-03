@@ -35,10 +35,10 @@ AI 모델을 활용한 실시간 차량 탐지 및 관리 시스템입니다.
 ## 프로젝트 구조
 
 ```
-gjai_school_team1/
+.
 ├── frontend/          # React 프론트엔드
 ├── backend/           # Node.js 백엔드
-├── shared/            # 공통 타입 및 유틸리티
+├── public/            # 정적 파일 (아이콘 등)
 ├── docs/              # 문서
 └── README.md
 ```
