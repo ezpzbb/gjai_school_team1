@@ -2,15 +2,20 @@
 import React from "react";
 import { Outlet } from "react-router-dom";
 import Header from "../components/Layout/Header";
+import Sidebar from "../components/Layout/Sidebar";
 
 const MainPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col relative">
       <Header />
-      {/* 헤더 높이에 맞춘 패딩, fixed 헤더를 고려해 pt-16으로 설정 */}
-      <main className="pt-16 container mx-auto flex-grow">
-        <Outlet />
-      </main>
+      {/* 사이드바와 메인 콘텐츠 영역 */}
+      <div className="flex pt-16">
+        <Sidebar />
+        {/* 사이드바 너비(64)만큼 왼쪽 패딩 추가 */}
+        <main className="flex-grow ml-64 container mx-auto px-6 py-4">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 };
