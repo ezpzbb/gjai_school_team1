@@ -6,6 +6,7 @@ import LoginForm from './components/LoginForm';
 import Home from './pages/Home';
 import FavoritePage from './pages/FavoritePage';
 import KakaoMapPage from './pages/KakaoMapPage';
+import DashBoardPage from './pages/DashBoardPage';
 
 const App: React.FC = () => {
   const { isLoggedIn, isLoading } = useAuth();
@@ -27,6 +28,10 @@ const App: React.FC = () => {
         <Route
           path="/home"
           element={isLoggedIn ? <Home /> : <Navigate to="/auth/login" />}
+        />
+        <Route
+          path="/dashboard"
+          element={isLoggedIn ? <DashBoardPage /> : <Navigate to="/auth/login" />}
         />
         <Route
           path="/kakao-map"

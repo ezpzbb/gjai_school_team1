@@ -19,4 +19,13 @@ export class CCTVService {
       throw new Error(`Service error: ${(error as Error).message}`);
     }
   }
+
+  async searchCCTVLocations(keyword: string): Promise<CCTV[]> {
+    try {
+      const cctvLocations = await this.cctvTransaction.searchCCTVLocations(keyword);
+      return cctvLocations;
+    } catch (error) {
+      throw new Error(`Service error: ${(error as Error).message}`);
+    }
+  }
 }

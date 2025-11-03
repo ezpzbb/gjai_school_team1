@@ -30,4 +30,39 @@ export class CCTVTransaction {
       throw new Error(`Failed to fetch CCTV locations: ${error.message}`);
     }
   }
+
+  async searchCCTVLocations(keyword: string): Promise<CCTV[]> {
+    try {
+      if (!keyword || keyword.trim() === '') {
+        return [];
+      }
+      
+      const searchKeyword = `%${keyword.trim()}%`;
+      const startsWithKeyword = `${keyword.trim()}%`;
+      const query = cctvQueries.searchCCTVLocations(keyword);
+      
+      console.log('CCTVTransaction: Searching CCTV with keyword:', keyword);
+      console.log('CCTVTransaction: Executing search query:', query);
+      
+      const [rows] = await this.dbPool.query(query, [
+        searchKeyword,      // LIKE '%keyword%'
+        startsWithKeyword,  // ORDER BY - starts with keyword (priority 1)
+        searchKeyword,      // ORDER BY - contains keyword (priority 2)
+      ]);
+      
+      console.log('CCTVTransaction: Search result:', rows);
+      const cctvLocations = rows as CCTV[];
+      return cctvLocations;
+    } catch (error: any) {
+      console.error('CCTVTransaction: Search query error:', {
+        message: error.message,
+        code: error.code,
+        errno: error.errno,
+        sql: error.sql,
+        sqlState: error.sqlState,
+        sqlMessage: error.sqlMessage,
+      });
+      throw new Error(`Failed to search CCTV locations: ${error.message}`);
+    }
+  }
 }

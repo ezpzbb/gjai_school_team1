@@ -1,10 +1,10 @@
 /// <reference types="vite/client" />
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import { CCTV } from '../types/cctv';
 import { Favorite } from '../types/Favorite';
 import { EventItem } from '../types/event';
-import { fetchCCTVLocations, getUserFavorites, addFavorite, removeFavorite } from '../services/api';
+import { fetchCCTVLocations, getUserFavorites, addFavorite, removeFavorite, searchCCTVLocations } from '../services/api';
 import { socketService } from '../services/socket';
 import Camera from './Camera/Camera';
 
@@ -57,6 +57,16 @@ const KakaoMap: React.FC = () => {
   const markersRef = useRef<any[]>([]);
   const eventMarkersRef = useRef<any[]>([]);
   const KAKAO_API_KEY = import.meta.env.VITE_KAKAO_API_KEY as string;
+  
+  // 검색 자동완성 관련 상태
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [suggestions, setSuggestions] = useState<CCTV[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
+  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+  const [isSearching, setIsSearching] = useState<boolean>(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const toggleFavorite = async (cctv_id: number) => {
     if (isToggling !== null) {
@@ -597,6 +607,189 @@ const KakaoMap: React.FC = () => {
     return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
   };
 
+  // 검색어로 자동완성 제안 가져오기
+  const fetchSuggestions = useCallback(async (query: string) => {
+    if (!query || query.trim().length < 1) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    try {
+      setIsSearching(true);
+      const results = await searchCCTVLocations(query);
+      setSuggestions(results);
+      setShowSuggestions(results.length > 0);
+      setSelectedIndex(-1);
+    } catch (error: any) {
+      console.error('KakaoMap: Error fetching suggestions:', error);
+      setSuggestions([]);
+      setShowSuggestions(false);
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  // 검색어 변경 시 debounce 적용
+  useEffect(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      fetchSuggestions(searchQuery);
+    }, 300); // 300ms debounce
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [searchQuery, fetchSuggestions]);
+
+  // 선택한 CCTV로 지도 이동 및 마커 하이라이트
+  const selectCCTV = useCallback((cctv: CCTV) => {
+    if (!window.kakao || !window.kakao.maps || !mapInstance.current) {
+      return;
+    }
+
+    const position = new window.kakao.maps.LatLng(cctv.latitude, cctv.longitude);
+    
+    // 지도 중심 이동
+    mapInstance.current.setCenter(position);
+    mapInstance.current.setLevel(3); // 확대
+
+    // 해당 마커 찾아서 클릭 이벤트 트리거
+    const marker = markersRef.current.find((m: any) => {
+      const markerPos = m.getPosition();
+      return markerPos.getLat() === cctv.latitude && markerPos.getLng() === cctv.longitude;
+    });
+
+    if (marker) {
+      // 마커 클릭 이벤트 시뮬레이션
+      const clickEvent = new MouseEvent('click', { bubbles: true });
+      // 카카오맵 API의 이벤트 트리거는 직접 호출 불가능하므로
+      // 마커의 위치를 기준으로 오버레이 표시
+      if (overlayRef.current) {
+        overlayRef.current.setMap(null);
+        overlayRef.current = null;
+      }
+
+      const container = document.createElement('div');
+      container.style.position = 'absolute';
+      container.style.zIndex = '10';
+      container.style.background = '#f8f8f8';
+      container.style.border = '2px solid #333';
+      container.style.borderRadius = '8px';
+      container.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+      container.style.width = '400px';
+      container.style.height = '300px';
+      container.style.padding = '5px';
+
+      const root = createRoot(container);
+      root.render(
+        <Camera
+          apiEndpoint={cctv.api_endpoint}
+          location={cctv.location}
+          cctv_id={cctv.cctv_id}
+          isPopup
+          isFavorite={favorites.some((fav) => fav.cctv_id === cctv.cctv_id)}
+          onToggleFavorite={() => toggleFavorite(cctv.cctv_id)}
+          onClose={() => {
+            if (overlayRef.current) {
+              overlayRef.current.setMap(null);
+              overlayRef.current = null;
+            }
+          }}
+        />
+      );
+
+      const overlay = new window.kakao.maps.CustomOverlay({
+        position: position,
+        content: container,
+        xAnchor: -0.5,
+        yAnchor: 0.5,
+        map: mapInstance.current,
+      });
+
+      overlayRef.current = overlay;
+    }
+
+    // 검색창 닫기
+    setShowSuggestions(false);
+    setSearchQuery('');
+  }, [favorites]);
+
+  // 키보드 네비게이션 처리
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showSuggestions || suggestions.length === 0) {
+      return;
+    }
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedIndex((prev) => 
+          prev < suggestions.length - 1 ? prev + 1 : prev
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedIndex((prev) => (prev > 0 ? prev - 1 : -1));
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
+          selectCCTV(suggestions[selectedIndex]);
+        } else if (suggestions.length > 0) {
+          selectCCTV(suggestions[0]);
+        }
+        break;
+      case 'Escape':
+        setShowSuggestions(false);
+        setSearchQuery('');
+        searchInputRef.current?.blur();
+        break;
+    }
+  }, [showSuggestions, suggestions, selectedIndex, selectCCTV]);
+
+  // 외부 클릭 시 드롭다운 닫기
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        searchInputRef.current &&
+        !searchInputRef.current.contains(event.target as Node) &&
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(event.target as Node)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // 검색어 하이라이트 함수
+  const highlightText = (text: string, query: string): React.ReactNode => {
+    if (!query || query.trim() === '') {
+      return text;
+    }
+
+    const parts = text.split(new RegExp(`(${query})`, 'gi'));
+    return parts.map((part, index) =>
+      part.toLowerCase() === query.toLowerCase() ? (
+        <mark key={index} className="bg-yellow-300 text-gray-900">
+          {part}
+        </mark>
+      ) : (
+        part
+      )
+    );
+  };
+
   if (error) {
     return (
       <div className="text-red-500 text-center p-4">
@@ -613,6 +806,66 @@ const KakaoMap: React.FC = () => {
 
   return (
     <div className="w-full h-full relative overflow-hidden">
+      {/* 검색 입력창 */}
+      <div className="absolute top-4 left-4 z-50 w-96">
+        <div className="relative">
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onFocus={() => {
+              if (suggestions.length > 0) {
+                setShowSuggestions(true);
+              }
+            }}
+            placeholder="CCTV 위치 검색 (예: 호남지선)"
+            className="w-full px-4 py-3 pr-10 text-gray-900 bg-white rounded-lg shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-300"
+          />
+          {isSearching && (
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+            </div>
+          )}
+          
+          {/* 자동완성 드롭다운 */}
+          {showSuggestions && suggestions.length > 0 && (
+            <div
+              ref={suggestionsRef}
+              className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-xl border border-gray-200 max-h-80 overflow-y-auto z-50"
+            >
+              {suggestions.map((cctv, index) => (
+                <div
+                  key={cctv.cctv_id}
+                  onClick={() => selectCCTV(cctv)}
+                  className={`px-4 py-3 cursor-pointer hover:bg-blue-50 transition-colors ${
+                    index === selectedIndex ? 'bg-blue-100' : ''
+                  } ${index !== suggestions.length - 1 ? 'border-b border-gray-100' : ''}`}
+                >
+                  <div className="font-medium text-gray-900">
+                    {highlightText(cctv.location, searchQuery)}
+                  </div>
+                  <div className="text-sm text-gray-500 mt-1">
+                    📍 {cctv.latitude.toFixed(6)}, {cctv.longitude.toFixed(6)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {/* 검색 결과 없음 */}
+          {showSuggestions && suggestions.length === 0 && searchQuery.trim().length > 0 && !isSearching && (
+            <div
+              ref={suggestionsRef}
+              className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-xl border border-gray-200 p-4 z-50"
+            >
+              <div className="text-gray-500 text-center">검색 결과가 없습니다.</div>
+            </div>
+          )}
+        </div>
+      </div>
+
       <div 
         ref={mapRef} 
         className="w-full h-full rounded-lg" 

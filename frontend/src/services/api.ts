@@ -128,3 +128,33 @@ export const removeFavorite = async (cctv_id: number): Promise<void> => {
   delete cache['user_favorites'];
   console.log('removeFavorite: Cache invalidated for user_favorites');
 };
+
+export const searchCCTVLocations = async (query: string): Promise<CCTV[]> => {
+  if (!query || query.trim() === '') {
+    return [];
+  }
+
+  try {
+    console.log('searchCCTVLocations: Searching with query:', query);
+    const response = await fetch(`/api/cctv/search?q=${encodeURIComponent(query)}`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    if (!result.success || !Array.isArray(result.data)) {
+      throw new Error('Search response is invalid');
+    }
+    
+    console.log('searchCCTVLocations: Search results:', result.data);
+    return result.data;
+  } catch (error: any) {
+    console.error('searchCCTVLocations: Error searching:', error);
+    throw error;
+  }
+};

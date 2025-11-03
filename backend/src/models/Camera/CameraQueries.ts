@@ -5,4 +5,17 @@ export const cctvQueries = {
     SELECT cctv_id, location, latitude, longitude, api_endpoint
     FROM CCTV
   `,
+  searchCCTVLocations: (keyword: string): string => `
+    SELECT cctv_id, location, latitude, longitude, api_endpoint
+    FROM CCTV
+    WHERE location LIKE ?
+    ORDER BY 
+      CASE 
+        WHEN location LIKE ? THEN 1
+        WHEN location LIKE ? THEN 2
+        ELSE 3
+      END,
+      location ASC
+    LIMIT 10
+  `,
 };

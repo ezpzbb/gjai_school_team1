@@ -31,5 +31,39 @@ export const setupCCTVRoutes = (dbPool: Pool): Router => {
     }
   });
 
+  router.get('/cctv/search', async (req: Request, res: Response) => {
+    try {
+      const query = req.query.q as string;
+      console.log('CCTVRoutes: Handling /api/cctv/search request', {
+        method: req.method,
+        url: req.originalUrl,
+        query: query,
+      });
+
+      if (!query || query.trim() === '') {
+        return res.status(200).json({
+          success: true,
+          data: [],
+        });
+      }
+
+      const cctvLocations = await cctvService.searchCCTVLocations(query);
+      console.log('CCTVRoutes: CCTV search results:', cctvLocations);
+      res.status(200).json({
+        success: true,
+        data: cctvLocations,
+      });
+    } catch (error: any) {
+      console.error('CCTVRoutes: Error in /api/cctv/search:', {
+        message: error.message,
+        stack: error.stack,
+      });
+      res.status(500).json({
+        success: false,
+        message: `Failed to search CCTV locations: ${error.message}`,
+      });
+    }
+  });
+
   return router;
 };
