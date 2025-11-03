@@ -17,7 +17,8 @@ const Sidebar: React.FC = () => {
       {/* 최상단: 로고 */}
       <div className="p-4 mb-2">
         <Link to="/" className="flex items-center">
-          <img src="/logo.svg" alt="Logo" className="h-10 w-auto" />
+          
+          <span className="text-white text-2xl font-bold">흑염룡CCTV</span>
         </Link>
       </div>
 
