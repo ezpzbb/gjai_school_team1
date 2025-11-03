@@ -206,6 +206,10 @@ const KakaoMap: React.FC = () => {
 
     return () => {
       console.log('KakaoMap: Component unmounted');
+      // 리사이즈 핸들러 제거
+      if (mapInstance.current && (mapInstance.current as any).__resizeHandler) {
+        window.removeEventListener('resize', (mapInstance.current as any).__resizeHandler);
+      }
       markersRef.current.forEach((marker) => marker.setMap(null));
       markersRef.current = [];
       eventMarkersRef.current.forEach((marker) => marker.setMap(null));
@@ -270,6 +274,27 @@ const KakaoMap: React.FC = () => {
       } else {
         console.warn('KakaoMap: No CCTV locations available for markers');
       }
+      
+      // 지도 크기 조정을 위한 리사이즈 핸들러
+      const handleResize = () => {
+        if (mapInstance.current) {
+          setTimeout(() => {
+            mapInstance.current.relayout();
+          }, 100);
+        }
+      };
+      
+      window.addEventListener('resize', handleResize);
+      
+      // 초기화 직후에도 relayout 호출 (DOM이 완전히 렌더링된 후)
+      setTimeout(() => {
+        if (mapInstance.current) {
+          mapInstance.current.relayout();
+        }
+      }, 300);
+      
+      // cleanup function을 위해 저장
+      (mapInstance.current as any).__resizeHandler = handleResize;
     } catch (error) {
       console.error('KakaoMap: Failed to initialize Kakao Map:', error);
       setError('지도 초기화 중 오류가 발생했습니다.');
@@ -587,10 +612,18 @@ const KakaoMap: React.FC = () => {
   }
 
   return (
-    <div>
-      <div ref={mapRef} style={{ width: '100%', height: '600px', border: '1px solid #ccc' }} />
+    <div className="w-full h-full relative overflow-hidden">
+      <div 
+        ref={mapRef} 
+        className="w-full h-full rounded-lg" 
+        style={{ 
+          border: '1px solid #ccc',
+          minHeight: '100%',
+          minWidth: '100%'
+        }} 
+      />
       {cctvLocations.length === 0 && !error && (
-        <div className="text-center p-4">CCTV 데이터를 불러오는 중입니다...</div>
+        <div className="absolute inset-0 flex items-center justify-center text-center p-4">CCTV 데이터를 불러오는 중입니다...</div>
       )}
     </div>
   );

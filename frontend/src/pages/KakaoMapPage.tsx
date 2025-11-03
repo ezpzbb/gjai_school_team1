@@ -6,8 +6,7 @@ const KakaoMapPage: React.FC = () => {
   return (
     <>
       <Dashboard />
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '20px', paddingRight: '340px' }}>
-        <h1>CCTV 지도</h1>
+      <div className="fixed left-64 right-[calc(20rem+0.5rem)] top-16 bottom-0 p-4">
         <KakaoMap />
       </div>
     </>

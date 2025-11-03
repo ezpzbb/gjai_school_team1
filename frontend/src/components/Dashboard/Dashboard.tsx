@@ -103,7 +103,7 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className="fixed top-16 right-0 w-80 h-[calc(100vh-4rem)] overflow-y-auto bg-gray-800 border-l border-gray-700 p-4 z-40 rounded-l-lg">
+    <div className="fixed top-16 right-0.5 w-80 h-[calc(100vh-4rem)] overflow-y-auto bg-gray-800 border-l border-gray-700 p-4 z-40 rounded-l-lg">
       {/* 즐겨찾기 섹션 */}
       {favoriteCCTVs.length > 0 && (
         <>

@@ -5,7 +5,7 @@ import MainPage from './pages/MainPage';
 import LoginForm from './components/LoginForm';
 import Home from './pages/Home';
 import FavoritePage from './pages/FavoritePage';
-import KakaoMap from './components/KakaoMap';
+import KakaoMapPage from './pages/KakaoMapPage';
 
 const App: React.FC = () => {
   const { isLoggedIn, isLoading } = useAuth();
@@ -30,7 +30,7 @@ const App: React.FC = () => {
         />
         <Route
           path="/kakao-map"
-          element={isLoggedIn ? <KakaoMap /> : <Navigate to="/auth/login" />}
+          element={isLoggedIn ? <KakaoMapPage /> : <Navigate to="/auth/login" />}
         />
         <Route
           path="/favorite"
