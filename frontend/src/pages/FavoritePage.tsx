@@ -74,15 +74,15 @@ const FavoritePage: React.FC = () => {
   };
 
   if (!isLoggedIn) {
-    return <div className="text-center p-4">로그인이 필요합니다.</div>;
+    return <div className="text-center p-4 text-gray-700">로그인이 필요합니다.</div>;
   }
 
   if (error) {
     return (
-      <div className="text-red-500 text-center p-4">
+      <div className="text-red-600 text-center p-4">
         {error}
         <button
-          className="mt-4 bg-blue-500 text-white px-4 py-2 rounded"
+          className="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
           onClick={() => fetchFavorites()}
         >
           재시도
@@ -98,7 +98,7 @@ const FavoritePage: React.FC = () => {
     <>
       <Dashboard />
       <div className="p-4 pr-80">
-        <h1 className="text-2xl font-bold mb-4">즐겨찾기</h1>
+        <h1 className="text-2xl font-bold mb-4 text-gray-900">즐겨찾기</h1>
         <div className="grid grid-cols-2 gap-4">
           {displayedFavorites.map((favorite) => {
             const cctv = cctvLocations.find((loc) => loc.cctv_id === favorite.cctv_id);
@@ -118,8 +118,8 @@ const FavoritePage: React.FC = () => {
             );
           })}
         </div>
-        <div>
-          <p>표시된 즐겨찾기 수: {displayedFavorites.length}</p>
+        <div className="mt-4">
+          <p className="text-gray-600">표시된 즐겨찾기 수: {displayedFavorites.length}</p>
         </div>
       </div>
     </>

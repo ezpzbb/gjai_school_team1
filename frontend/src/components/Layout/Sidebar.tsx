@@ -13,12 +13,12 @@ const Sidebar: React.FC = () => {
   ];
 
   return (
-    <aside className="fixed left-0 top-0 bottom-0 w-64 bg-gray-800 border-r border-gray-700 flex flex-col rounded-r-lg">
+    <aside className="fixed left-0 top-0 bottom-0 w-64 bg-white border-r border-gray-200 flex flex-col rounded-r-lg shadow-sm">
       {/* 최상단: 로고 */}
       <div className="p-4 mb-2">
         <Link to="/" className="flex items-center">
           
-          <span className="text-white text-2xl font-bold">흑염룡CCTV</span>
+          <span className="text-gray-900 text-2xl font-bold">흑염룡CCTV</span>
         </Link>
       </div>
 
@@ -35,8 +35,8 @@ const Sidebar: React.FC = () => {
                 to={item.path}
                 className={`px-4 py-3 rounded-lg transition flex items-center ${
                   isActive
-                    ? "bg-blue-600 text-white"
-                    : "text-gray-300 hover:bg-gray-700 hover:text-white"
+                    ? "bg-blue-600 text-white font-semibold"
+                    : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
                 }`}
               >
                 <span>{item.label}</span>
@@ -47,13 +47,13 @@ const Sidebar: React.FC = () => {
       </nav>
 
       {/* 하단 설정 버튼 */}
-      <div className="p-4 border-t border-gray-700 mt-2">
+      <div className="p-4 border-t border-gray-200 mt-2">
         <Link
           to="/settings"
           className={`w-full px-4 py-3 rounded-lg transition flex items-center ${
             pathname === "/settings"
-              ? "bg-blue-600 text-white"
-              : "text-gray-300 hover:bg-gray-700 hover:text-white"
+              ? "bg-blue-600 text-white font-semibold"
+              : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
           }`}
         >
           <span>설정</span>

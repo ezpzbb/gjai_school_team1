@@ -39,8 +39,8 @@ const Header: React.FC = () => {
   };
 
   return (
-    <header className="fixed top-0 left-64 right-0 z-50 bg-gradient-to-b from-black to-transparent px-6 py-4 rounded-bl-lg">
-      <div className="container mx-auto flex items-center justify-between text-white">
+    <header className="fixed top-0 left-64 right-0 z-50 bg-white border-b border-gray-200 px-6 py-4 rounded-bl-lg shadow-sm">
+      <div className="container mx-auto flex items-center justify-between text-gray-900">
         {/* 중앙: 네비게이션 (대시보드, 지도, 딥러닝분석) */}
         <div className="hidden lg:flex absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
           <div className="flex items-center space-x-4">
@@ -53,7 +53,7 @@ const Header: React.FC = () => {
                   key={item.key}
                   to={item.path}
                   className={`px-4 py-1 whitespace-nowrap rounded-full transition ${
-                    isActive ? "text-blue-500" : "text-gray-300 hover:bg-white/30 hover:text-white"
+                    isActive ? "text-blue-600 font-semibold" : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                   }`}
                 >
                   {item.label}
@@ -71,18 +71,18 @@ const Header: React.FC = () => {
               <div className="relative" ref={menuRef}>
                 <button
                   onClick={handleMenuClick}
-                  className="p-2 hover:bg-white/30 rounded-full transition"
+                  className="p-2 hover:bg-gray-100 rounded-full transition"
                 >
                   <Icons name="user" className="w-8 h-8" />
                 </button>
                 {menuOpen && (
-                  <div className="absolute right-0 mt-2 w-44 bg-white text-black rounded shadow-lg overflow-hidden z-50">
-                    <div className="px-4 py-2 border-b border-gray-200 font-semibold truncate">
+                  <div className="absolute right-0 mt-2 w-44 bg-white text-gray-900 rounded-lg shadow-lg border border-gray-200 overflow-hidden z-50">
+                    <div className="px-4 py-2 border-b border-gray-200 font-semibold truncate bg-gray-50">
                       {user?.username || "사용자"}
                     </div>
                     <Link
                       to="/settings" // 계정 관리 페이지로 이동
-                      className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                      className="block w-full text-left px-4 py-2 hover:bg-gray-100 transition"
                       onClick={() => setMenuOpen(false)}
                     >
                       계정관리
@@ -92,7 +92,7 @@ const Header: React.FC = () => {
                         logout();
                         setMenuOpen(false);
                       }}
-                      className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                      className="block w-full text-left px-4 py-2 hover:bg-gray-100 transition"
                     >
                       로그아웃
                     </button>
@@ -103,7 +103,7 @@ const Header: React.FC = () => {
           ) : (
             /* 로그인 버튼 */
             <Link to="/auth/login">
-              <button className="p-2 hover:bg-white/30 rounded-full transition flex items-center space-x-2 px-4">
+              <button className="p-2 hover:bg-gray-100 rounded-full transition flex items-center space-x-2 px-4 text-gray-700 hover:text-gray-900">
                 <span className="hidden sm:inline">로그인</span>
               </button>
             </Link>

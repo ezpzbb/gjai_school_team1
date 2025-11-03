@@ -98,19 +98,15 @@ const Dashboard: React.FC = () => {
       .slice(0, 6);
   }, [events]);
 
-  if (favoriteCCTVs.length === 0 && recentEvents.length === 0) {
-    return null;
-  }
-
   return (
-    <div className="fixed top-16 right-0.5 w-80 h-[calc(100vh-4rem)] overflow-y-auto bg-gray-800 border-l border-gray-700 p-4 z-40 rounded-l-lg">
+    <div className="fixed top-16 right-0.5 w-80 h-[calc(100vh-4rem)] overflow-y-auto bg-white border-l border-gray-200 p-4 z-40 rounded-l-lg shadow-sm">
       {/* 즐겨찾기 섹션 */}
       {favoriteCCTVs.length > 0 && (
         <>
-          <h2 className="text-xl font-bold mb-4 text-white">즐겨찾기</h2>
+          <h2 className="text-xl font-bold mb-4 text-gray-900">즐겨찾기</h2>
           <div className="flex flex-col gap-2 mb-6">
             {favoriteCCTVs.map(({ favorite, cctv }) => (
-              <div key={favorite.cctv_id} className="text-white">
+              <div key={favorite.cctv_id} className="text-gray-900 bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition">
                 <span className="text-sm">{cctv.location}</span>
               </div>
             ))}
@@ -121,25 +117,33 @@ const Dashboard: React.FC = () => {
       {/* 최신 이벤트 섹션 */}
       {recentEvents.length > 0 && (
         <>
-          <h2 className="text-xl font-bold mb-4 text-white">최신 이벤트</h2>
+          <h2 className="text-xl font-bold mb-4 text-gray-900">최신 이벤트</h2>
           <div className="flex flex-col gap-3">
             {recentEvents.map((event) => (
               <div
                 key={event.id}
-                className="bg-gray-700 rounded-lg p-3 text-white"
+                className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-gray-900 hover:bg-gray-100 transition"
               >
-                <div className="text-sm font-semibold mb-1">{event.roadName}</div>
-                <div className="text-xs text-gray-300 mb-1">
+                <div className="text-sm font-semibold mb-1 text-gray-900">{event.roadName}</div>
+                <div className="text-xs text-gray-600 mb-1">
                   {event.type} / {event.eventType}
                 </div>
-                <div className="text-xs mb-2">{event.message}</div>
-                <div className="text-xs text-gray-400">
+                <div className="text-xs mb-2 text-gray-700">{event.message}</div>
+                <div className="text-xs text-gray-500">
                   {formatEventDate(event.startDate)}
                 </div>
               </div>
             ))}
           </div>
         </>
+      )}
+      
+      {/* 데이터 없음 메시지 */}
+      {favoriteCCTVs.length === 0 && recentEvents.length === 0 && (
+        <div className="text-gray-500 text-center py-8">
+          <p className="mb-2">즐겨찾기가 없습니다.</p>
+          <p>이벤트가 없습니다.</p>
+        </div>
       )}
     </div>
   );

@@ -792,10 +792,10 @@ const KakaoMap: React.FC = () => {
 
   if (error) {
     return (
-      <div className="text-red-500 text-center p-4">
+      <div className="text-red-600 text-center p-4 bg-white rounded-lg shadow">
         {error}
         <button
-          className="mt-4 bg-blue-500 text-white px-4 py-2 rounded"
+          className="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
           onClick={() => loadData()}
         >
           재시도
