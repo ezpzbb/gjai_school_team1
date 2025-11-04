@@ -7,6 +7,7 @@ import { EventItem } from '../types/event';
 import { fetchCCTVLocations, getUserFavorites, addFavorite, removeFavorite, searchCCTVLocations } from '../services/api';
 import { socketService } from '../services/socket';
 import Camera from './Camera/Camera';
+import { useMap } from '../providers/MapProvider';
 
 interface KakaoMap {
   LatLng: new (lat: number, lng: number) => any;
@@ -55,9 +56,11 @@ const KakaoMap: React.FC = () => {
   const [isToggling, setIsToggling] = useState<number | null>(null); // 클릭 중인 cctv_id
   const [isMapInitialized, setIsMapInitialized] = useState<boolean>(false); // 지도 초기화 상태 추가
   const overlayRef = useRef<any>(null);
+  const eventInfoWindowRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const eventMarkersRef = useRef<any[]>([]);
   const KAKAO_API_KEY = import.meta.env.VITE_KAKAO_API_KEY as string;
+  const { registerSelectCCTV, registerSelectEvent } = useMap();
   
   // 검색 자동완성 관련 상태
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -360,9 +363,14 @@ const KakaoMap: React.FC = () => {
       markersRef.current.push(marker);
 
       window.kakao.maps.event.addListener(marker, 'click', () => {
+        // 기존 모든 오버레이 및 InfoWindow 닫기
         if (overlayRef.current) {
           overlayRef.current.setMap(null);
           overlayRef.current = null;
+        }
+        if (eventInfoWindowRef.current) {
+          eventInfoWindowRef.current.close();
+          eventInfoWindowRef.current = null;
         }
 
         const container = document.createElement('div');
@@ -519,8 +527,17 @@ const KakaoMap: React.FC = () => {
       marker.setMap(mapInstance.current);
       eventMarkersRef.current.push(marker);
 
-      // 이벤트 마커 클릭 시 정보창 표시
-      window.kakao.maps.event.addListener(marker, 'click', () => {
+             // 이벤트 마커 클릭 시 정보창 표시
+       window.kakao.maps.event.addListener(marker, 'click', () => {
+         // 기존 모든 오버레이 및 InfoWindow 닫기
+         if (overlayRef.current) {
+           overlayRef.current.setMap(null);
+           overlayRef.current = null;
+         }
+         if (eventInfoWindowRef.current) {
+           eventInfoWindowRef.current.close();
+           eventInfoWindowRef.current = null;
+         }
         // 이벤트 타입 한글 변환
         const getEventTypeName = (eventType: string): string => {
           if (eventType === 'cor' || eventType === '공사') return '공사';
@@ -673,76 +690,250 @@ const KakaoMap: React.FC = () => {
     };
   }, [searchQuery, fetchSuggestions]);
 
-  // 선택한 CCTV로 지도 이동 및 마커 하이라이트
-  const selectCCTV = useCallback((cctv: CCTV) => {
+  // 모든 오버레이 및 InfoWindow 닫기 함수
+  const closeAllOverlays = useCallback(() => {
+    if (overlayRef.current) {
+      overlayRef.current.setMap(null);
+      overlayRef.current = null;
+    }
+    if (eventInfoWindowRef.current) {
+      eventInfoWindowRef.current.close();
+      eventInfoWindowRef.current = null;
+    }
+  }, []);
+
+  // CCTV 오버레이 생성 및 표시 공통 함수
+  const showCCTVOverlay = useCallback((cctv: CCTV, position: any) => {
     if (!window.kakao || !window.kakao.maps || !mapInstance.current) {
+      console.warn('KakaoMap: Cannot show CCTV overlay - map not initialized');
       return;
     }
+
+    // 기존 오버레이가 있으면 제거
+    if (overlayRef.current) {
+      overlayRef.current.setMap(null);
+      overlayRef.current = null;
+    }
+
+    const container = document.createElement('div');
+    container.style.position = 'absolute';
+    container.style.zIndex = '10';
+    container.style.background = 'rgba(255, 255, 255, 0.01)';
+    container.style.backdropFilter = 'blur(25px)';
+    container.style.setProperty('-webkit-backdrop-filter', 'blur(25px)');
+    container.style.border = '1px solid rgba(255, 255, 255, 0.08)';
+    container.style.borderRadius = '8px';
+    container.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+    container.style.width = '400px';
+    container.style.height = '300px';
+    container.style.padding = '5px';
+
+    const root = createRoot(container);
+    root.render(
+      <Camera
+        apiEndpoint={cctv.api_endpoint}
+        location={cctv.location}
+        cctv_id={cctv.cctv_id}
+        isPopup
+        isFavorite={favorites.some((fav) => fav.cctv_id === cctv.cctv_id)}
+        onToggleFavorite={() => toggleFavorite(cctv.cctv_id)}
+        onClose={closeAllOverlays}
+      />
+    );
+
+    const overlay = new window.kakao.maps.CustomOverlay({
+      position: position,
+      content: container,
+      xAnchor: -0.5,
+      yAnchor: 0.5,
+      map: mapInstance.current,
+    });
+
+    overlayRef.current = overlay;
+    console.log('KakaoMap: CCTV overlay displayed for:', cctv.location, 'at', position);
+  }, [favorites, toggleFavorite, closeAllOverlays]);
+
+  // 선택한 CCTV로 지도 이동 및 오버레이 표시
+  const selectCCTV = useCallback((cctv: CCTV) => {
+    if (!window.kakao || !window.kakao.maps || !mapInstance.current) {
+      console.warn('KakaoMap: Cannot select CCTV - map not initialized');
+      return;
+    }
+
+    console.log('KakaoMap: Selecting CCTV:', cctv.location, cctv.cctv_id);
+
+    // 기존 모든 오버레이 및 InfoWindow 닫기
+    closeAllOverlays();
 
     const position = new window.kakao.maps.LatLng(cctv.latitude, cctv.longitude);
     
     // 지도 중심 이동
     mapInstance.current.setCenter(position);
-    mapInstance.current.setLevel(3); // 확대
+    mapInstance.current.setLevel(3);
 
-    // 해당 마커 찾아서 클릭 이벤트 트리거
-    const marker = markersRef.current.find((m: any) => {
-      const markerPos = m.getPosition();
-      return markerPos.getLat() === cctv.latitude && markerPos.getLng() === cctv.longitude;
-    });
-
-    if (marker) {
-      // 카카오맵 API의 이벤트 트리거는 직접 호출 불가능하므로
-      // 마커의 위치를 기준으로 오버레이 표시
-      if (overlayRef.current) {
-        overlayRef.current.setMap(null);
-        overlayRef.current = null;
+    // 지도 이동 완료 후 오버레이 표시 (타임아웃 사용 - 더 안정적)
+    // 지도 이동 애니메이션이 완료될 때까지 대기
+    setTimeout(() => {
+      if (mapInstance.current) {
+        showCCTVOverlay(cctv, position);
       }
-
-      const container = document.createElement('div');
-      container.style.position = 'absolute';
-      container.style.zIndex = '10';
-      container.style.background = '#f8f8f8';
-      container.style.border = '2px solid #333';
-      container.style.borderRadius = '8px';
-      container.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
-      container.style.width = '400px';
-      container.style.height = '300px';
-      container.style.padding = '5px';
-
-      const root = createRoot(container);
-      root.render(
-        <Camera
-          apiEndpoint={cctv.api_endpoint}
-          location={cctv.location}
-          cctv_id={cctv.cctv_id}
-          isPopup
-          isFavorite={favorites.some((fav) => fav.cctv_id === cctv.cctv_id)}
-          onToggleFavorite={() => toggleFavorite(cctv.cctv_id)}
-          onClose={() => {
-            if (overlayRef.current) {
-              overlayRef.current.setMap(null);
-              overlayRef.current = null;
-            }
-          }}
-        />
-      );
-
-      const overlay = new window.kakao.maps.CustomOverlay({
-        position: position,
-        content: container,
-        xAnchor: -0.5,
-        yAnchor: 0.5,
-        map: mapInstance.current,
-      });
-
-      overlayRef.current = overlay;
-    }
+    }, 300);
 
     // 검색창 닫기
     setShowSuggestions(false);
     setSearchQuery('');
-  }, [favorites]);
+  }, [closeAllOverlays, showCCTVOverlay]);
+
+  // 이벤트 InfoWindow 생성 및 표시 공통 함수
+  const showEventInfoWindow = useCallback((event: EventItem, position: any, marker: any) => {
+    if (!window.kakao || !window.kakao.maps || !mapInstance.current || !marker) {
+      console.warn('KakaoMap: Cannot show event InfoWindow - map or marker not available');
+      return;
+    }
+
+    // 기존 InfoWindow 닫기
+    if (eventInfoWindowRef.current) {
+      eventInfoWindowRef.current.close();
+      eventInfoWindowRef.current = null;
+    }
+
+    if (marker) {
+      // 이벤트 타입 한글 변환
+      const getEventTypeName = (eventType: string): string => {
+        if (eventType === 'cor' || eventType === '공사') return '공사';
+        if (eventType === 'acc' || eventType === '교통사고') return '교통사고';
+        if (eventType === 'wea' || eventType === '기상') return '기상';
+        if (eventType === 'ete' || eventType === '기타돌발') return '기타돌발';
+        if (eventType === 'dis' || eventType === '재난') return '재난';
+        return eventType;
+      };
+
+      const getRoadTypeName = (type: string): string => {
+        if (type === 'ex') return '고속도로';
+        if (type === 'its') return '국도';
+        if (type === 'loc') return '지방도';
+        if (type === 'sgg') return '시군도';
+        return type;
+      };
+
+      const eventTypeName = getEventTypeName(event.eventType);
+      const roadTypeName = getRoadTypeName(event.type);
+
+      const getEventTypeColor = (eventType: string): string => {
+        if (eventType === 'cor' || eventType === '공사') return '#FF9800';
+        if (eventType === 'acc' || eventType === '교통사고') return '#F44336';
+        if (eventType === 'wea' || eventType === '기상') return '#2196F3';
+        return '#9E9E9E';
+      };
+
+      const eventColor = getEventTypeColor(event.eventType);
+
+      const infoContent = `
+        <div style="padding: 15px; min-width: 280px; font-family: 'Malgun Gothic', sans-serif;">
+          <div style="background: ${eventColor}; color: white; padding: 8px 12px; border-radius: 4px; margin-bottom: 12px; font-weight: bold; font-size: 16px; text-align: center;">
+            ${eventTypeName}
+          </div>
+          <div style="margin-bottom: 10px;">
+            <div style="font-weight: bold; font-size: 15px; color: #333; margin-bottom: 4px;">
+              ${event.roadName || '도로명 없음'}
+            </div>
+            <div style="font-size: 12px; color: #666;">
+              ${roadTypeName}
+            </div>
+          </div>
+          <div style="border-top: 1px solid #eee; padding-top: 10px; margin-top: 10px;">
+            ${event.eventDetailType ? `
+              <div style="margin-bottom: 6px; font-size: 13px;">
+                <span style="color: #666; font-weight: 600;">상세 유형:</span>
+                <span style="color: #333; margin-left: 6px;">${event.eventDetailType}</span>
+              </div>
+            ` : ''}
+            <div style="margin-bottom: 6px; font-size: 13px;">
+              <span style="color: #666; font-weight: 600;">내용:</span>
+              <div style="color: #333; margin-top: 4px; line-height: 1.4;">${event.message || '내용 없음'}</div>
+            </div>
+            ${event.lanesBlocked ? `
+              <div style="margin-bottom: 6px; font-size: 13px;">
+                <span style="color: #666; font-weight: 600;">차단 차로:</span>
+                <span style="color: #F44336; margin-left: 6px; font-weight: 600;">${event.lanesBlocked}</span>
+              </div>
+            ` : ''}
+            ${event.roadDrcType ? `
+              <div style="margin-bottom: 6px; font-size: 13px;">
+                <span style="color: #666; font-weight: 600;">방향:</span>
+                <span style="color: #333; margin-left: 6px;">${event.roadDrcType}</span>
+              </div>
+            ` : ''}
+          </div>
+          <div style="border-top: 1px solid #eee; padding-top: 10px; margin-top: 10px; font-size: 11px; color: #888;">
+            <div style="margin-bottom: 4px;">
+              <span style="font-weight: 600;">발생:</span> ${formatEventDate(event.startDate) || '시간 정보 없음'}
+            </div>
+            ${event.endDate ? `
+              <div>
+                <span style="font-weight: 600;">종료 예정:</span> ${formatEventDate(event.endDate)}
+              </div>
+            ` : '<div style="color: #F44336;">종료 예정 시간 미정</div>'}
+          </div>
+        </div>
+      `;
+
+      const infoWindow = new window.kakao.maps.InfoWindow({
+        content: infoContent,
+        removable: true,
+      });
+
+      infoWindow.open(mapInstance.current, marker);
+      eventInfoWindowRef.current = infoWindow;
+    }
+  }, [closeAllOverlays]);
+
+  // 이벤트 선택 함수
+  const selectEvent = useCallback((event: EventItem) => {
+    if (!window.kakao || !window.kakao.maps || !mapInstance.current) {
+      console.warn('KakaoMap: Cannot select event - map not initialized');
+      return;
+    }
+
+    // 기존 모든 오버레이 및 InfoWindow 닫기
+    closeAllOverlays();
+
+    const lat = parseFloat(event.coordY);
+    const lng = parseFloat(event.coordX);
+
+    if (isNaN(lat) || isNaN(lng)) {
+      console.warn('KakaoMap: Invalid event coordinates:', event);
+      return;
+    }
+
+    const position = new window.kakao.maps.LatLng(lat, lng);
+    
+    // 지도 중심 이동
+    mapInstance.current.setCenter(position);
+    mapInstance.current.setLevel(3);
+
+    // 지도 이동 완료 후 이벤트 마커 찾아서 InfoWindow 표시
+    setTimeout(() => {
+      if (!mapInstance.current) return;
+
+      const marker = eventMarkersRef.current.find((m: any) => {
+        const markerPos = m.getPosition();
+        return Math.abs(markerPos.getLat() - lat) < 0.0001 && Math.abs(markerPos.getLng() - lng) < 0.0001;
+      });
+
+      if (marker) {
+        showEventInfoWindow(event, position, marker);
+      } else {
+        console.warn('KakaoMap: Event marker not found for event:', event.id);
+      }
+    }, 300);
+  }, [closeAllOverlays, showEventInfoWindow]);
+
+  // MapProvider에 함수 등록
+  useEffect(() => {
+    registerSelectCCTV(selectCCTV);
+    registerSelectEvent(selectEvent);
+  }, [registerSelectCCTV, registerSelectEvent, selectCCTV, selectEvent]);
 
   // 키보드 네비게이션 처리
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {

@@ -5,6 +5,7 @@ import { Favorite } from '../../types/Favorite';
 import { EventItem } from '../../types/event';
 import { fetchCCTVLocations, getUserFavorites } from '../../services/api';
 import { socketService } from '../../services/socket';
+import { useMap } from '../../providers/MapProvider';
 
 // 날짜 포맷팅 함수들 (컴포넌트 외부로 이동)
 const formatEventDate = (dateStr: string): string => {
@@ -30,9 +31,17 @@ const formatEventDateForSort = (dateStr: string): string => {
 
 const Dashboard: React.FC = () => {
   const { isLoggedIn } = useAuth();
+  const mapContext = useMap();
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [cctvLocations, setCctvLocations] = useState<CCTV[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
+  
+  // MapProvider가 있는지 확인 (registerSelectCCTV가 실제 함수인지 확인)
+  const hasMapProvider = typeof mapContext.registerSelectCCTV === 'function' && 
+    mapContext.registerSelectCCTV.toString().indexOf('console.warn') === -1;
+  
+  const selectCCTV = hasMapProvider ? mapContext.selectCCTV : () => {};
+  const selectEvent = hasMapProvider ? mapContext.selectEvent : () => {};
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -106,7 +115,15 @@ const Dashboard: React.FC = () => {
           <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">즐겨찾기</h2>
           <div className="flex flex-col gap-2 mb-6">
             {favoriteCCTVs.map(({ favorite, cctv }) => (
-              <div key={favorite.cctv_id} className="text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700 rounded-lg p-3 hover:bg-gray-100 dark:hover:bg-gray-600 transition">
+              <div 
+                key={favorite.cctv_id} 
+                onClick={hasMapProvider ? () => selectCCTV(cctv) : undefined}
+                className={`text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700 rounded-lg p-3 transition ${
+                  hasMapProvider 
+                    ? 'hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer' 
+                    : 'cursor-default'
+                }`}
+              >
                 <span className="text-sm">{cctv.location}</span>
               </div>
             ))}
@@ -122,7 +139,12 @@ const Dashboard: React.FC = () => {
             {recentEvents.map((event) => (
               <div
                 key={event.id}
-                className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-3 text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-600 transition"
+                onClick={hasMapProvider ? () => selectEvent(event) : undefined}
+                className={`bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-3 text-gray-900 dark:text-gray-100 transition ${
+                  hasMapProvider 
+                    ? 'hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer' 
+                    : 'cursor-default'
+                }`}
               >
                 <div className="text-sm font-semibold mb-1 text-gray-900 dark:text-gray-100">{event.roadName}</div>
                 <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">
