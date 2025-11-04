@@ -25,8 +25,10 @@ class SocketService {
 
     this.socket.on('connect', () => {
       console.log('Socket connected:', this.socket?.id);
-      // 이벤트 룸 입장
-      this.socket?.emit('join-events');
+      // 이미 리스너가 등록되어 있다면 이벤트 룸에 입장하여 현재 이벤트 수신
+      if (this.eventListeners.has('event-update')) {
+        this.socket?.emit('join-events');
+      }
     });
 
     this.socket.on('disconnect', () => {
@@ -57,6 +59,16 @@ class SocketService {
   }
 
   /**
+   * 이벤트 룸에 입장하고 현재 이벤트 수신
+   */
+  joinEvents(): void {
+    if (this.socket?.connected) {
+      console.log('Joining events room');
+      this.socket.emit('join-events');
+    }
+  }
+
+  /**
    * 이벤트 업데이트 리스너 등록
    */
   onEventUpdate(callback: (events: EventItem[]) => void): () => void {
@@ -64,9 +76,9 @@ class SocketService {
     listeners.add(callback);
     this.eventListeners.set('event-update', listeners);
 
-    // 연결이 되어있다면 즉시 현재 이벤트 요청 (서버에서 자동으로 전송됨)
+    // 연결이 되어있다면 이벤트 룸에 입장하여 현재 이벤트 수신
     if (this.socket?.connected) {
-      // 서버에서 join-events 시 자동으로 전송하므로 여기서는 추가 작업 불필요
+      this.joinEvents();
     }
 
     // 리스너 제거 함수 반환

@@ -297,7 +297,7 @@ const KakaoMap: React.FC = () => {
     }
 
     const options = {
-      center: new window.kakao.maps.LatLng(36.35, 127.38),
+      center: new window.kakao.maps.LatLng(35.159743, 126.851399),
       level: 5,
     };
     try {
