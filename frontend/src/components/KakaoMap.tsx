@@ -53,6 +53,7 @@ const KakaoMap: React.FC = () => {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isToggling, setIsToggling] = useState<number | null>(null); // 클릭 중인 cctv_id
+  const [isMapInitialized, setIsMapInitialized] = useState<boolean>(false); // 지도 초기화 상태 추가
   const overlayRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const eventMarkersRef = useRef<any[]>([]);
@@ -229,6 +230,7 @@ const KakaoMap: React.FC = () => {
         overlayRef.current = null;
       }
       mapInstance.current = null;
+      setIsMapInitialized(false); // 지도 초기화 상태 초기화
       const script = document.getElementById('kakao-map-sdk');
       if (script) {
         script.remove();
@@ -237,27 +239,51 @@ const KakaoMap: React.FC = () => {
   }, [KAKAO_API_KEY]);
 
   useEffect(() => {
-    console.log('KakaoMap: cctvLocations updated:', cctvLocations);
-    if (mapInstance.current && cctvLocations.length > 0) {
-      console.log('KakaoMap: Updating markers');
-      updateMarkers();
-    } else if (mapInstance.current && cctvLocations.length === 0) {
-      console.warn('KakaoMap: No CCTV locations to display markers');
+    console.log('KakaoMap: cctvLocations updated:', cctvLocations.length, 'isMapInitialized:', isMapInitialized);
+    // 지도가 초기화되고 데이터가 준비되었을 때만 마커 업데이트
+    if (isMapInitialized && mapInstance.current) {
+      if (cctvLocations.length > 0) {
+        console.log('KakaoMap: Updating markers (map initialized and data ready)');
+        updateMarkers();
+      } else {
+        console.warn('KakaoMap: No CCTV locations to display markers');
+        // 데이터가 없는 경우 기존 마커 제거
+        markersRef.current.forEach((marker) => marker.setMap(null));
+        markersRef.current = [];
+      }
+    } else {
+      console.log('KakaoMap: Waiting for map initialization or data:', { 
+        isMapInitialized, 
+        hasMapInstance: !!mapInstance.current,
+        cctvCount: cctvLocations.length 
+      });
     }
-  }, [cctvLocations, favorites]); // favorites 의존성 추가
+  }, [cctvLocations, favorites, isMapInitialized]); // isMapInitialized 의존성 추가
 
   // 이벤트 마커 업데이트
   useEffect(() => {
-    if (mapInstance.current && events.length > 0) {
-      updateEventMarkers().catch((error) => {
-        console.error('KakaoMap: Failed to update event markers:', error);
+    console.log('KakaoMap: Events updated:', events.length, 'isMapInitialized:', isMapInitialized);
+    // 지도가 초기화되었을 때만 이벤트 마커 업데이트
+    if (isMapInitialized && mapInstance.current) {
+      if (events.length > 0) {
+        console.log('KakaoMap: Updating event markers (map initialized and events ready)');
+        updateEventMarkers().catch((error) => {
+          console.error('KakaoMap: Failed to update event markers:', error);
+        });
+      } else {
+        // 이벤트가 없으면 마커 제거
+        console.log('KakaoMap: No events to display, removing event markers');
+        eventMarkersRef.current.forEach((marker) => marker.setMap(null));
+        eventMarkersRef.current = [];
+      }
+    } else {
+      console.log('KakaoMap: Waiting for map initialization before updating event markers:', { 
+        isMapInitialized, 
+        hasMapInstance: !!mapInstance.current,
+        eventCount: events.length 
       });
-    } else if (mapInstance.current) {
-      // 이벤트가 없으면 마커 제거
-      eventMarkersRef.current.forEach((marker) => marker.setMap(null));
-      eventMarkersRef.current = [];
     }
-  }, [events]);
+  }, [events, isMapInitialized]); // isMapInitialized 의존성 추가
 
   const initializeMap = () => {
     if (!mapRef.current || !window.kakao || !window.kakao.maps) {
@@ -279,11 +305,9 @@ const KakaoMap: React.FC = () => {
       const map = new window.kakao.maps.Map(mapRef.current, options);
       mapInstance.current = map;
       console.log('KakaoMap: Map initialized successfully');
-      if (cctvLocations.length > 0) {
-        updateMarkers();
-      } else {
-        console.warn('KakaoMap: No CCTV locations available for markers');
-      }
+      
+      // 지도 초기화 완료 상태 설정
+      setIsMapInitialized(true);
       
       // 지도 크기 조정을 위한 리사이즈 핸들러
       const handleResize = () => {
@@ -344,8 +368,10 @@ const KakaoMap: React.FC = () => {
         const container = document.createElement('div');
         container.style.position = 'absolute';
         container.style.zIndex = '10';
-        container.style.background = '#f8f8f8';
-        container.style.border = '2px solid #333';
+        container.style.background = 'rgba(255, 255, 255, 0.01)';
+        container.style.backdropFilter = 'blur(25px)';
+        container.style.setProperty('-webkit-backdrop-filter', 'blur(25px)');
+        container.style.border = '1px solid rgba(255, 255, 255, 0.08)';
         container.style.borderRadius = '8px';
         container.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
         container.style.width = '400px';

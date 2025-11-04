@@ -87,7 +87,9 @@ const Camera: React.FC<CameraProps> = ({
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
-        backgroundColor: '#f8f8f8',
+        background: 'rgba(255, 255, 255, 0.01)',
+        backdropFilter: 'blur(25px)',
+        WebkitBackdropFilter: 'blur(25px)',
         borderRadius: '6px',
         overflow: 'hidden',
         position: 'relative', // 닫기 버튼을 절대 위치로 배치하기 위해
@@ -121,13 +123,15 @@ const Camera: React.FC<CameraProps> = ({
         style={{
           height: '40px',
           padding: '0 15px',
-          backgroundColor: '#ffffffff',
+          background: 'rgba(255, 255, 255, 0.015)',
+          backdropFilter: 'blur(25px)',
+          WebkitBackdropFilter: 'blur(25px)',
           color: 'black',
           display: 'flex',
           alignItems: 'center',
           fontSize: '14px',
           fontWeight: 'bold',
-          borderBottom: '1px solid #357abd',
+          borderBottom: '1px solid rgba(53, 122, 189, 0.1)',
         }}
       >
         📍 {location || 'CCTV 위치'}
@@ -168,11 +172,13 @@ const Camera: React.FC<CameraProps> = ({
         style={{
           height: '40px',
           padding: '0 15px',
-          backgroundColor: '#ffffffff',
+          background: 'rgba(255, 255, 255, 0.015)',
+          backdropFilter: 'blur(25px)',
+          WebkitBackdropFilter: 'blur(25px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-end',
-          borderTop: '1px solid #34495e',
+          borderTop: '1px solid rgba(52, 73, 94, 0.1)',
         }}
       >
         <button
