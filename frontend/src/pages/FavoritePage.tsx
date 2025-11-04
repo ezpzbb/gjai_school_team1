@@ -128,16 +128,33 @@ const FavoritePageContent: React.FC = () => {
                 }}
                 className={`border-2 rounded-lg shadow-md overflow-hidden bg-white dark:bg-gray-800 transition-all relative ${
                   canPlace
-                    ? 'border-blue-500 dark:border-blue-400 ring-2 ring-blue-300 dark:ring-blue-500 cursor-pointer hover:ring-blue-400'
+                    ? 'border-blue-500/50 dark:border-blue-400/50 ring-2 ring-blue-400/30 dark:ring-blue-500/30 cursor-pointer hover:ring-blue-400/50 backdrop-blur-sm'
                     : 'border-gray-300 dark:border-gray-700'
                 }`}
-                style={{ minHeight: 0 }}
+                style={{
+                  minHeight: 0,
+                  ...(canPlace ? {
+                    background: 'rgba(53, 122, 189, 0.15)',
+                    backdropFilter: 'blur(20px)',
+                    WebkitBackdropFilter: 'blur(20px)',
+                    boxShadow: '0 8px 32px 0 rgba(53, 122, 189, 0.2)',
+                  } : {})
+                }}
               >
                 {cctv ? (
                   <>
                     {/* 대기 중인 CCTV 배치 가능 표시 */}
                     {canPlace && (
-                      <div className="absolute top-2 left-2 z-10 bg-blue-500 text-white px-2 py-1 rounded text-xs font-semibold">
+                      <div 
+                        className="absolute top-2 left-2 z-10 text-white px-3 py-1.5 rounded-lg text-xs font-semibold backdrop-blur-md"
+                        style={{
+                          background: 'rgba(53, 122, 189, 0.4)',
+                          backdropFilter: 'blur(12px)',
+                          WebkitBackdropFilter: 'blur(12px)',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          boxShadow: '0 4px 16px rgba(53, 122, 189, 0.3)',
+                        }}
+                      >
                         여기에 배치
                       </div>
                     )}
@@ -152,19 +169,38 @@ const FavoritePageContent: React.FC = () => {
                     </div>
                   </>
                 ) : (
-                  <div className={`w-full h-full flex items-center justify-center cursor-pointer ${
-                    canPlace
-                      ? 'bg-blue-50 dark:bg-blue-900/20'
-                      : 'bg-gray-50 dark:bg-gray-700/50'
-                  }`}>
+                  <div 
+                    className={`w-full h-full flex items-center justify-center cursor-pointer transition-all ${
+                      canPlace ? '' : 'bg-gray-50 dark:bg-gray-700/50'
+                    }`}
+                    style={canPlace ? {
+                      background: 'rgba(53, 122, 189, 0.15)',
+                      backdropFilter: 'blur(20px)',
+                      WebkitBackdropFilter: 'blur(20px)',
+                    } : {}}
+                  >
                     <div className="text-center">
-                      <div className="text-gray-400 dark:text-gray-500 text-sm mb-1">
+                      <div 
+                        className="text-sm mb-1 font-medium"
+                        style={canPlace ? {
+                          color: 'rgba(255, 255, 255, 0.95)',
+                        } : {}}
+                      >
                         {canPlace 
                           ? `클릭하여 "${pendingCCTV.location}" 배치` 
                           : '대시보드에서 CCTV 선택'}
                       </div>
                       {canPlace && (
-                        <div className="text-xs text-blue-500 dark:text-blue-400 font-semibold mt-2">
+                        <div 
+                          className="text-xs font-semibold mt-2 px-3 py-1 rounded-lg backdrop-blur-sm"
+                          style={{
+                            color: 'rgba(255, 255, 255, 0.95)',
+                            background: 'rgba(53, 122, 189, 0.3)',
+                            backdropFilter: 'blur(8px)',
+                            WebkitBackdropFilter: 'blur(8px)',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                          }}
+                        >
                           ✓ 배치 가능
                         </div>
                       )}
@@ -177,12 +213,34 @@ const FavoritePageContent: React.FC = () => {
           
           {/* 대기 중인 CCTV 표시 */}
           {pendingCCTV && (
-            <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-3">
+            <div 
+              className="fixed bottom-4 left-1/2 transform -translate-x-1/2 text-white px-6 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-3 backdrop-blur-xl"
+              style={{
+                background: 'rgba(53, 122, 189, 0.4)',
+                backdropFilter: 'blur(20px)',
+                WebkitBackdropFilter: 'blur(20px)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                boxShadow: '0 8px 32px 0 rgba(53, 122, 189, 0.4)',
+              }}
+            >
               <span className="font-semibold">선택된 CCTV: {pendingCCTV.location}</span>
-              <span className="text-sm">→ 컴포넌트 위치를 클릭하여 배치하세요</span>
+              <span className="text-sm opacity-90">→ 컴포넌트 위치를 클릭하여 배치하세요</span>
               <button
                 onClick={() => favoritePageContext.setPendingCCTV(null)}
-                className="ml-2 bg-white text-blue-500 px-3 py-1 rounded text-sm font-semibold hover:bg-gray-100 transition"
+                className="ml-2 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all backdrop-blur-sm"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.25)',
+                  backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(255, 255, 255, 0.3)',
+                  color: 'white',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.35)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.25)';
+                }}
               >
                 취소
               </button>

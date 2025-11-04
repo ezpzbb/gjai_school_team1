@@ -3,10 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../../providers/AuthProvider";
 import { useTheme } from "../../providers/ThemeProvider";
 
-// 임시 Icons 컴포넌트 (실제 구현 필요)
-const Icons: React.FC<{ name: string; className: string }> = ({ name, className }) => {
-  return <span className={className}>{name}</span>; // 실제 SVG 아이콘으로 대체 필요
-};
+
 
 const Header: React.FC = () => {
   const location = useLocation();
