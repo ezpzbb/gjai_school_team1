@@ -97,9 +97,8 @@ const FavoritePage: React.FC = () => {
   return (
     <>
       <Dashboard />
-      <div className="fixed left-[calc(16rem+1rem+0.5rem)] right-[calc(20rem+0.5rem+0.5rem)] top-[calc(2rem+4rem+0.5rem)] bottom-2 overflow-y-auto p-4">
-        
-        <div className="grid grid-cols-2 gap-6">
+      <div className="fixed left-[calc(16rem+1rem+0.5rem)] right-[calc(20rem+0.5rem+0.5rem)] top-[calc(2rem+4rem+0.5rem)] h-[calc(100vh-2rem-4rem-0.5rem-2rem)] z-30">
+        <div className="grid grid-cols-2 grid-rows-2 gap-4 h-full">
           {displayedFavorites.map((favorite) => {
             const cctv = cctvLocations.find((loc) => loc.cctv_id === favorite.cctv_id);
             if (!cctv) {
@@ -110,6 +109,7 @@ const FavoritePage: React.FC = () => {
               <div
                 key={favorite.cctv_id}
                 className="border border-gray-300 rounded-lg shadow-md overflow-hidden bg-white"
+                style={{ minHeight: 0 }}
               >
                 <Camera
                   apiEndpoint={cctv.api_endpoint}
@@ -121,9 +121,6 @@ const FavoritePage: React.FC = () => {
               </div>
             );
           })}
-        </div>
-        <div className="mt-4">
-          <p className="text-gray-600">표시된 즐겨찾기 수: {displayedFavorites.length}</p>
         </div>
       </div>
     </>
