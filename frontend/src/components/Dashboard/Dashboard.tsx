@@ -6,6 +6,7 @@ import { EventItem } from '../../types/event';
 import { fetchCCTVLocations, getUserFavorites } from '../../services/api';
 import { socketService } from '../../services/socket';
 import { useMap } from '../../providers/MapProvider';
+import { useFavoritePage } from '../../providers/FavoritePageProvider';
 
 // 날짜 포맷팅 함수들 (컴포넌트 외부로 이동)
 const formatEventDate = (dateStr: string): string => {
@@ -40,7 +41,20 @@ const Dashboard: React.FC = () => {
   const hasMapProvider = typeof mapContext.registerSelectCCTV === 'function' && 
     mapContext.registerSelectCCTV.toString().indexOf('console.warn') === -1;
   
-  const selectCCTV = hasMapProvider ? mapContext.selectCCTV : () => {};
+  // FavoritePageProvider가 있는지 확인 (optional)
+  const favoritePageContext = useFavoritePage();
+  
+  const selectCCTV = (cctv: CCTV) => {
+    // MapProvider가 있으면 카카오맵으로 이동
+    if (hasMapProvider) {
+      mapContext.selectCCTV(cctv);
+    }
+    // FavoritePageProvider가 있으면 선택된 CCTV 목록 업데이트
+    if (favoritePageContext) {
+      favoritePageContext.updateSelectedCCTVs(cctv);
+    }
+  };
+  
   const selectEvent = hasMapProvider ? mapContext.selectEvent : () => {};
 
   useEffect(() => {
@@ -85,11 +99,9 @@ const Dashboard: React.FC = () => {
     return null;
   }
 
-  // 최대 4개의 최신 즐겨찾기만 표시
-  const displayedFavorites = favorites.slice(0, 4);
-  
+  // 모든 즐겨찾기 표시 (스크롤 가능)
   // 즐겨찾기에 해당하는 CCTV 정보 매칭
-  const favoriteCCTVs = displayedFavorites
+  const favoriteCCTVs = favorites
     .map((favorite) => {
       const cctv = cctvLocations.find((loc) => loc.cctv_id === favorite.cctv_id);
       return cctv ? { favorite, cctv } : null;
@@ -108,18 +120,21 @@ const Dashboard: React.FC = () => {
   }, [events]);
 
   return (
-    <div className="fixed top-[calc(2rem+4rem+0.5rem)] right-2 w-80 h-[calc(100vh-2rem-4rem-0.5rem-2rem)] overflow-y-auto bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 p-4 z-40 rounded-lg shadow-lg">
+    <div className="fixed top-[calc(2rem+4rem+0.5rem)] right-2 w-80 h-[calc(100vh-2rem-4rem-0.5rem-2rem)] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 p-4 z-40 rounded-lg shadow-lg flex flex-col">
       {/* 즐겨찾기 섹션 */}
       {favoriteCCTVs.length > 0 && (
-        <>
+        <div className="mb-6 flex-shrink-0">
           <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">즐겨찾기</h2>
-          <div className="flex flex-col gap-2 mb-6">
+          <div 
+            className="flex flex-col gap-2 overflow-y-auto"
+            style={{ maxHeight: 'calc((100vh - 2rem - 4rem - 0.5rem - 2rem) * 0.4)' }}
+          >
             {favoriteCCTVs.map(({ favorite, cctv }) => (
               <div 
                 key={favorite.cctv_id} 
-                onClick={hasMapProvider ? () => selectCCTV(cctv) : undefined}
-                className={`text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700 rounded-lg p-3 transition ${
-                  hasMapProvider 
+                onClick={hasMapProvider || favoritePageContext ? () => selectCCTV(cctv) : undefined}
+                className={`text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700 rounded-lg p-3 transition flex-shrink-0 ${
+                  hasMapProvider || favoritePageContext
                     ? 'hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer' 
                     : 'cursor-default'
                 }`}
@@ -128,19 +143,22 @@ const Dashboard: React.FC = () => {
               </div>
             ))}
           </div>
-        </>
+        </div>
       )}
 
       {/* 최신 이벤트 섹션 */}
       {recentEvents.length > 0 && (
-        <>
-          <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">최신 이벤트</h2>
-          <div className="flex flex-col gap-3">
+        <div className="flex-1 flex flex-col min-h-0">
+          <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100 flex-shrink-0">최신 이벤트</h2>
+          <div 
+            className="flex flex-col gap-3 overflow-y-auto flex-1"
+            style={{ maxHeight: 'calc((100vh - 2rem - 4rem - 0.5rem - 2rem) * 0.5)' }}
+          >
             {recentEvents.map((event) => (
               <div
                 key={event.id}
                 onClick={hasMapProvider ? () => selectEvent(event) : undefined}
-                className={`bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-3 text-gray-900 dark:text-gray-100 transition ${
+                className={`bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-3 text-gray-900 dark:text-gray-100 transition flex-shrink-0 ${
                   hasMapProvider 
                     ? 'hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer' 
                     : 'cursor-default'
@@ -157,7 +175,7 @@ const Dashboard: React.FC = () => {
               </div>
             ))}
           </div>
-        </>
+        </div>
       )}
       
       {/* 데이터 없음 메시지 */}

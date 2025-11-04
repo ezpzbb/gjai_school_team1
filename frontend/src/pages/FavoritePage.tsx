@@ -5,12 +5,21 @@ import { Favorite } from '../types/Favorite';
 import { fetchCCTVLocations, getUserFavorites, addFavorite, removeFavorite } from '../services/api';
 import Camera from '../components/Camera/Camera';
 import Dashboard from '../components/Dashboard/Dashboard';
+import { FavoritePageProvider, useFavoritePage } from '../providers/FavoritePageProvider';
 
-const FavoritePage: React.FC = () => {
+const FavoritePageContent: React.FC = () => {
   const { isLoggedIn } = useAuth();
+  const favoritePageContext = useFavoritePage();
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [cctvLocations, setCctvLocations] = useState<CCTV[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  // FavoritePageProvider 내부이므로 항상 존재해야 함
+  if (!favoritePageContext) {
+    return <div className="text-center p-4 text-gray-700 dark:text-gray-300">초기화 중...</div>;
+  }
+
+  const { selectedCCTVs, setSelectedCCTVs } = favoritePageContext;
 
   const fetchFavorites = async (retries = 3, delay = 2000) => {
     try {
@@ -18,13 +27,21 @@ const FavoritePage: React.FC = () => {
       console.log('FavoritePage: User favorites fetched:', favoriteData);
       const cctvResponse = await fetchCCTVLocations();
       console.log('FavoritePage: CCTV locations fetched:', cctvResponse);
-      // added_at 기준 내림차순 정렬 (최신순)
-      const sortedFavorites = favoriteData.sort((a, b) => 
-        new Date(b.added_at || 0).getTime() - new Date(a.added_at || 0).getTime()
-      );
-      setFavorites(sortedFavorites);
-      setCctvLocations(cctvResponse.data);
-      setError(null);
+          // added_at 기준 내림차순 정렬 (최신순)
+          const sortedFavorites = favoriteData.sort((a, b) => 
+            new Date(b.added_at || 0).getTime() - new Date(a.added_at || 0).getTime()
+          );
+          setFavorites(sortedFavorites);
+          setCctvLocations(cctvResponse.data);
+          
+          // 초기 선택된 CCTV 설정 (최신 즐겨찾기 4개)
+          const initialCCTVs = sortedFavorites
+            .slice(0, 4)
+            .map((fav) => cctvResponse.data.find((cctv) => cctv.cctv_id === fav.cctv_id))
+            .filter((cctv): cctv is CCTV => cctv !== undefined);
+          setSelectedCCTVs(initialCCTVs);
+          
+          setError(null);
     } catch (error: any) {
       console.error('FavoritePage: Failed to fetch favorites:', error);
       if (error.message.includes('429') && retries > 0) {
@@ -91,39 +108,37 @@ const FavoritePage: React.FC = () => {
     );
   }
 
-  // 최대 4개의 최신 즐겨찾기만 표시
-  const displayedFavorites = favorites.slice(0, 4);
-
   return (
     <>
       <Dashboard />
       <div className="fixed left-[calc(16rem+1rem+0.5rem)] right-[calc(20rem+0.5rem+0.5rem)] top-[calc(2rem+4rem+0.5rem)] h-[calc(100vh-2rem-4rem-0.5rem-2rem)] z-30">
         <div className="grid grid-cols-2 grid-rows-2 gap-4 h-full">
-          {displayedFavorites.map((favorite) => {
-            const cctv = cctvLocations.find((loc) => loc.cctv_id === favorite.cctv_id);
-            if (!cctv) {
-              console.warn('FavoritePage: CCTV not found for cctv_id:', favorite.cctv_id);
-              return null;
-            }
-            return (
-              <div
-                key={favorite.cctv_id}
-                className="border border-gray-300 dark:border-gray-700 rounded-lg shadow-md overflow-hidden bg-white dark:bg-gray-800"
-                style={{ minHeight: 0 }}
-              >
-                <Camera
-                  apiEndpoint={cctv.api_endpoint}
-                  location={cctv.location}
-                  cctv_id={cctv.cctv_id}
-                  isFavorite={favorites.some((fav) => fav.cctv_id === cctv.cctv_id)}
-                  onToggleFavorite={() => handleToggleFavorite(cctv.cctv_id, favorites.some((fav) => fav.cctv_id === cctv.cctv_id))}
-                />
-              </div>
-            );
-          })}
+          {selectedCCTVs.map((cctv) => (
+            <div
+              key={cctv.cctv_id}
+              className="border border-gray-300 dark:border-gray-700 rounded-lg shadow-md overflow-hidden bg-white dark:bg-gray-800"
+              style={{ minHeight: 0 }}
+            >
+              <Camera
+                apiEndpoint={cctv.api_endpoint}
+                location={cctv.location}
+                cctv_id={cctv.cctv_id}
+                isFavorite={favorites.some((fav) => fav.cctv_id === cctv.cctv_id)}
+                onToggleFavorite={() => handleToggleFavorite(cctv.cctv_id, favorites.some((fav) => fav.cctv_id === cctv.cctv_id))}
+              />
+            </div>
+          ))}
         </div>
       </div>
     </>
+  );
+};
+
+const FavoritePage: React.FC = () => {
+  return (
+    <FavoritePageProvider>
+      <FavoritePageContent />
+    </FavoritePageProvider>
   );
 };
 
