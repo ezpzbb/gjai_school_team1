@@ -49,9 +49,9 @@ const Dashboard: React.FC = () => {
     if (hasMapProvider) {
       mapContext.selectCCTV(cctv);
     }
-    // FavoritePageProvider가 있으면 선택된 CCTV 목록 업데이트
+    // FavoritePageProvider가 있으면 대기 상태로 설정 (즉시 배치하지 않음)
     if (favoritePageContext) {
-      favoritePageContext.updateSelectedCCTVs(cctv);
+      favoritePageContext.setPendingCCTV(cctv);
     }
   };
   

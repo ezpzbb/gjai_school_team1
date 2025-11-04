@@ -785,7 +785,7 @@ const KakaoMap: React.FC = () => {
   }, [closeAllOverlays, showCCTVOverlay]);
 
   // 이벤트 InfoWindow 생성 및 표시 공통 함수
-  const showEventInfoWindow = useCallback((event: EventItem, position: any, marker: any) => {
+  const showEventInfoWindow = useCallback((event: EventItem, _position: any, marker: any) => {
     if (!window.kakao || !window.kakao.maps || !mapInstance.current || !marker) {
       console.warn('KakaoMap: Cannot show event InfoWindow - map or marker not available');
       return;

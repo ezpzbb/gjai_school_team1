@@ -86,7 +86,6 @@ const Camera: React.FC<CameraProps> = ({
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'space-between',
         background: 'rgba(255, 255, 255, 0.01)',
         backdropFilter: 'blur(25px)',
         WebkitBackdropFilter: 'blur(25px)',
@@ -145,8 +144,12 @@ const Camera: React.FC<CameraProps> = ({
           justifyContent: 'center',
           alignItems: 'center',
           backgroundColor: '#000',
-          padding: '10px',
-          minHeight: '160px',
+          
+          minHeight: 0,
+          overflow: 'hidden',
+          position: 'relative',
+          width: '100%',
+          boxSizing: 'border-box',
         }}
       >
         <video
@@ -155,11 +158,12 @@ const Camera: React.FC<CameraProps> = ({
           autoPlay
           muted
           style={{
-            width: isPopup ? '340px' : '100%',
-            height: '100%',
-            maxWidth: '100%',
-            maxHeight: '100%',
+            width: 'auto',
+            height: 'auto',
+            maxWidth: 'calc(100% - 24px)',
+            maxHeight: 'calc(100% - 24px)',
             objectFit: 'contain',
+            display: 'block',
           }}
           onError={(e) => console.error('Video loading error:', { apiEndpoint, cctv_id, error: e })}
         >
