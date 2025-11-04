@@ -11,7 +11,6 @@ const FavoritePageContent: React.FC = () => {
   const { isLoggedIn } = useAuth();
   const favoritePageContext = useFavoritePage();
   const [favorites, setFavorites] = useState<Favorite[]>([]);
-  const [cctvLocations, setCctvLocations] = useState<CCTV[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   // FavoritePageProvider 내부이므로 항상 존재해야 함
@@ -32,7 +31,6 @@ const FavoritePageContent: React.FC = () => {
             new Date(b.added_at || 0).getTime() - new Date(a.added_at || 0).getTime()
           );
           setFavorites(sortedFavorites);
-          setCctvLocations(cctvResponse.data);
           
           // 초기 선택된 CCTV 설정 (최신 즐겨찾기 4개)
           const initialCCTVs = sortedFavorites
