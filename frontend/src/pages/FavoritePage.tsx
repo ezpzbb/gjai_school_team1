@@ -74,15 +74,15 @@ const FavoritePage: React.FC = () => {
   };
 
   if (!isLoggedIn) {
-    return <div className="text-center p-4 text-gray-700">로그인이 필요합니다.</div>;
+    return <div className="text-center p-4 text-gray-700 dark:text-gray-300">로그인이 필요합니다.</div>;
   }
 
   if (error) {
     return (
-      <div className="text-red-600 text-center p-4">
+      <div className="text-red-600 dark:text-red-400 text-center p-4">
         {error}
         <button
-          className="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+          className="mt-4 bg-blue-600 dark:bg-blue-700 text-white px-4 py-2 rounded hover:bg-blue-700 dark:hover:bg-blue-800 transition"
           onClick={() => fetchFavorites()}
         >
           재시도
@@ -108,7 +108,7 @@ const FavoritePage: React.FC = () => {
             return (
               <div
                 key={favorite.cctv_id}
-                className="border border-gray-300 rounded-lg shadow-md overflow-hidden bg-white"
+                className="border border-gray-300 dark:border-gray-700 rounded-lg shadow-md overflow-hidden bg-white dark:bg-gray-800"
                 style={{ minHeight: 0 }}
               >
                 <Camera

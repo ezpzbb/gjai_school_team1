@@ -6,18 +6,21 @@ import App from './App';
 import AuthProvider from './providers/AuthProvider';
 import AppProvider from './providers/AppProvider';
 import { DataProvider } from './providers/DataProvider';
+import { ThemeProvider } from './providers/ThemeProvider';
 
 const root = createRoot(document.getElementById('root')!);
 root.render(
   <StrictMode>
-    <AppProvider>
-      <AuthProvider>
-        <DataProvider>  
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
-        </DataProvider>
-      </AuthProvider>
-    </AppProvider>
+    <ThemeProvider>
+      <AppProvider>
+        <AuthProvider>
+          <DataProvider>  
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </DataProvider>
+        </AuthProvider>
+      </AppProvider>
+    </ThemeProvider>
   </StrictMode>
 );

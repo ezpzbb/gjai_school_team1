@@ -6,7 +6,7 @@ import Sidebar from "../components/Layout/Sidebar";
 
 const MainPage: React.FC = () => {
   return (
-    <div className="min-h-screen bg-white text-gray-900 flex flex-col relative">
+    <div className="min-h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex flex-col relative">
       <Header />
       {/* 사이드바와 메인 콘텐츠 영역 */}
       <div className="flex pt-16">

@@ -15,7 +15,7 @@ const App: React.FC = () => {
 
   if (isLoading) {
     console.log('App: isLoading=true, showing loading state');
-    return <div>Loading...</div>;
+    return <div className="min-h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex items-center justify-center">Loading...</div>;
   }
 
   return (
