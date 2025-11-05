@@ -11,6 +11,7 @@ interface CameraProps {
   onClose?: () => void; // 닫기 버튼을 위한 콜백 추가
   onExpand?: () => void; // 크게보기 버튼을 위한 콜백 추가
   isExpanded?: boolean; // 확대 상태인지 여부
+  isPlacementMode?: boolean; // 배치 모드인지 여부 (크게보기 버튼 비활성화)
 }
 
 const Camera: React.FC<CameraProps> = ({
@@ -23,6 +24,7 @@ const Camera: React.FC<CameraProps> = ({
   onClose,
   onExpand,
   isExpanded,
+  isPlacementMode = false,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -139,72 +141,83 @@ const Camera: React.FC<CameraProps> = ({
         }}
       >
         <span>📍 {location || 'CCTV 위치'}</span>
-        {onExpand && !isExpanded && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onExpand();
-            }}
-            style={{
-              padding: '4px 12px',
-              fontSize: '12px',
-              fontWeight: '600',
-              color: 'white',
-              background: 'rgba(53, 122, 189, 0.8)',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              transform: 'scale(1)',
-              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(37, 99, 235, 1)';
-              e.currentTarget.style.transform = 'scale(1.08)';
-              e.currentTarget.style.boxShadow = '0 4px 8px rgba(53, 122, 189, 0.4)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(53, 122, 189, 0.8)';
-              e.currentTarget.style.transform = 'scale(1)';
-              e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
-            }}
-          >
-            크게보기
-          </button>
-        )}
-        {onExpand && isExpanded && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onExpand();
-            }}
-            style={{
-              padding: '4px 12px',
-              fontSize: '12px',
-              fontWeight: '600',
-              color: 'white',
-              background: 'rgba(107, 114, 128, 0.8)',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              transform: 'scale(1)',
-              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(75, 85, 99, 1)';
-              e.currentTarget.style.transform = 'scale(1.08)';
-              e.currentTarget.style.boxShadow = '0 4px 8px rgba(107, 114, 128, 0.4)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(107, 114, 128, 0.8)';
-              e.currentTarget.style.transform = 'scale(1)';
-              e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
-            }}
-          >
-            되돌리기
-          </button>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* 크게보기 버튼 */}
+          {onExpand && !isExpanded && (
+            <button
+              onClick={(e) => {
+                if (isPlacementMode) return;
+                e.stopPropagation();
+                onExpand();
+              }}
+              disabled={isPlacementMode}
+              style={{
+                padding: '4px 12px',
+                fontSize: '12px',
+                fontWeight: '600',
+                color: isPlacementMode ? 'rgba(255, 255, 255, 0.5)' : 'white',
+                background: isPlacementMode ? 'rgba(156, 163, 175, 0.5)' : 'rgba(53, 122, 189, 0.8)',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: isPlacementMode ? 'not-allowed' : 'pointer',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                transform: 'scale(1)',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                opacity: isPlacementMode ? 0.6 : 1,
+              }}
+              onMouseEnter={(e) => {
+                if (!isPlacementMode) {
+                  e.currentTarget.style.background = 'rgba(37, 99, 235, 1)';
+                  e.currentTarget.style.transform = 'scale(1.08)';
+                  e.currentTarget.style.boxShadow = '0 4px 8px rgba(53, 122, 189, 0.4)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isPlacementMode) {
+                  e.currentTarget.style.background = 'rgba(53, 122, 189, 0.8)';
+                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
+                }
+              }}
+            >
+              크게보기
+            </button>
+          )}
+          {/* 되돌리기 버튼 */}
+          {onExpand && isExpanded && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onExpand();
+              }}
+              style={{
+                padding: '4px 12px',
+                fontSize: '12px',
+                fontWeight: '600',
+                color: 'white',
+                background: 'rgba(107, 114, 128, 0.8)',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                transform: 'scale(1)',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(75, 85, 99, 1)';
+                e.currentTarget.style.transform = 'scale(1.08)';
+                e.currentTarget.style.boxShadow = '0 4px 8px rgba(107, 114, 128, 0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(107, 114, 128, 0.8)';
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
+              }}
+            >
+              되돌리기
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 실시간 영상 - 중앙 */}
@@ -238,6 +251,50 @@ const Camera: React.FC<CameraProps> = ({
         >
           브라우저가 비디오를 지원하지 않습니다.
         </video>
+        
+        {/* 즐겨찾기 버튼 - 우측 하단 */}
+        {onToggleFavorite && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFavorite();
+            }}
+            style={{
+              position: 'absolute',
+              bottom: '10px',
+              right: '10px',
+              padding: '6px 12px',
+              fontSize: '12px',
+              fontWeight: '600',
+              color: 'white',
+              background: isFavorite ? 'rgba(234, 179, 8, 0.9)' : 'rgba(156, 163, 175, 0.8)',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              transform: 'scale(1)',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              zIndex: 10,
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = isFavorite ? 'rgba(234, 179, 8, 1)' : 'rgba(107, 114, 128, 1)';
+              e.currentTarget.style.transform = 'scale(1.1)';
+              e.currentTarget.style.boxShadow = `0 4px 12px ${isFavorite ? 'rgba(234, 179, 8, 0.5)' : 'rgba(107, 114, 128, 0.5)'}`;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = isFavorite ? 'rgba(234, 179, 8, 0.9)' : 'rgba(156, 163, 175, 0.8)';
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.3)';
+            }}
+          >
+            {isFavorite ? '★' : '☆'} 즐겨찾기
+          </button>
+        )}
       </div>
     </div>
   );

@@ -14,6 +14,11 @@ const FavoritePageContent: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{ show: boolean; cctv_id: number | null; location: string | null }>({
+    show: false,
+    cctv_id: null,
+    location: null,
+  });
 
   // FavoritePageProvider 내부이므로 항상 존재해야 함
   if (!favoritePageContext) {
@@ -64,18 +69,25 @@ const FavoritePageContent: React.FC = () => {
     console.log('FavoritePage: handleToggleFavorite called', { cctv_id, isFavorite });
     try {
       if (isFavorite) {
+        // 즐겨찾기 해제 - 확인 모달 표시
         if (!favorites.some((fav) => fav.cctv_id === cctv_id)) {
           console.warn('FavoritePage: cctv_id not in favorites:', cctv_id);
           return;
         }
-        await removeFavorite(cctv_id);
-        const updatedFavorites = await getUserFavorites();
-        const sortedFavorites = updatedFavorites.sort((a, b) => 
-          new Date(b.added_at || 0).getTime() - new Date(a.added_at || 0).getTime()
-        );
-        setFavorites(sortedFavorites);
-        console.log('FavoritePage: Removed favorite, new favorites:', sortedFavorites);
+        
+        // CCTV 위치 찾기
+        const cctv = selectedCCTVs.find((c) => c?.cctv_id === cctv_id);
+        const location = cctv?.location || 'CCTV';
+        
+        // 확인 모달 표시
+        setConfirmModal({
+          show: true,
+          cctv_id,
+          location,
+        });
+        return;
       } else {
+        // 즐겨찾기 추가
         await addFavorite(cctv_id);
         const updatedFavorites = await getUserFavorites();
         const sortedFavorites = updatedFavorites.sort((a, b) => 
@@ -87,6 +99,71 @@ const FavoritePageContent: React.FC = () => {
     } catch (error: any) {
       console.error('FavoritePage: Failed to toggle favorite for cctv_id:', cctv_id, error);
       setError(`즐겨찾기 처리 중 오류: ${error.message}`);
+    }
+  };
+
+  const confirmRemoveFavorite = async () => {
+    if (!confirmModal.cctv_id) return;
+    
+    const cctv_id = confirmModal.cctv_id;
+    
+    try {
+      // 확대된 상태라면 축소
+      const removedIndex = selectedCCTVs.findIndex((cctv) => cctv?.cctv_id === cctv_id);
+      if (removedIndex !== -1 && expandedIndex === removedIndex) {
+        setExpandedIndex(null);
+      }
+      
+      await removeFavorite(cctv_id);
+        const updatedFavorites = await getUserFavorites();
+        const sortedFavorites = updatedFavorites.sort((a, b) => 
+          new Date(b.added_at || 0).getTime() - new Date(a.added_at || 0).getTime()
+        );
+        setFavorites(sortedFavorites);
+        
+        // CCTV 위치 정보 가져오기
+        const cctvResponse = await fetchCCTVLocations();
+        
+        // 현재 선택된 CCTV 목록에서 제거된 CCTV 찾기
+        const removedCCTVIndex = selectedCCTVs.findIndex((cctv) => cctv?.cctv_id === cctv_id);
+        
+        if (removedCCTVIndex !== -1) {
+          // 현재 표시 중인 CCTV ID 목록
+          const currentCCTVIds = selectedCCTVs.map((cctv) => cctv.cctv_id);
+          
+          // 새로운 즐겨찾기 목록에서 아직 표시되지 않은 CCTV 찾기
+          let replacementCCTV: CCTV | undefined;
+          for (const favorite of sortedFavorites) {
+            if (!currentCCTVIds.includes(favorite.cctv_id)) {
+              replacementCCTV = cctvResponse.data.find((cctv) => cctv.cctv_id === favorite.cctv_id);
+              if (replacementCCTV) {
+                break;
+              }
+            }
+          }
+          
+          // 새로운 배열 생성: 제거된 CCTV를 교체 CCTV로 대체하거나 제거
+          const updatedCCTVs = [...selectedCCTVs];
+          if (replacementCCTV) {
+            // 교체 CCTV가 있으면 해당 위치에 배치
+            updatedCCTVs[removedCCTVIndex] = replacementCCTV;
+            setSelectedCCTVs(updatedCCTVs);
+          } else {
+            // 교체 CCTV가 없으면 해당 CCTV만 제거
+            updatedCCTVs.splice(removedCCTVIndex, 1);
+            setSelectedCCTVs(updatedCCTVs);
+          }
+        }
+        
+        console.log('FavoritePage: Removed favorite, new favorites:', sortedFavorites);
+        
+        // 모달 닫기
+        setConfirmModal({ show: false, cctv_id: null, location: null });
+    } catch (error: any) {
+      console.error('FavoritePage: Failed to remove favorite for cctv_id:', cctv_id, error);
+      setError(`즐겨찾기 처리 중 오류: ${error.message}`);
+      // 모달 닫기
+      setConfirmModal({ show: false, cctv_id: null, location: null });
     }
   };
 
@@ -199,6 +276,7 @@ const FavoritePageContent: React.FC = () => {
                         onToggleFavorite={() => handleToggleFavorite(cctv.cctv_id, favorites.some((fav) => fav.cctv_id === cctv.cctv_id))}
                         onExpand={() => handleExpand(index)}
                         isExpanded={isExpanded}
+                        isPlacementMode={canPlace}
                       />
                     </div>
                   </>
@@ -292,6 +370,109 @@ const FavoritePageContent: React.FC = () => {
             pointerEvents: 'none',
           }}
         />
+      )}
+      
+      {/* 즐겨찾기 해제 확인 모달 */}
+      {confirmModal.show && (
+        <>
+          {/* 모달 배경 오버레이 */}
+          <div
+            className="fixed inset-0 z-50"
+            style={{
+              background: 'rgba(0, 0, 0, 0.5)',
+              animation: 'fadeIn 0.2s ease-out',
+            }}
+            onClick={() => setConfirmModal({ show: false, cctv_id: null, location: null })}
+          />
+          {/* 모달 */}
+          <div
+            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50"
+            style={{
+              background: 'white',
+              borderRadius: '12px',
+              padding: '24px',
+              minWidth: '320px',
+              maxWidth: '400px',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+              animation: 'fadeIn 0.2s ease-out',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ marginBottom: '20px' }}>
+              <h3
+                style={{
+                  fontSize: '18px',
+                  fontWeight: 'bold',
+                  color: '#333',
+                  marginBottom: '8px',
+                }}
+              >
+                즐겨찾기 해제
+              </h3>
+              <p
+                style={{
+                  fontSize: '14px',
+                  color: '#666',
+                  lineHeight: '1.5',
+                }}
+              >
+                <strong style={{ color: '#333' }}>{confirmModal.location}</strong>의 즐겨찾기를 해제하시겠습니까?
+              </p>
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                gap: '8px',
+                justifyContent: 'flex-end',
+              }}
+            >
+              <button
+                onClick={() => setConfirmModal({ show: false, cctv_id: null, location: null })}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: '#666',
+                  background: '#f3f4f6',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#e5e7eb';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#f3f4f6';
+                }}
+              >
+                취소
+              </button>
+              <button
+                onClick={confirmRemoveFavorite}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: 'white',
+                  background: '#ef4444',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#dc2626';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#ef4444';
+                }}
+              >
+                예
+              </button>
+            </div>
+          </div>
+        </>
       )}
       
       {/* 애니메이션 스타일 */}
