@@ -13,7 +13,7 @@ const Sidebar: React.FC = () => {
   ];
 
   return (
-    <aside className="fixed left-2 top-2 bottom-2 w-64 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 flex flex-col rounded-lg shadow-lg">
+    <aside className="fixed left-2 top-2 h-[calc(100vh-2.5rem)] w-64 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 flex flex-col rounded-lg shadow-lg">
       {/* 최상단: 로고 */}
       <div className="p-4 mb-2">
         <Link to="/" className="flex items-center">
