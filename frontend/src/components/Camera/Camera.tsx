@@ -144,12 +144,12 @@ const Camera: React.FC<CameraProps> = ({
           justifyContent: 'center',
           alignItems: 'center',
           backgroundColor: '#000',
-          
           minHeight: 0,
           overflow: 'hidden',
           position: 'relative',
           width: '100%',
           boxSizing: 'border-box',
+          aspectRatio: '16/9', // 모든 CCTV 화면을 16:9 비율로 통일
         }}
       >
         <video
@@ -158,52 +158,15 @@ const Camera: React.FC<CameraProps> = ({
           autoPlay
           muted
           style={{
-            width: 'auto',
-            height: 'auto',
-            maxWidth: 'calc(100% - 24px)',
-            maxHeight: 'calc(100% - 24px)',
-            objectFit: 'contain',
+            width: '100%',
+            height: '100%',
+            objectFit: 'contain', // 비디오 전체가 보이도록 하되, 여백은 검은색으로 표시
             display: 'block',
           }}
           onError={(e) => console.error('Video loading error:', { apiEndpoint, cctv_id, error: e })}
         >
           브라우저가 비디오를 지원하지 않습니다.
         </video>
-      </div>
-
-      {/* 즐겨찾기 버튼 - 하단 */}
-      <div
-        style={{
-          height: '40px',
-          padding: '0 15px',
-          background: 'rgba(255, 255, 255, 0.015)',
-          backdropFilter: 'blur(25px)',
-          WebkitBackdropFilter: 'blur(25px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          borderTop: '1px solid rgba(52, 73, 94, 0.1)',
-        }}
-      >
-        <button
-          onClick={onToggleFavorite}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#f39c12',
-            color: 'black',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontSize: '13px',
-            fontWeight: 'bold',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-          }}
-        >
-          {isFavorite ? '★ 즐겨찾기됨' : '☆ 즐겨찾기'}
-        </button>
       </div>
     </div>
   );
