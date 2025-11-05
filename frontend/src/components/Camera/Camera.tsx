@@ -9,6 +9,8 @@ interface CameraProps {
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
   onClose?: () => void; // 닫기 버튼을 위한 콜백 추가
+  onExpand?: () => void; // 크게보기 버튼을 위한 콜백 추가
+  isExpanded?: boolean; // 확대 상태인지 여부
 }
 
 const Camera: React.FC<CameraProps> = ({
@@ -19,6 +21,8 @@ const Camera: React.FC<CameraProps> = ({
   isFavorite,
   onToggleFavorite,
   onClose,
+  onExpand,
+  isExpanded,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -128,12 +132,79 @@ const Camera: React.FC<CameraProps> = ({
           color: 'black',
           display: 'flex',
           alignItems: 'center',
+          justifyContent: 'space-between',
           fontSize: '14px',
           fontWeight: 'bold',
           borderBottom: '1px solid rgba(53, 122, 189, 0.1)',
         }}
       >
-        📍 {location || 'CCTV 위치'}
+        <span>📍 {location || 'CCTV 위치'}</span>
+        {onExpand && !isExpanded && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onExpand();
+            }}
+            style={{
+              padding: '4px 12px',
+              fontSize: '12px',
+              fontWeight: '600',
+              color: 'white',
+              background: 'rgba(53, 122, 189, 0.8)',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              transform: 'scale(1)',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(37, 99, 235, 1)';
+              e.currentTarget.style.transform = 'scale(1.08)';
+              e.currentTarget.style.boxShadow = '0 4px 8px rgba(53, 122, 189, 0.4)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(53, 122, 189, 0.8)';
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
+            }}
+          >
+            크게보기
+          </button>
+        )}
+        {onExpand && isExpanded && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onExpand();
+            }}
+            style={{
+              padding: '4px 12px',
+              fontSize: '12px',
+              fontWeight: '600',
+              color: 'white',
+              background: 'rgba(107, 114, 128, 0.8)',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              transform: 'scale(1)',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(75, 85, 99, 1)';
+              e.currentTarget.style.transform = 'scale(1.08)';
+              e.currentTarget.style.boxShadow = '0 4px 8px rgba(107, 114, 128, 0.4)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(107, 114, 128, 0.8)';
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
+            }}
+          >
+            되돌리기
+          </button>
+        )}
       </div>
 
       {/* 실시간 영상 - 중앙 */}

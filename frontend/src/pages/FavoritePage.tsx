@@ -12,6 +12,8 @@ const FavoritePageContent: React.FC = () => {
   const favoritePageContext = useFavoritePage();
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const [isAnimating, setIsAnimating] = useState(false);
 
   // FavoritePageProvider 내부이므로 항상 존재해야 함
   if (!favoritePageContext) {
@@ -106,6 +108,24 @@ const FavoritePageContent: React.FC = () => {
     );
   }
 
+  const handleExpand = (index: number) => {
+    if (expandedIndex === index) {
+      // 이미 확대된 상태면 축소
+      setIsAnimating(true);
+      setExpandedIndex(null);
+      setTimeout(() => {
+        setIsAnimating(false);
+      }, 400); // 애니메이션 시간과 동일
+    } else {
+      // 확대
+      setIsAnimating(true);
+      setExpandedIndex(index);
+      setTimeout(() => {
+        setIsAnimating(false);
+      }, 400); // 애니메이션 시간과 동일
+    }
+  };
+
   return (
     <>
       <Dashboard />
@@ -114,35 +134,49 @@ const FavoritePageContent: React.FC = () => {
           {Array.from({ length: 4 }, (_, index) => {
             const cctv = selectedCCTVs[index];
             const canPlace = pendingCCTV !== null;
+            const isExpanded = expandedIndex === index;
             
             return (
               <div
                 key={cctv ? `cctv-${cctv.cctv_id}` : `empty-${index}`}
                 onClick={() => {
-                  // 대기 중인 CCTV가 있으면 이 위치에 배치
-                  if (pendingCCTV) {
+                  // 확대된 상태가 아니고 대기 중인 CCTV가 있으면 이 위치에 배치
+                  if (!isExpanded && pendingCCTV) {
                     placeCCTVAt(index);
                   }
                 }}
-                className={`border-2 rounded-lg shadow-md overflow-hidden bg-white dark:bg-gray-800 transition-all relative ${
-                  canPlace
+                className={`border-2 rounded-lg shadow-md overflow-hidden bg-white dark:bg-gray-800 relative ${
+                  canPlace && !isExpanded
                     ? 'border-blue-500/50 dark:border-blue-400/50 ring-2 ring-blue-400/30 dark:ring-blue-500/30 cursor-pointer hover:ring-blue-400/50 backdrop-blur-sm'
                     : 'border-gray-300 dark:border-gray-700'
-                }`}
+                } ${isExpanded ? 'z-50' : ''}`}
                 style={{
                   minHeight: 0,
-                  ...(canPlace ? {
+                  transition: isExpanded || isAnimating
+                    ? 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)' 
+                    : 'all 0.3s ease',
+                  ...(canPlace && !isExpanded ? {
                     background: 'rgba(53, 122, 189, 0.15)',
                     backdropFilter: 'blur(20px)',
                     WebkitBackdropFilter: 'blur(20px)',
                     boxShadow: '0 8px 32px 0 rgba(53, 122, 189, 0.2)',
+                  } : {}),
+                  ...(isExpanded ? {
+                    position: 'fixed',
+                    left: 'calc(16rem + 1rem + 0.5rem)',
+                    right: 'calc(20rem + 0.5rem + 0.5rem)',
+                    top: 'calc(2rem + 4rem + 0.5rem)',
+                    height: 'calc(100vh - 2rem - 4rem - 0.5rem - 2rem)',
+                    width: 'calc(100vw - 16rem - 1rem - 0.5rem - 20rem - 0.5rem - 0.5rem)',
+                    zIndex: 100,
+                    animation: isExpanded && isAnimating ? 'expandAnimation 0.4s ease-out' : 'none',
                   } : {})
                 }}
               >
                 {cctv ? (
                   <>
                     {/* 대기 중인 CCTV 배치 가능 표시 */}
-                    {canPlace && (
+                    {canPlace && !isExpanded && (
                       <div 
                         className="absolute top-2 left-2 z-10 text-white px-3 py-1.5 rounded-lg text-xs font-semibold backdrop-blur-md"
                         style={{
@@ -163,15 +197,17 @@ const FavoritePageContent: React.FC = () => {
                         cctv_id={cctv.cctv_id}
                         isFavorite={favorites.some((fav) => fav.cctv_id === cctv.cctv_id)}
                         onToggleFavorite={() => handleToggleFavorite(cctv.cctv_id, favorites.some((fav) => fav.cctv_id === cctv.cctv_id))}
+                        onExpand={() => handleExpand(index)}
+                        isExpanded={isExpanded}
                       />
                     </div>
                   </>
                 ) : (
                   <div 
                     className={`w-full h-full flex items-center justify-center cursor-pointer transition-all ${
-                      canPlace ? '' : 'bg-gray-50 dark:bg-gray-700/50'
+                      canPlace && !isExpanded ? '' : 'bg-gray-50 dark:bg-gray-700/50'
                     }`}
-                    style={canPlace ? {
+                    style={canPlace && !isExpanded ? {
                       background: 'rgba(53, 122, 189, 0.15)',
                       backdropFilter: 'blur(20px)',
                       WebkitBackdropFilter: 'blur(20px)',
@@ -180,15 +216,15 @@ const FavoritePageContent: React.FC = () => {
                     <div className="text-center">
                       <div 
                         className="text-sm mb-1 font-medium"
-                        style={canPlace ? {
+                        style={canPlace && !isExpanded ? {
                           color: 'rgba(255, 255, 255, 0.95)',
                         } : {}}
                       >
-                        {canPlace 
+                        {canPlace && !isExpanded
                           ? `클릭하여 "${pendingCCTV.location}" 배치` 
                           : '대시보드에서 CCTV 선택'}
                       </div>
-                      {canPlace && (
+                      {canPlace && !isExpanded && (
                         <div 
                           className="text-xs font-semibold mt-2 px-3 py-1 rounded-lg backdrop-blur-sm"
                           style={{
@@ -246,6 +282,51 @@ const FavoritePageContent: React.FC = () => {
           )}
         </div>
       </div>
+      
+      {/* 확대된 CCTV를 가리는 오버레이 - 투명하게 처리 */}
+      {expandedIndex !== null && (
+        <div
+          className="fixed inset-0 z-40"
+          style={{
+            background: 'transparent',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+      
+      {/* 애니메이션 스타일 */}
+      <style>{`
+        @keyframes expandAnimation {
+          from {
+            transform: scale(0.85);
+            opacity: 0.8;
+          }
+          to {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+        
+        @keyframes collapseAnimation {
+          from {
+            transform: scale(1);
+            opacity: 1;
+          }
+          to {
+            transform: scale(0.85);
+            opacity: 0.8;
+          }
+        }
+        
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+      `}</style>
     </>
   );
 };
