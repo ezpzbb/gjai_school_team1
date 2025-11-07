@@ -45,7 +45,7 @@ const Header: React.FC = () => {
         sidebarCollapsed ? 'left-[calc(4rem+1rem)]' : 'left-[calc(16rem+1rem)]'
       }`}
     >
-      <div className="container mx-auto flex items-center justify-between text-gray-900 dark:text-gray-100">
+      <div className="container mx-auto flex items-center justify-between text-gray-900 dark:text-gray-100" style={{ minHeight: '40px' }}>
         {/* 중앙: 네비게이션 (대시보드, 지도, 딥러닝분석) */}
         <div className="hidden lg:flex absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
           <div className="flex items-center space-x-4">
@@ -70,12 +70,21 @@ const Header: React.FC = () => {
           </div>
         </div>
 
-        {/* 우측: 프로필/로그인 */}
+        {/* 우측: 프로필/로그인 - placeholder로 높이 유지 */}
         <div className="flex items-center space-x-4 ml-auto">
-          {/* 다크모드 전환 버튼 */}
+          {/* 높이 유지를 위한 투명 placeholder */}
+          <div style={{ width: '180px', height: '40px' }} className="invisible"></div>
+          {/* 다크모드 전환 버튼 - 우측 고정 */}
           <button
             onClick={toggleTheme}
             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition"
+            style={{
+              position: 'fixed',
+              right: 'calc(2rem + 90px)',
+              top: 'calc(0.5rem + 2.25rem)',
+              transform: 'translateY(-50%)',
+              zIndex: 60
+            }}
             aria-label={theme === 'light' ? '다크모드로 전환' : '라이트모드로 전환'}
           >
             {theme === 'light' ? (
@@ -90,8 +99,18 @@ const Header: React.FC = () => {
           </button>
           {isLoggedIn ? (
             <>
-              {/* 프로필/유저 메뉴 (계정관리, 로그아웃) */}
-              <div className="relative" ref={menuRef}>
+              {/* 프로필/유저 메뉴 (계정관리, 로그아웃) - 우측 고정 */}
+              <div 
+                className="relative" 
+                ref={menuRef}
+                style={{
+                  position: 'fixed',
+                  right: '2rem',
+                  top: 'calc(0.5rem + 2.25rem)',
+                  transform: 'translateY(-50%)',
+                  zIndex: 60
+                }}
+              >
                 <button
                   onClick={handleMenuClick}
                   className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition flex items-center space-x-2"
@@ -124,8 +143,17 @@ const Header: React.FC = () => {
               </div>
             </>
           ) : (
-            /* 로그인 버튼 */
-            <Link to="/auth/login">
+            /* 로그인 버튼 - 우측 고정 */
+            <Link 
+              to="/auth/login"
+              style={{
+                position: 'fixed',
+                right: '2rem',
+                top: 'calc(0.5rem + 2.25rem)',
+                transform: 'translateY(-50%)',
+                zIndex: 60
+              }}
+            >
               <button className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition flex items-center space-x-2 px-4 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100">
                 <span className="hidden sm:inline">로그인</span>
               </button>
