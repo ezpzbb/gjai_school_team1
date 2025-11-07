@@ -11,7 +11,7 @@ const Sidebar: React.FC = () => {
   const navItems = [
     { key: "dashboard", label: "대시보드", path: "/dashboard", icon: "/icons/dashboard.svg" },
     { key: "map", label: "지도", path: "/kakao-map", icon: "/icons/map.svg" },
-    { key: "favorite", label: "딥러닝분석", path: "/favorite", icon: "/icons/cctv.svg" },
+    { key: "favorite", label: "CCTV", path: "/favorite", icon: "/icons/cctv.svg" },
   ];
 
   return (

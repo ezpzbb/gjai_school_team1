@@ -32,7 +32,7 @@ const Header: React.FC = () => {
   const navItems = [
     { key: "dashboard", label: "대시보드", path: "/dashboard" },
     { key: "map", label: "지도", path: "/kakao-map" },
-    { key: "favorite", label: "딥러닝분석", path: "/favorite" }, // FavoritePage.tsx로 이동
+    { key: "favorite", label: "CCTV", path: "/favorite" }, // FavoritePage.tsx로 이동
   ];
 
   const handleMenuClick = () => {

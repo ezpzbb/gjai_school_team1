@@ -411,6 +411,10 @@ const KakaoMap: React.FC = () => {
           eventInfoWindowRef.current = null;
         }
 
+        // 지도를 마커 위치로 이동 (카메라 컴포넌트가 중앙에 보이도록)
+        mapInstance.current.setCenter(markerPosition);
+        mapInstance.current.setLevel(4);
+
         const container = document.createElement('div');
         container.style.position = 'absolute';
         container.style.zIndex = '10';
