@@ -18,7 +18,7 @@ const Sidebar: React.FC = () => {
       <div className="p-4 mb-2">
         <Link to="/" className="flex items-center">
           
-          <span className="text-gray-900 dark:text-gray-100 text-2xl font-bold">흑염룡CCTV</span>
+          <span className="text-gray-900 dark:text-gray-100 text-2xl font-bold">Palantir</span>
         </Link>
       </div>
 

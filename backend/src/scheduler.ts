@@ -1,33 +1,11 @@
 // src/scheduler.ts
-import { updateCctvData } from './cctvUpdater';
+// ITS CCTV 업데이트는 제거됨 (경찰청 UTIC API로 전환)
+// ITS 이벤트 업데이트는 유지
 import { updateEventData } from './eventUpdater';
 
-const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
 const THIRTY_MINUTES = 30 * 60 * 1000;
 
-let cctvIntervalId: NodeJS.Timeout | null = null;
 let eventIntervalId: NodeJS.Timeout | null = null;
-
-export function startCctvScheduler(): void {
-  if (cctvIntervalId) return;
-
-  // 서버 시작 시 즉시 실행
-  console.log('CCTV 스케줄러 시작: 즉시 실행 + 24시간 간격');
-  updateCctvData();
-
-  cctvIntervalId = setInterval(() => {
-    console.log('24시간 경과 → CCTV 자동 업데이트 시작');
-    updateCctvData();
-  }, TWENTY_FOUR_HOURS);
-}
-
-export function stopCctvScheduler(): void {
-  if (cctvIntervalId) {
-    clearInterval(cctvIntervalId);
-    cctvIntervalId = null;
-    console.log('CCTV 스케줄러 중지됨');
-  }
-}
 
 export function startEventScheduler(): void {
   if (eventIntervalId) return;

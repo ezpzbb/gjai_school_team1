@@ -107,23 +107,47 @@ const KakaoMap: React.FC = () => {
   const loadData = async (retries = 3, delay = 2000) => {
     console.log('KakaoMap: loadData started');
     try {
-      const [cctvResponse, favoriteData] = await Promise.all([
-        fetchCCTVLocations(),
-        getUserFavorites(),
-      ]);
-      console.log('KakaoMap: CCTV locations fetched:', cctvResponse);
-      console.log('KakaoMap: User favorites fetched:', favoriteData);
-      setCctvLocations(cctvResponse.data);
-      setFavorites(favoriteData);
+      // CCTV 데이터와 즐겨찾기 데이터를 개별적으로 로드 (하나가 실패해도 다른 것은 로드)
+      let cctvResponse: { success: boolean; data: CCTV[] } | null = null;
+      let favoriteData: Favorite[] = [];
+
+      // CCTV 데이터 로드
+      try {
+        cctvResponse = await fetchCCTVLocations();
+        console.log('KakaoMap: CCTV locations fetched:', cctvResponse);
+        if (cctvResponse && cctvResponse.data) {
+          setCctvLocations(cctvResponse.data);
+        }
+      } catch (error: any) {
+        console.error('KakaoMap: Failed to load CCTV locations:', error);
+        if (error.message.includes('429') && retries > 0) {
+          console.log(`KakaoMap: Retrying CCTV load (${retries} retries left)...`);
+          setTimeout(() => loadData(retries - 1, delay), delay);
+          return;
+        }
+        // CCTV 로드 실패 시에도 계속 진행 (즐겨찾기는 시도)
+      }
+
+      // 즐겨찾기 데이터 로드 (실패해도 계속 진행)
+      try {
+        favoriteData = await getUserFavorites();
+        console.log('KakaoMap: User favorites fetched:', favoriteData);
+        setFavorites(favoriteData);
+      } catch (error: any) {
+        console.warn('KakaoMap: Failed to load favorites (continuing without favorites):', error);
+        // 즐겨찾기 로드 실패는 경고만 하고 계속 진행
+        setFavorites([]);
+      }
+
+      // CCTV 데이터가 성공적으로 로드되었는지 확인
+      if (!cctvResponse || !cctvResponse.data) {
+        throw new Error('CCTV 데이터를 불러오지 못했습니다.');
+      }
+
       setError(null);
     } catch (error: any) {
       console.error('KakaoMap: Failed to load data:', error);
-      if (error.message.includes('429') && retries > 0) {
-        console.log(`KakaoMap: Retrying loadData (${retries} retries left)...`);
-        setTimeout(() => loadData(retries - 1, delay), delay);
-      } else {
-        setError('데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
-      }
+      setError('데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
     }
   };
 
@@ -387,6 +411,8 @@ const KakaoMap: React.FC = () => {
         container.style.padding = '5px';
 
         const root = createRoot(container);
+        // Camera 컴포넌트는 api_endpoint를 받아서 자동으로 UTIC URL(경찰청) 또는 HLS 스트리밍(ITS)을 처리합니다
+        // UTIC URL은 iframe으로, HLS는 video 태그로 표시됩니다
         root.render(
           <Camera
             apiEndpoint={cctv.api_endpoint}
@@ -401,6 +427,7 @@ const KakaoMap: React.FC = () => {
                 overlayRef.current = null;
               }
             }}
+            pageType="kakao-map"
           />
         );
 
@@ -728,6 +755,8 @@ const KakaoMap: React.FC = () => {
     container.style.height = '300px';
     container.style.padding = '5px';
 
+    // Camera 컴포넌트는 api_endpoint를 받아서 자동으로 UTIC URL(경찰청) 또는 HLS 스트리밍(ITS)을 처리합니다
+    // UTIC URL은 iframe으로, HLS는 video 태그로 표시됩니다
     const root = createRoot(container);
     root.render(
       <Camera
@@ -738,6 +767,7 @@ const KakaoMap: React.FC = () => {
         isFavorite={favorites.some((fav) => fav.cctv_id === cctv.cctv_id)}
         onToggleFavorite={() => toggleFavorite(cctv.cctv_id)}
         onClose={closeAllOverlays}
+        pageType="kakao-map"
       />
     );
 

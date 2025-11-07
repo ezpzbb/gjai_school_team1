@@ -277,6 +277,7 @@ const FavoritePageContent: React.FC = () => {
                         onExpand={() => handleExpand(index)}
                         isExpanded={isExpanded}
                         isPlacementMode={canPlace}
+                        pageType="favorite"
                       />
                     </div>
                   </>

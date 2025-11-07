@@ -4,7 +4,8 @@ import { Server as SocketIOServer } from 'socket.io';
 import dotenv from 'dotenv';
 import { initializeApp } from './app';
 import { initializeDatabase, closeDatabase } from './config/db';
-import { startCctvScheduler, stopCctvScheduler, startEventScheduler, stopEventScheduler } from './scheduler';
+// ITS CCTV 스케줄러는 제거됨 (경찰청 UTIC API로 전환)
+import { startEventScheduler, stopEventScheduler } from './scheduler';
 import { setupSocketHandlers } from './socket';
 
 dotenv.config();
@@ -37,8 +38,7 @@ async function start() {
       console.log(`📍 환경: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🌐 CORS Origin: ${process.env.CORS_ORIGIN || 'http://localhost:5173'}`);
 
-      // 스케줄러 시작
-      startCctvScheduler();
+      // 스케줄러 시작 (ITS CCTV는 제거, 이벤트만 유지)
       startEventScheduler();
     });
   } catch (error) {
@@ -50,14 +50,12 @@ async function start() {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('서버 종료 중...');
-  stopCctvScheduler();
   stopEventScheduler();
   await closeDatabase();
   process.exit(0);
 });
 process.on('SIGINT', async () => {
   console.log('서버 종료 중...');
-  stopCctvScheduler();
   stopEventScheduler();
   await closeDatabase();
   process.exit(0);
