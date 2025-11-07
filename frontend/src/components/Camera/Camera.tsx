@@ -33,9 +33,20 @@ const Camera: React.FC<CameraProps> = ({
   const [scale, setScale] = React.useState(1);
   const [translateY, setTranslateY] = React.useState(0);
   const initialContainerSizeRef = useRef<{ width: number; height: number } | null>(null);
+  const savedScaleRef = useRef<{ scale: number; translateY: number } | null>(null); // 크게보기 전 비율 저장
+  const prevApiEndpointRef = useRef(apiEndpoint);
+  const prevPageTypeRef = useRef(pageType);
 
   useEffect(() => {
     if (!containerRef.current) return;
+
+    // 되돌리기 시: 저장된 비율 복원 (재계산 하지 않음)
+    if (isExpanded === false && savedScaleRef.current) {
+      console.log('Camera: Restoring saved scale (no recalculation)', savedScaleRef.current);
+      setScale(savedScaleRef.current.scale);
+      setTranslateY(savedScaleRef.current.translateY);
+      return;
+    }
 
     const updateScale = () => {
       const container = containerRef.current;
@@ -105,14 +116,30 @@ const Camera: React.FC<CameraProps> = ({
         currentSize: `${rect.width.toFixed(0)}x${rect.height.toFixed(0)}`,
         finalScale: calculatedScale.toFixed(3),
         translateY: calculatedTranslateY.toFixed(2) + '%',
+        isExpanded: isExpanded,
       });
 
       setScale(calculatedScale);
       setTranslateY(calculatedTranslateY);
+      
+      // 축소 상태(isExpanded = false)일 때의 비율을 저장
+      if (isExpanded === false) {
+        savedScaleRef.current = {
+          scale: calculatedScale,
+          translateY: calculatedTranslateY,
+        };
+        console.log('Camera: Saved original scale for future restore', savedScaleRef.current);
+      }
     };
 
-    // pageType 변경 또는 apiEndpoint 변경 시 초기 크기 리셋하고 재계산
-    initialContainerSizeRef.current = null;
+    // pageType 변경 또는 apiEndpoint 변경 시만 초기 크기 및 저장된 비율 리셋
+    if (prevApiEndpointRef.current !== apiEndpoint || prevPageTypeRef.current !== pageType) {
+      console.log('Camera: apiEndpoint or pageType changed, resetting saved scale');
+      initialContainerSizeRef.current = null;
+      savedScaleRef.current = null;
+      prevApiEndpointRef.current = apiEndpoint;
+      prevPageTypeRef.current = pageType;
+    }
     
     // 초기 계산
     let retryCount = 0;
