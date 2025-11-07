@@ -9,9 +9,9 @@ const Sidebar: React.FC = () => {
 
   // 네비게이션 항목 (Header와 동일)
   const navItems = [
-    { key: "dashboard", label: "대시보드", path: "/dashboard" },
-    { key: "map", label: "지도", path: "/kakao-map" },
-    { key: "favorite", label: "딥러닝분석", path: "/favorite" },
+    { key: "dashboard", label: "대시보드", path: "/dashboard", icon: "/icons/dashboard.svg" },
+    { key: "map", label: "지도", path: "/kakao-map", icon: "/icons/map.svg" },
+    { key: "favorite", label: "딥러닝분석", path: "/favorite", icon: "/icons/cctv.svg" },
   ];
 
   return (
@@ -42,7 +42,7 @@ const Sidebar: React.FC = () => {
       </button>
 
       {/* 최상단: 로고 */}
-      <div className={`p-4 mb-2 ${sidebarCollapsed ? 'text-center' : ''}`}>
+      <div className={`mb-2 ${sidebarCollapsed ? 'p-2 text-center' : 'p-4'}`}>
         <Link to="/" className="flex items-center justify-center">
           <span className={`text-gray-900 dark:text-gray-100 font-bold transition-all duration-300 ${
             sidebarCollapsed ? 'text-xl' : 'text-2xl'
@@ -53,7 +53,7 @@ const Sidebar: React.FC = () => {
       </div>
 
       {/* 네비게이션 메뉴 */}
-      <nav className="flex-1 p-4">
+      <nav className={`flex-1 ${sidebarCollapsed ? 'p-2' : 'p-4'}`}>
         <div className="flex flex-col space-y-3">
           {navItems.map((item) => {
             const isActive =
@@ -63,7 +63,9 @@ const Sidebar: React.FC = () => {
               <Link
                 key={item.key}
                 to={item.path}
-                className={`px-4 py-3 rounded-lg transition flex items-center justify-center ${
+                className={`rounded-lg transition flex items-center justify-center ${
+                  sidebarCollapsed ? 'p-2' : 'px-4 py-3'
+                } ${
                   isActive
                     ? "bg-blue-600 dark:bg-blue-700 text-white font-semibold"
                     : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100"
@@ -71,7 +73,13 @@ const Sidebar: React.FC = () => {
                 title={sidebarCollapsed ? item.label : ''}
               >
                 {sidebarCollapsed ? (
-                  <span className="text-lg">{item.label[0]}</span>
+                  <img 
+                    src={item.icon} 
+                    alt={item.label}
+                    className={`w-8 h-8 transition-all duration-300 ${
+                      isActive ? 'brightness-0 invert' : 'dark:brightness-0 dark:invert'
+                    }`}
+                  />
                 ) : (
                   <span>{item.label}</span>
                 )}
@@ -82,17 +90,19 @@ const Sidebar: React.FC = () => {
       </nav>
 
       {/* 하단 설정 버튼 */}
-      <div className="p-4 border-t border-gray-200 dark:border-gray-700 mt-2">
+      <div className={`border-t border-gray-200 dark:border-gray-700 mt-2 ${sidebarCollapsed ? 'p-2' : 'p-4'}`}>
         <Link
           to="/settings"
-          className={`w-full px-4 py-3 rounded-lg transition flex items-center justify-center ${
+          className={`w-full rounded-lg transition flex items-center justify-center ${
+            sidebarCollapsed ? 'p-2' : 'px-4 py-3'
+          } ${
             pathname === "/settings"
               ? "bg-blue-600 dark:bg-blue-700 text-white font-semibold"
               : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100"
           }`}
           title={sidebarCollapsed ? "설정" : ''}
         >
-          {sidebarCollapsed ? <span className="text-lg">⚙</span> : <span>설정</span>}
+          {sidebarCollapsed ? <span className="text-2xl">⚙</span> : <span>설정</span>}
         </Link>
       </div>
     </aside>
