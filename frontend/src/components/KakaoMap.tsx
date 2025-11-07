@@ -8,6 +8,7 @@ import { fetchCCTVLocations, getUserFavorites, addFavorite, removeFavorite, sear
 import { socketService } from '../services/socket';
 import Camera from './Camera/Camera';
 import { useMap } from '../providers/MapProvider';
+import { useLayout } from '../providers/LayoutProvider';
 
 interface KakaoMap {
   LatLng: new (lat: number, lng: number) => any;
@@ -61,6 +62,7 @@ const KakaoMap: React.FC = () => {
   const eventMarkersRef = useRef<any[]>([]);
   const KAKAO_API_KEY = import.meta.env.VITE_KAKAO_API_KEY as string;
   const { registerSelectCCTV, registerSelectEvent } = useMap();
+  const { sidebarCollapsed, dashboardCollapsed } = useLayout();
   
   // 검색 자동완성 관련 상태
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -312,6 +314,18 @@ const KakaoMap: React.FC = () => {
     }
   }, [events, isMapInitialized]); // isMapInitialized 의존성 추가
 
+  // 사이드바/대시보드 축소 시 지도 relayout
+  useEffect(() => {
+    if (mapInstance.current && isMapInitialized) {
+      console.log('KakaoMap: Layout changed, calling relayout');
+      setTimeout(() => {
+        if (mapInstance.current) {
+          mapInstance.current.relayout();
+        }
+      }, 350); // transition 완료 후 relayout (duration-300 + 50ms)
+    }
+  }, [sidebarCollapsed, dashboardCollapsed, isMapInitialized]);
+
   const initializeMap = () => {
     if (!mapRef.current || !window.kakao || !window.kakao.maps) {
       console.error('KakaoMap: Cannot initialize map: SDK or container missing', {
@@ -407,7 +421,7 @@ const KakaoMap: React.FC = () => {
         container.style.borderRadius = '8px';
         container.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
         container.style.width = '400px';
-        container.style.height = '300px';
+        container.style.height = '270px';
         container.style.padding = '5px';
 
         const root = createRoot(container);
@@ -752,7 +766,7 @@ const KakaoMap: React.FC = () => {
     container.style.borderRadius = '8px';
     container.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
     container.style.width = '400px';
-    container.style.height = '300px';
+    container.style.height = '270px';
     container.style.padding = '5px';
 
     // Camera 컴포넌트는 api_endpoint를 받아서 자동으로 UTIC URL(경찰청) 또는 HLS 스트리밍(ITS)을 처리합니다

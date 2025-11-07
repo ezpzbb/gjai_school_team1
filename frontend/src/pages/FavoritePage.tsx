@@ -6,10 +6,12 @@ import { fetchCCTVLocations, getUserFavorites, addFavorite, removeFavorite } fro
 import Camera from '../components/Camera/Camera';
 import Dashboard from '../components/Dashboard/Dashboard';
 import { FavoritePageProvider, useFavoritePage } from '../providers/FavoritePageProvider';
+import { useLayout } from '../providers/LayoutProvider';
 
 const FavoritePageContent: React.FC = () => {
   const { isLoggedIn } = useAuth();
   const favoritePageContext = useFavoritePage();
+  const { sidebarCollapsed, dashboardCollapsed } = useLayout();
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
@@ -206,7 +208,13 @@ const FavoritePageContent: React.FC = () => {
   return (
     <>
       <Dashboard />
-      <div className="fixed left-[calc(16rem+1rem+0.5rem)] right-[calc(20rem+0.5rem+0.5rem)] top-[calc(2rem+4rem+0.5rem)] h-[calc(100vh-2rem-4rem-0.5rem-2rem)] z-30">
+      <div 
+        className={`fixed top-[calc(2rem+4rem+0.5rem)] h-[calc(100vh-2rem-4rem-0.5rem-2rem)] z-30 transition-all duration-300 ${
+          sidebarCollapsed ? 'left-[calc(4rem+1rem+0.5rem)]' : 'left-[calc(16rem+1rem+0.5rem)]'
+        } ${
+          dashboardCollapsed ? 'right-[calc(4rem+0.5rem+0.5rem)]' : 'right-[calc(20rem+0.5rem+0.5rem)]'
+        }`}
+      >
         <div className="grid grid-cols-2 grid-rows-2 gap-4 h-full">
           {Array.from({ length: 4 }, (_, index) => {
             const cctv = selectedCCTVs[index];

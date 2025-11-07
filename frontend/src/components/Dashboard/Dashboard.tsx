@@ -7,6 +7,7 @@ import { fetchCCTVLocations, getUserFavorites } from '../../services/api';
 import { socketService } from '../../services/socket';
 import { useMap } from '../../providers/MapProvider';
 import { useFavoritePage } from '../../providers/FavoritePageProvider';
+import { useLayout } from '../../providers/LayoutProvider';
 
 // 날짜 포맷팅 함수들 (컴포넌트 외부로 이동)
 const formatEventDate = (dateStr: string): string => {
@@ -33,6 +34,7 @@ const formatEventDateForSort = (dateStr: string): string => {
 const Dashboard: React.FC = () => {
   const { isLoggedIn } = useAuth();
   const mapContext = useMap();
+  const { dashboardCollapsed, toggleDashboard } = useLayout();
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [cctvLocations, setCctvLocations] = useState<CCTV[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
@@ -120,7 +122,27 @@ const Dashboard: React.FC = () => {
   }, [events]);
 
   return (
-    <div className="fixed top-[calc(2rem+4rem+0.5rem)] right-2 w-80 h-[calc(100vh-2rem-4rem-0.5rem-2rem)] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 p-4 z-40 rounded-lg shadow-lg flex flex-col">
+    <div className={`fixed top-[calc(2rem+4rem+0.5rem)] right-2 h-[calc(100vh-2rem-4rem-0.5rem-2rem)] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 p-4 z-40 rounded-lg shadow-lg flex flex-col transition-all duration-300 ${
+      dashboardCollapsed ? 'w-16' : 'w-80'
+    }`}>
+      {/* 축소 버튼 */}
+      <button
+        onClick={toggleDashboard}
+        className="absolute -left-3 top-8 w-6 h-6 bg-blue-600 dark:bg-blue-700 text-white rounded-full flex items-center justify-center hover:bg-blue-700 dark:hover:bg-blue-800 transition z-50 shadow-lg"
+        title={dashboardCollapsed ? "대시보드 펼치기" : "대시보드 접기"}
+      >
+        <svg
+          className={`w-4 h-4 transition-transform duration-300 ${dashboardCollapsed ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+
+      {!dashboardCollapsed && (
+        <>
       {/* 즐겨찾기 섹션 */}
       {favoriteCCTVs.length > 0 && (
         <div className="mb-6 flex-shrink-0">
@@ -184,6 +206,8 @@ const Dashboard: React.FC = () => {
           <p className="mb-2">즐겨찾기가 없습니다.</p>
           <p>이벤트가 없습니다.</p>
         </div>
+      )}
+      </>
       )}
     </div>
   );

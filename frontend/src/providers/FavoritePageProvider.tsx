@@ -21,18 +21,18 @@ export const FavoritePageProvider: React.FC<{ children: ReactNode }> = ({ childr
     
     setSelectedCCTVs((prev) => {
       // 현재 배열을 4개로 채우기 (빈 자리는 null로)
-      const current = Array(4).fill(null).map((_, i) => prev[i] || null);
+      const current: (CCTV | null)[] = Array(4).fill(null).map((_, i) => prev[i] || null);
       
       // 선택한 위치에 이미 CCTV가 있는지 확인
       const existingCCTV = current[index];
       
       // 대기 중인 CCTV가 현재 어느 위치에 있는지 찾기
       const pendingIndex = current.findIndex(
-        (cctv, i) => cctv && cctv.cctv_id === pendingCCTV.cctv_id
+        (cctv) => cctv && cctv.cctv_id === pendingCCTV.cctv_id
       );
       
       // 새로운 배열 생성
-      const newArray = [...current];
+      const newArray: (CCTV | null)[] = [...current];
       
       // 대기 중인 CCTV를 현재 위치에서 제거
       if (pendingIndex !== -1) {

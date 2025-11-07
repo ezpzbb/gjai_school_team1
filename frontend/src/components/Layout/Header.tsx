@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../../providers/AuthProvider";
 import { useTheme } from "../../providers/ThemeProvider";
+import { useLayout } from "../../providers/LayoutProvider";
 
 
 
@@ -9,6 +10,7 @@ const Header: React.FC = () => {
   const location = useLocation();
   const { isLoggedIn, user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { sidebarCollapsed } = useLayout();
   const pathname = location.pathname;
 
   // 유저 메뉴 상태
@@ -38,7 +40,11 @@ const Header: React.FC = () => {
   };
 
   return (
-    <header className="fixed top-2 left-[calc(16rem+1rem)] right-2 z-50 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 px-6 py-4 rounded-lg shadow-lg">
+    <header 
+      className={`fixed top-2 right-2 z-50 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 px-6 py-4 rounded-lg shadow-lg transition-all duration-300 ${
+        sidebarCollapsed ? 'left-[calc(4rem+1rem)]' : 'left-[calc(16rem+1rem)]'
+      }`}
+    >
       <div className="container mx-auto flex items-center justify-between text-gray-900 dark:text-gray-100">
         {/* 중앙: 네비게이션 (대시보드, 지도, 딥러닝분석) */}
         <div className="hidden lg:flex absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
