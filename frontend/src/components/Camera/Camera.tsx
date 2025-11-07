@@ -49,6 +49,7 @@ const Camera: React.FC<CameraProps> = ({
       }
       
       // 초기 크기를 저장하고, 이후에는 이 크기 기준으로만 scale 계산
+      // 단, isExpanded가 true일 때는 현재 크기 기준으로 계산
       if (!initialContainerSizeRef.current) {
         initialContainerSizeRef.current = {
           width: rect.width,
@@ -57,9 +58,9 @@ const Camera: React.FC<CameraProps> = ({
         console.log('Camera: Initial container size saved', initialContainerSizeRef.current);
       }
       
-      // scale 계산은 항상 초기 크기 기준 (축소/확대 시에도 동일한 scale 유지)
-      const containerWidth = initialContainerSizeRef.current.width;
-      const containerHeight = initialContainerSizeRef.current.height;
+      // scale 계산: isExpanded가 true면 현재 크기 기준, 아니면 초기 크기 기준
+      const containerWidth = isExpanded ? rect.width : initialContainerSizeRef.current.width;
+      const containerHeight = isExpanded ? rect.height : initialContainerSizeRef.current.height;
       
       // iframe 내부 HTML 구조 분석:
       // - <p class="hd">: 상단 바 (닫기 버튼 포함) - 높이 약 40-50px
@@ -87,8 +88,9 @@ const Camera: React.FC<CameraProps> = ({
         additionalOffset = 21.5;
       } else if (pageType === 'favorite') {
         // Favorite: 원래 맞춰놓은 비율 유지
-        zoomAdjust = 1.1;
-        additionalOffset = 30;
+        // 확대 시에는 우하단으로 이동
+        zoomAdjust = isExpanded ? 1.15 : 1.1;
+        additionalOffset = isExpanded ? 65 : 30;
       }
       
       const calculatedScale = baseScale * zoomAdjust;
@@ -133,12 +135,12 @@ const Camera: React.FC<CameraProps> = ({
     
     const timeoutId = setTimeout(() => {
       tryUpdateScale();
-    }, 300);
+    }, isExpanded ? 500 : 300); // 확대 시 애니메이션 완료 후 재계산
 
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [apiEndpoint, pageType]);
+  }, [apiEndpoint, pageType, isExpanded]);
 
   if (!apiEndpoint) {
     return (
@@ -317,7 +319,7 @@ const Camera: React.FC<CameraProps> = ({
           style={{
             position: 'relative',
             width: '100%',
-            maxWidth: '640px',
+            maxWidth: isExpanded ? '100%' : '640px',
             height: 'auto',
             aspectRatio: '16/9',
             overflow: 'hidden',
@@ -331,7 +333,11 @@ const Camera: React.FC<CameraProps> = ({
               height: '480px',
               border: 'none',
               display: 'block',
-              transform: `scale(${scale}) translateY(${translateY}%) ${pageType === 'kakao-map' ? 'translateX(-18%)' : ''}`,
+              transform: `scale(${scale}) translateY(${translateY}%) ${
+                pageType === 'kakao-map' 
+                  ? 'translateX(-18%)' 
+                  : (pageType === 'favorite' && isExpanded ? 'translateX(16%)' : '')
+              }`,
               transformOrigin: 'center top',
             }}
             allow="autoplay; fullscreen"

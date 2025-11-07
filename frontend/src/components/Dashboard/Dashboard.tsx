@@ -128,7 +128,12 @@ const Dashboard: React.FC = () => {
       {/* 축소 버튼 */}
       <button
         onClick={toggleDashboard}
-        className="absolute -left-3 top-8 w-6 h-6 bg-blue-600 dark:bg-blue-700 text-white rounded-full flex items-center justify-center hover:bg-blue-700 dark:hover:bg-blue-800 transition z-50 shadow-lg"
+        className="fixed w-6 h-6 bg-blue-600 dark:bg-blue-700 text-white rounded-full flex items-center justify-center hover:bg-blue-700 dark:hover:bg-blue-800 transition-all duration-300 z-50 shadow-lg"
+        style={{ 
+          right: `calc(0.5rem + ${dashboardCollapsed ? '4rem' : '20rem'} - 0.75rem)`,
+          top: '50vh', 
+          transform: 'translateY(-50%)' 
+        }}
         title={dashboardCollapsed ? "대시보드 펼치기" : "대시보드 접기"}
       >
         <svg
