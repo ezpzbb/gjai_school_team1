@@ -47,7 +47,7 @@ export const fetchCCTVLocations = async (retries = 3, delay = 2000): Promise<{ s
 export const getUserFavorites = async (retries = 3, delay = 2000): Promise<Favorite[]> => {
   const token = localStorage.getItem('token');
   console.log('getUserFavorites: token=', token);
-  const cacheKey = 'user_favorites';
+  const cacheKey = token ? `user_favorites_${token}` : 'user_favorites';
   const cached = cache[cacheKey];
   if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
     console.log('getUserFavorites: Returning cached data', cached.data);
@@ -99,8 +99,10 @@ export const addFavorite = async (cctv_id: number): Promise<void> => {
   if (!response.ok) {
     throw new Error(`Failed to add favorite: ${await response.text()}`);
   }
-  delete cache['user_favorites'];
-  console.log('addFavorite: Cache invalidated for user_favorites');
+  if (token) {
+    delete cache[`user_favorites_${token}`];
+  }
+  console.log('addFavorite: Cache invalidated for token:', token);
 };
 
 export const removeFavorite = async (cctv_id: number): Promise<void> => {
@@ -125,8 +127,10 @@ export const removeFavorite = async (cctv_id: number): Promise<void> => {
     }
     throw new Error(`Failed to remove favorite: ${errorText}, status: ${response.status}`);
   }
-  delete cache['user_favorites'];
-  console.log('removeFavorite: Cache invalidated for user_favorites');
+  if (token) {
+    delete cache[`user_favorites_${token}`];
+  }
+  console.log('removeFavorite: Cache invalidated for token:', token);
 };
 
 export const searchCCTVLocations = async (query: string): Promise<CCTV[]> => {
