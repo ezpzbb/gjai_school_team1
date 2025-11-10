@@ -599,6 +599,7 @@ const KakaoMap: React.FC = () => {
           if (type === 'its') return '국도';
           if (type === 'loc') return '지방도';
           if (type === 'sgg') return '시군도';
+          if (type === 'pol') return '경찰청';
           return type;
         };
 
@@ -861,6 +862,7 @@ const KakaoMap: React.FC = () => {
         if (type === 'its') return '국도';
         if (type === 'loc') return '지방도';
         if (type === 'sgg') return '시군도';
+        if (type === 'pol') return '경찰청';
         return type;
       };
 

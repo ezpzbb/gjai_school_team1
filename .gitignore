@@ -69,3 +69,6 @@ out/
 *.sqlite3
 
 cctv.ts
+
+# 인증서
+backend/certs/
