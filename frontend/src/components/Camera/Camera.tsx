@@ -350,6 +350,7 @@ const Camera: React.FC<CameraProps> = ({
         borderRadius: '6px',
         overflow: 'hidden',
         position: 'relative',
+        minHeight: 0,
       }}
     >
       {isPopup && (
@@ -448,120 +449,133 @@ const Camera: React.FC<CameraProps> = ({
         style={{
           flex: 1,
           display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          backgroundColor: '#000',
           position: 'relative',
-          padding: isExpanded ? '12px' : '24px',
+          backgroundColor: '#000',
+          minHeight: 0,
         }}
       >
         <div
           style={{
+            flex: 1,
+            minHeight: 0,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
             position: 'relative',
-            width: '100%',
-            maxWidth: isExpanded ? '100%' : '640px',
-            aspectRatio: '16/9',
-            backgroundColor: '#000',
-            borderRadius: '8px',
-            overflow: 'hidden',
           }}
         >
-          <video
-            ref={videoRef}
-            autoPlay
-            muted
-            playsInline
-            controls
-            title={`CCTV ${location || cctv_id}`}
-            data-cctv-id={cctv_id}
+          <div
             style={{
+              position: 'relative',
               width: '100%',
               height: '100%',
-              objectFit: videoObjectFit,
+              maxWidth: isExpanded ? '100%' : '640px',
+              maxHeight: '100%',
               backgroundColor: '#000',
+              borderRadius: '8px',
+              overflow: 'hidden',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
             }}
           >
-            {streamUrl && resolvedMimeType && (
-              <source src={streamUrl} type={resolvedMimeType} />
+            <video
+              ref={videoRef}
+              autoPlay
+              muted
+              playsInline
+              controls
+              title={`CCTV ${location || cctv_id}`}
+              data-cctv-id={cctv_id}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: videoObjectFit,
+                backgroundColor: '#000',
+              }}
+            >
+              {streamUrl && resolvedMimeType && (
+                <source src={streamUrl} type={resolvedMimeType} />
+              )}
+            </video>
+
+            {isLoading && (
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#f9fafb',
+                  fontSize: '14px',
+                  background:
+                    'linear-gradient(180deg, rgba(17, 24, 39, 0.82) 0%, rgba(17, 24, 39, 0.7) 50%, rgba(17, 24, 39, 0.82) 100%)',
+                  backdropFilter: 'blur(6px)',
+                  WebkitBackdropFilter: 'blur(6px)',
+                }}
+              >
+                영상 로딩 중...
+              </div>
             )}
-          </video>
 
-          {isLoading && (
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#f9fafb',
-                fontSize: '14px',
-                background:
-                  'linear-gradient(180deg, rgba(17, 24, 39, 0.82) 0%, rgba(17, 24, 39, 0.7) 50%, rgba(17, 24, 39, 0.82) 100%)',
-                backdropFilter: 'blur(6px)',
-                WebkitBackdropFilter: 'blur(6px)',
-              }}
-            >
-              영상 로딩 중...
-            </div>
-          )}
+            {errorMessage && (
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  textAlign: 'center',
+                  padding: '16px',
+                  color: '#ffe4e6',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  background:
+                    'linear-gradient(180deg, rgba(127, 29, 29, 0.75) 0%, rgba(127, 29, 29, 0.6) 50%, rgba(127, 29, 29, 0.75) 100%)',
+                  border: '1px solid rgba(248, 113, 113, 0.5)',
+                  backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                }}
+              >
+                {errorMessage}
+              </div>
+            )}
 
-          {errorMessage && (
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                textAlign: 'center',
-                padding: '16px',
-                color: '#ffe4e6',
-                fontSize: '14px',
-                fontWeight: 600,
-                background:
-                  'linear-gradient(180deg, rgba(127, 29, 29, 0.75) 0%, rgba(127, 29, 29, 0.6) 50%, rgba(127, 29, 29, 0.75) 100%)',
-                border: '1px solid rgba(248, 113, 113, 0.5)',
-                backdropFilter: 'blur(8px)',
-                WebkitBackdropFilter: 'blur(8px)',
-              }}
-            >
-              {errorMessage}
-            </div>
-          )}
-
-          {onToggleFavorite && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleFavorite();
-              }}
-              style={{
-                position: 'absolute',
-                bottom: '10px',
-                right: '10px',
-                padding: '6px 12px',
-                fontSize: '12px',
-                fontWeight: '600',
-                color: 'white',
-                background: isFavorite ? 'rgba(234, 179, 8, 0.9)' : 'rgba(156, 163, 175, 0.8)',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                transform: 'scale(1)',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                zIndex: 10000,
-                backdropFilter: 'blur(10px)',
-                WebkitBackdropFilter: 'blur(10px)',
-              }}
-            >
-              {isFavorite ? '★' : '☆'} 즐겨찾기
-            </button>
-          )}
+            {onToggleFavorite && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleFavorite();
+                }}
+                style={{
+                  position: 'absolute',
+                  bottom: '12px',
+                  right: '12px',
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  color: 'white',
+                  background: isFavorite ? 'rgba(234, 179, 8, 0.9)' : 'rgba(156, 163, 175, 0.8)',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  transform: 'scale(1)',
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  zIndex: 5,
+                  backdropFilter: 'blur(10px)',
+                  WebkitBackdropFilter: 'blur(10px)',
+                }}
+              >
+                {isFavorite ? '★' : '☆'} 즐겨찾기
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

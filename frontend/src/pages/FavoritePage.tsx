@@ -209,7 +209,7 @@ const FavoritePageContent: React.FC = () => {
     <>
       <Dashboard />
       <div 
-        className={`fixed top-[calc(2rem+4rem+0.5rem)] h-[calc(100vh-2rem-4rem-0.5rem-2rem)] z-30 transition-all duration-300 ${
+        className={`fixed top-[calc(2rem+4rem+0.5rem)] h-[calc(100vh-2rem-4rem-0.5rem-2rem)] z-30 transition-all duration-300 overflow-hidden ${
           sidebarCollapsed ? 'left-[calc(4rem+1rem+0.5rem)]' : 'left-[calc(16rem+1rem+0.5rem)]'
         } ${
           dashboardCollapsed ? 'right-[calc(4rem+0.5rem+0.5rem)]' : 'right-[calc(20rem+0.5rem+0.5rem)]'
@@ -230,13 +230,14 @@ const FavoritePageContent: React.FC = () => {
                     placeCCTVAt(index);
                   }
                 }}
-                className={`border-2 rounded-lg shadow-md overflow-hidden bg-white dark:bg-gray-800 relative ${
+                className={`border-2 rounded-lg shadow-md overflow-visible bg-white dark:bg-gray-800 relative ${
                   canPlace && !isExpanded
                     ? 'border-blue-500/50 dark:border-blue-400/50 ring-2 ring-blue-400/30 dark:ring-blue-500/30 cursor-pointer hover:ring-blue-400/50 backdrop-blur-sm'
                     : 'border-gray-300 dark:border-gray-700'
                 } ${isExpanded ? 'z-50' : ''}`}
                 style={{
                   minHeight: 0,
+                  height: isExpanded ? 'auto' : '100%',
                   transition: isExpanded || isAnimating
                     ? 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)' 
                     : 'all 0.3s ease',
@@ -275,18 +276,32 @@ const FavoritePageContent: React.FC = () => {
                         여기에 배치
                       </div>
                     )}
-                    <div onClick={(e) => e.stopPropagation()}>
-                      <Camera
-                        apiEndpoint={cctv.api_endpoint}
-                        location={cctv.location}
-                        cctv_id={cctv.cctv_id}
-                        isFavorite={favorites.some((fav) => fav.cctv_id === cctv.cctv_id)}
-                        onToggleFavorite={() => handleToggleFavorite(cctv.cctv_id, favorites.some((fav) => fav.cctv_id === cctv.cctv_id))}
-                        onExpand={() => handleExpand(index)}
-                        isExpanded={isExpanded}
-                        isPlacementMode={canPlace}
-                        pageType="favorite"
-                      />
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        height: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                      }}
+                    >
+                      <div
+                        style={{
+                          flex: 1,
+                          minHeight: 0,
+                        }}
+                      >
+                        <Camera
+                          apiEndpoint={cctv.api_endpoint}
+                          location={cctv.location}
+                          cctv_id={cctv.cctv_id}
+                          isFavorite={favorites.some((fav) => fav.cctv_id === cctv.cctv_id)}
+                          onToggleFavorite={() => handleToggleFavorite(cctv.cctv_id, favorites.some((fav) => fav.cctv_id === cctv.cctv_id))}
+                          onExpand={() => handleExpand(index)}
+                          isExpanded={isExpanded}
+                          isPlacementMode={canPlace}
+                          pageType="favorite"
+                        />
+                      </div>
                     </div>
                   </>
                 ) : (
