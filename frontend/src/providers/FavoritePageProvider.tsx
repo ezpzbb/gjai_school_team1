@@ -7,6 +7,8 @@ interface FavoritePageContextType {
   setPendingCCTV: (cctv: CCTV | null) => void;
   placeCCTVAt: (index: number) => void;
   setSelectedCCTVs: (cctvs: CCTV[]) => void;
+  analysisMode: boolean;
+  setAnalysisMode: (mode: boolean) => void;
 }
 
 const FavoritePageContext = createContext<FavoritePageContextType | undefined>(undefined);
@@ -14,6 +16,7 @@ const FavoritePageContext = createContext<FavoritePageContextType | undefined>(u
 export const FavoritePageProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [selectedCCTVs, setSelectedCCTVs] = useState<CCTV[]>([]);
   const [pendingCCTV, setPendingCCTV] = useState<CCTV | null>(null);
+  const [analysisMode, setAnalysisMode] = useState(false);
 
   // 특정 인덱스에 대기 중인 CCTV를 배치
   const placeCCTVAt = (index: number) => {
@@ -71,7 +74,9 @@ export const FavoritePageProvider: React.FC<{ children: ReactNode }> = ({ childr
       pendingCCTV,
       setPendingCCTV,
       placeCCTVAt,
-      setSelectedCCTVs 
+      setSelectedCCTVs,
+      analysisMode,
+      setAnalysisMode
     }}>
       {children}
     </FavoritePageContext.Provider>

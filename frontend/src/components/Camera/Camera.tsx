@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Hls from 'hls.js';
 
 interface CameraProps {
   apiEndpoint: string | null;
@@ -7,12 +8,75 @@ interface CameraProps {
   isPopup?: boolean;
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
-  onClose?: () => void; // 닫기 버튼을 위한 콜백 추가
-  onExpand?: () => void; // 크게보기 버튼을 위한 콜백 추가
-  isExpanded?: boolean; // 확대 상태인지 여부
-  isPlacementMode?: boolean; // 배치 모드인지 여부 (크게보기 버튼 비활성화)
-  pageType?: 'kakao-map' | 'favorite'; // 페이지 타입
+  onClose?: () => void;
+  onExpand?: () => void;
+  isExpanded?: boolean;
+  isPlacementMode?: boolean;
+  pageType?: 'kakao-map' | 'favorite';
 }
+
+const sanitizeStreamCandidate = (candidate: string): string | null => {
+  if (!candidate) {
+    return null;
+  }
+
+  let cleaned = candidate.trim();
+  cleaned = cleaned.replace(/--+>?$/, '');
+  cleaned = cleaned.replace(/;+$/, '');
+  cleaned = cleaned.replace(/\)+$/, '');
+  cleaned = cleaned.replace(/&amp;/gi, '&');
+  cleaned = cleaned.replace(/\\u0026/g, '&');
+
+  if (!/^https?:\/\//i.test(cleaned)) {
+    return null;
+  }
+
+  try {
+    return decodeURI(cleaned);
+  } catch {
+    return cleaned;
+  }
+};
+
+const extractStreamFromHtml = (html: string): string | null => {
+  const hlsRegex = /https?:\/\/[^"'<>\\s]+\.m3u8[^"'<>\\s]*/gi;
+  let match: RegExpExecArray | null;
+  while ((match = hlsRegex.exec(html)) !== null) {
+    const sanitized = sanitizeStreamCandidate(match[0]);
+    if (sanitized && !sanitized.toLowerCase().includes('undefined')) {
+      return sanitized;
+    }
+  }
+
+  const mp4Regex = /https?:\/\/[^"'<>\\s]+\.mp4[^"'<>\\s]*/gi;
+  while ((match = mp4Regex.exec(html)) !== null) {
+    const sanitized = sanitizeStreamCandidate(match[0]);
+    if (sanitized && !sanitized.toLowerCase().includes('undefined')) {
+      return sanitized;
+    }
+  }
+
+  return null;
+};
+
+const buildGwangjuFallback = (endpoint: URL): string | null => {
+  const kind = endpoint.searchParams.get('kind')?.toLowerCase();
+  const channelRaw = endpoint.searchParams.get('cctvch');
+  const idRaw = endpoint.searchParams.get('id');
+
+  if (kind !== 'v' || !channelRaw || !idRaw) {
+    return null;
+  }
+
+  const channel = channelRaw.match(/\d+/)?.[0];
+  const id = idRaw.match(/\d+/)?.[0];
+
+  if (!channel || !id) {
+    return null;
+  }
+
+  return `https://gjtic.go.kr/cctv${channel}/livehttp/${id}_video2/chunklist.m3u8`;
+};
 
 const Camera: React.FC<CameraProps> = ({
   apiEndpoint,
@@ -27,147 +91,231 @@ const Camera: React.FC<CameraProps> = ({
   isPlacementMode = false,
   pageType,
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsInstanceRef = useRef<Hls | null>(null);
+  const streamCacheRef = useRef<Record<string, string>>({});
 
-  // 컨테이너 크기에 맞춰 비율 계산 (UTIC 페이지의 상단 바 높이 약 50px 고려)
-  const [scale, setScale] = React.useState(1);
-  const [translateY, setTranslateY] = React.useState(0);
-  const initialContainerSizeRef = useRef<{ width: number; height: number } | null>(null);
-  const savedScaleRef = useRef<{ scale: number; translateY: number } | null>(null); // 크게보기 전 비율 저장
-  const prevApiEndpointRef = useRef(apiEndpoint);
-  const prevPageTypeRef = useRef(pageType);
+  const [streamUrl, setStreamUrl] = useState<string | null>(null);
+  const [isResolving, setIsResolving] = useState(false);
+  const [isVideoReady, setIsVideoReady] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const resolveStreamUrl = useCallback(async (endpoint: string): Promise<string> => {
+    const normalized = (() => {
+      try {
+        return new URL(endpoint, window.location.origin).toString();
+      } catch {
+        return endpoint;
+      }
+    })();
+
+    if (streamCacheRef.current[normalized]) {
+      return streamCacheRef.current[normalized];
+    }
+
+    const lower = normalized.toLowerCase();
+    if (lower.includes('.m3u8')) {
+      streamCacheRef.current[normalized] = normalized;
+      return normalized;
+    }
+
+    const endpointUrl = new URL(normalized, window.location.origin);
+    const fallbackCandidate = buildGwangjuFallback(endpointUrl);
+
+    try {
+      const response = await fetch(normalized, {
+        mode: 'cors',
+        credentials: 'omit',
+        headers: {
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const html = await response.text();
+      const extracted = extractStreamFromHtml(html);
+
+      if (extracted) {
+        streamCacheRef.current[normalized] = extracted;
+        return extracted;
+      }
+    } catch (error) {
+      console.warn('Camera: Failed to fetch UTIC stream page', error);
+    }
+
+    if (fallbackCandidate) {
+      streamCacheRef.current[normalized] = fallbackCandidate;
+      return fallbackCandidate;
+    }
+
+    throw new Error('STREAM_URL_NOT_FOUND');
+  }, []);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    let cancelled = false;
 
-    // 되돌리기 시: 저장된 비율 복원 (재계산 하지 않음)
-    if (isExpanded === false && savedScaleRef.current) {
-      console.log('Camera: Restoring saved scale (no recalculation)', savedScaleRef.current);
-      setScale(savedScaleRef.current.scale);
-      setTranslateY(savedScaleRef.current.translateY);
+    if (!apiEndpoint) {
+      setStreamUrl(null);
+      setErrorMessage(null);
+      setIsVideoReady(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setIsResolving(true);
+    setErrorMessage(null);
+
+    resolveStreamUrl(apiEndpoint)
+      .then((resolved) => {
+        if (cancelled) return;
+        setStreamUrl(resolved);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error('Camera: Unable to resolve stream URL', error);
+        setStreamUrl(null);
+        setErrorMessage('영상 스트림 URL을 불러오지 못했습니다.');
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsResolving(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiEndpoint, resolveStreamUrl]);
+
+  useEffect(() => {
+    const videoElement = videoRef.current;
+
+    if (!videoElement) {
       return;
     }
 
-    const updateScale = () => {
-      const container = containerRef.current;
-      if (!container) return;
-
-      // 초기 컨테이너 크기 저장 (처음 한 번만)
-      const rect = container.getBoundingClientRect();
-      
-      if (rect.width === 0 || rect.height === 0) {
-        return;
+    if (!streamUrl) {
+      if (hlsInstanceRef.current) {
+        hlsInstanceRef.current.destroy();
+        hlsInstanceRef.current = null;
       }
-      
-      // 초기 크기를 저장하고, 이후에는 이 크기 기준으로만 scale 계산
-      // 단, isExpanded가 true일 때는 현재 크기 기준으로 계산
-      if (!initialContainerSizeRef.current) {
-        initialContainerSizeRef.current = {
-          width: rect.width,
-          height: rect.height,
-        };
-        console.log('Camera: Initial container size saved', initialContainerSizeRef.current);
+      videoElement.pause();
+      videoElement.removeAttribute('src');
+      videoElement.load();
+      setIsVideoReady(false);
+      return;
+    }
+
+    setIsVideoReady(false);
+    setErrorMessage(null);
+
+    videoElement.muted = true;
+    videoElement.defaultMuted = true;
+    videoElement.controls = true;
+    videoElement.playsInline = true;
+
+    const handleLoaded = () => {
+      setIsVideoReady(true);
+    };
+
+    const handleError = () => {
+      setErrorMessage('영상 재생 중 오류가 발생했습니다.');
+    };
+
+    videoElement.addEventListener('loadeddata', handleLoaded);
+    videoElement.addEventListener('error', handleError);
+
+    const isHlsStream = streamUrl.toLowerCase().includes('.m3u8');
+
+    const attemptAutoplay = () => {
+      const playPromise = videoElement.play();
+      if (playPromise && typeof playPromise.then === 'function') {
+        playPromise.catch(() => {
+          setErrorMessage('자동 재생이 차단되었습니다. 브라우저 설정을 확인해주세요.');
+        });
       }
-      
-      // scale 계산: isExpanded가 true면 현재 크기 기준, 아니면 초기 크기 기준
-      const containerWidth = isExpanded ? rect.width : initialContainerSizeRef.current.width;
-      const containerHeight = isExpanded ? rect.height : initialContainerSizeRef.current.height;
-      
-      // iframe 내부 HTML 구조 분석:
-      // - <p class="hd">: 상단 바 (닫기 버튼 포함) - 높이 약 40-50px
-      // - <div class="cctv_area player">: video 영역 (320x240px)
-      // - <p class="bot03">, <p class="bot02">: 하단 텍스트들
-      
-      const uticTopBarHeight = 45; // 상단 바 높이 (<p class="hd">) - 실제 측정값에 맞게 조정
-      const videoWidth = 320; // video 영역 너비 (<div class="cctv_area player">)
-      const videoHeight = 240; // video 영역 높이
+    };
 
-      // objectFit: 'contain' 방식 - 영상 전체가 보이도록 (안 잘리게)
-      const scaleByWidth = containerWidth / videoWidth;
-      const scaleByHeight = containerHeight / videoHeight;
-      
-      // 작은 scale 사용 = contain 방식 (영상 안 잘림)
-      const baseScale = Math.min(scaleByWidth, scaleByHeight);
-      
-      // 페이지별로 다른 설정 적용
-      let zoomAdjust = 1.0; // 기본값: 확대 안 함
-      let additionalOffset = 25;
-      
-      if (pageType === 'kakao-map') {
-        // 카카오맵: 줌 더 + 좌상단으로 이동
-        zoomAdjust = 1.18;
-        additionalOffset = 21.5;
-      } else if (pageType === 'favorite') {
-        // Favorite: 원래 맞춰놓은 비율 유지
-        // 확대 시에는 우하단으로 이동
-        zoomAdjust = isExpanded ? 1.15 : 1.1;
-        additionalOffset = isExpanded ? 65 : 30;
-      }
-      
-      const calculatedScale = baseScale * zoomAdjust;
+    if (isHlsStream && videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+      videoElement.src = streamUrl;
+      videoElement.load();
+      attemptAutoplay();
+    } else if (isHlsStream && Hls.isSupported()) {
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: true,
+      });
+      hlsInstanceRef.current = hls;
+      hls.attachMedia(videoElement);
+      hls.loadSource(streamUrl);
 
-      // 상단바를 위로 밀어서 숨김 + 위치 조정
-      const scaledTopBarHeight = uticTopBarHeight * calculatedScale;
-      const calculatedTranslateY = -((scaledTopBarHeight - additionalOffset) / containerHeight) * 100;
-
-      console.log('Camera: Scale calculation', {
-        pageType: pageType || 'unknown',
-        initialSize: `${containerWidth.toFixed(0)}x${containerHeight.toFixed(0)}`,
-        currentSize: `${rect.width.toFixed(0)}x${rect.height.toFixed(0)}`,
-        finalScale: calculatedScale.toFixed(3),
-        translateY: calculatedTranslateY.toFixed(2) + '%',
-        isExpanded: isExpanded,
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        attemptAutoplay();
       });
 
-      setScale(calculatedScale);
-      setTranslateY(calculatedTranslateY);
-      
-      // 축소 상태(isExpanded = false)일 때의 비율을 저장
-      if (isExpanded === false) {
-        savedScaleRef.current = {
-          scale: calculatedScale,
-          translateY: calculatedTranslateY,
-        };
-        console.log('Camera: Saved original scale for future restore', savedScaleRef.current);
-      }
-    };
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (!data) {
+          return;
+        }
 
-    // pageType 변경 또는 apiEndpoint 변경 시만 초기 크기 및 저장된 비율 리셋
-    if (prevApiEndpointRef.current !== apiEndpoint || prevPageTypeRef.current !== pageType) {
-      console.log('Camera: apiEndpoint or pageType changed, resetting saved scale');
-      initialContainerSizeRef.current = null;
-      savedScaleRef.current = null;
-      prevApiEndpointRef.current = apiEndpoint;
-      prevPageTypeRef.current = pageType;
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              hls.recoverMediaError();
+              break;
+            default:
+              setErrorMessage('HLS 스트림을 불러오지 못했습니다.');
+              hls.destroy();
+              hlsInstanceRef.current = null;
+              break;
+          }
+        }
+      });
+    } else {
+      videoElement.src = streamUrl;
+      videoElement.load();
+      attemptAutoplay();
     }
-    
-    // 초기 계산
-    let retryCount = 0;
-    const maxRetries = 10;
-    
-    const tryUpdateScale = () => {
-      const container = containerRef.current;
-      if (!container) return;
-      
-      const rect = container.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        updateScale();
-      } else if (retryCount < maxRetries) {
-        retryCount++;
-        setTimeout(tryUpdateScale, 100);
-      }
-    };
-
-    tryUpdateScale();
-    
-    const timeoutId = setTimeout(() => {
-      tryUpdateScale();
-    }, isExpanded ? 500 : 300); // 확대 시 애니메이션 완료 후 재계산
 
     return () => {
-      clearTimeout(timeoutId);
+      videoElement.pause();
+      videoElement.removeEventListener('loadeddata', handleLoaded);
+      videoElement.removeEventListener('error', handleError);
+
+      if (hlsInstanceRef.current) {
+        hlsInstanceRef.current.destroy();
+        hlsInstanceRef.current = null;
+      }
     };
-  }, [apiEndpoint, pageType, isExpanded]);
+  }, [streamUrl]);
+
+  const videoObjectFit = useMemo(() => {
+    if (pageType === 'kakao-map') {
+      return 'cover';
+    }
+    return isExpanded ? 'cover' : 'contain';
+  }, [isExpanded, pageType]);
+
+  const resolvedMimeType = useMemo(() => {
+    if (!streamUrl) {
+      return undefined;
+    }
+    const lower = streamUrl.toLowerCase();
+    if (lower.endsWith('.mp4')) return 'video/mp4';
+    if (lower.endsWith('.webm')) return 'video/webm';
+    if (lower.endsWith('.ogg')) return 'video/ogg';
+    if (lower.endsWith('.mov')) return 'video/quicktime';
+    return undefined;
+  }, [streamUrl]);
+
+  const isLoading = isResolving || (!!streamUrl && !isVideoReady && !errorMessage);
 
   if (!apiEndpoint) {
     return (
@@ -204,7 +352,6 @@ const Camera: React.FC<CameraProps> = ({
         position: 'relative',
       }}
     >
-      {/* 닫기 버튼 */}
       {isPopup && (
         <button
           onClick={onClose}
@@ -220,14 +367,13 @@ const Camera: React.FC<CameraProps> = ({
             border: 'none',
             fontSize: '16px',
             cursor: 'pointer',
-            zIndex: '20',
+            zIndex: 20,
           }}
         >
           ×
         </button>
       )}
 
-      {/* CCTV 위치 - 상단 */}
       <div
         style={{
           height: '40px',
@@ -246,7 +392,6 @@ const Camera: React.FC<CameraProps> = ({
       >
         <span>📍 {location || 'CCTV 위치'}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {/* 크게보기 버튼 */}
           {onExpand && !isExpanded && (
             <button
               onClick={(e) => {
@@ -269,25 +414,10 @@ const Camera: React.FC<CameraProps> = ({
                 boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
                 opacity: isPlacementMode ? 0.6 : 1,
               }}
-              onMouseEnter={(e) => {
-                if (!isPlacementMode) {
-                  e.currentTarget.style.background = 'rgba(37, 99, 235, 1)';
-                  e.currentTarget.style.transform = 'scale(1.08)';
-                  e.currentTarget.style.boxShadow = '0 4px 8px rgba(53, 122, 189, 0.4)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isPlacementMode) {
-                  e.currentTarget.style.background = 'rgba(53, 122, 189, 0.8)';
-                  e.currentTarget.style.transform = 'scale(1)';
-                  e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
-                }
-              }}
             >
               크게보기
             </button>
           )}
-          {/* 되돌리기 버튼 */}
           {onExpand && isExpanded && (
             <button
               onClick={(e) => {
@@ -307,16 +437,6 @@ const Camera: React.FC<CameraProps> = ({
                 transform: 'scale(1)',
                 boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(75, 85, 99, 1)';
-                e.currentTarget.style.transform = 'scale(1.08)';
-                e.currentTarget.style.boxShadow = '0 4px 8px rgba(107, 114, 128, 0.4)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(107, 114, 128, 0.8)';
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
-              }}
             >
               되돌리기
             </button>
@@ -324,54 +444,92 @@ const Camera: React.FC<CameraProps> = ({
         </div>
       </div>
 
-      {/* 실시간 영상 - 상단 정렬 */}
       <div
-        ref={containerRef}
         style={{
-          flex: '1',
+          flex: 1,
           display: 'flex',
           justifyContent: 'center',
-          alignItems: 'flex-start',
+          alignItems: 'center',
           backgroundColor: '#000',
-          minHeight: 0,
-          overflow: 'hidden',
           position: 'relative',
-          width: '100%',
-          boxSizing: 'border-box',
-          aspectRatio: '16/9',
+          padding: isExpanded ? '12px' : '24px',
         }}
       >
-        {/* 고정 크기 wrapper - 영상과 버튼을 함께 포함 */}
         <div
           style={{
             position: 'relative',
             width: '100%',
             maxWidth: isExpanded ? '100%' : '640px',
-            height: 'auto',
             aspectRatio: '16/9',
+            backgroundColor: '#000',
+            borderRadius: '8px',
             overflow: 'hidden',
           }}
         >
-          {/* UTIC URL (경찰청 CCTV) - iframe으로 표시 */}
-          <iframe
-            src={apiEndpoint || ''}
-            style={{
-              width: '640px',
-              height: '480px',
-              border: 'none',
-              display: 'block',
-              transform: `scale(${scale}) translateY(${translateY}%) ${
-                pageType === 'kakao-map' 
-                  ? 'translateX(-18%)' 
-                  : (pageType === 'favorite' && isExpanded ? 'translateX(16%)' : '')
-              }`,
-              transformOrigin: 'center top',
-            }}
-            allow="autoplay; fullscreen"
+          <video
+            ref={videoRef}
+            autoPlay
+            muted
+            playsInline
+            controls
             title={`CCTV ${location || cctv_id}`}
-          />
-          
-          {/* 즐겨찾기 버튼 - wrapper 기준 고정 */}
+            data-cctv-id={cctv_id}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: videoObjectFit,
+              backgroundColor: '#000',
+            }}
+          >
+            {streamUrl && resolvedMimeType && (
+              <source src={streamUrl} type={resolvedMimeType} />
+            )}
+          </video>
+
+          {isLoading && (
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#f9fafb',
+                fontSize: '14px',
+                background:
+                  'linear-gradient(180deg, rgba(17, 24, 39, 0.82) 0%, rgba(17, 24, 39, 0.7) 50%, rgba(17, 24, 39, 0.82) 100%)',
+                backdropFilter: 'blur(6px)',
+                WebkitBackdropFilter: 'blur(6px)',
+              }}
+            >
+              영상 로딩 중...
+            </div>
+          )}
+
+          {errorMessage && (
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                padding: '16px',
+                color: '#ffe4e6',
+                fontSize: '14px',
+                fontWeight: 600,
+                background:
+                  'linear-gradient(180deg, rgba(127, 29, 29, 0.75) 0%, rgba(127, 29, 29, 0.6) 50%, rgba(127, 29, 29, 0.75) 100%)',
+                border: '1px solid rgba(248, 113, 113, 0.5)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+              }}
+            >
+              {errorMessage}
+            </div>
+          )}
+
           {onToggleFavorite && (
             <button
               onClick={(e) => {
@@ -399,17 +557,6 @@ const Camera: React.FC<CameraProps> = ({
                 zIndex: 10000,
                 backdropFilter: 'blur(10px)',
                 WebkitBackdropFilter: 'blur(10px)',
-                pointerEvents: 'auto',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = isFavorite ? 'rgba(234, 179, 8, 1)' : 'rgba(107, 114, 128, 1)';
-                e.currentTarget.style.transform = 'scale(1.1)';
-                e.currentTarget.style.boxShadow = `0 4px 12px ${isFavorite ? 'rgba(234, 179, 8, 0.5)' : 'rgba(107, 114, 128, 0.5)'}`;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = isFavorite ? 'rgba(234, 179, 8, 0.9)' : 'rgba(156, 163, 175, 0.8)';
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.3)';
               }}
             >
               {isFavorite ? '★' : '☆'} 즐겨찾기

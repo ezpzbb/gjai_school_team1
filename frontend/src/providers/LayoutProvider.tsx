@@ -5,6 +5,8 @@ interface LayoutContextType {
   dashboardCollapsed: boolean;
   toggleSidebar: () => void;
   toggleDashboard: () => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  setDashboardCollapsed: (collapsed: boolean) => void;
 }
 
 const LayoutContext = createContext<LayoutContextType | undefined>(undefined);
@@ -35,6 +37,8 @@ export const LayoutProvider: React.FC<LayoutProviderProps> = ({ children }) => {
         dashboardCollapsed,
         toggleSidebar,
         toggleDashboard,
+        setSidebarCollapsed,
+        setDashboardCollapsed,
       }}
     >
       {children}
