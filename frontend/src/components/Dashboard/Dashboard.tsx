@@ -43,8 +43,13 @@ const Dashboard: React.FC = () => {
   const hasMapProvider = typeof mapContext.registerSelectCCTV === 'function' && 
     mapContext.registerSelectCCTV.toString().indexOf('console.warn') === -1;
   
-  // FavoritePageProvider가 있는지 확인 (optional)
-  const favoritePageContext = useFavoritePage();
+  // FavoritePageProvider가 있을 수도 있고 없을 수도 있으므로 try-catch로 감싼다
+  let favoritePageContext: ReturnType<typeof useFavoritePage> | null = null;
+  try {
+    favoritePageContext = useFavoritePage();
+  } catch {
+    favoritePageContext = null;
+  }
   
   const selectCCTV = (cctv: CCTV) => {
     // MapProvider가 있으면 카카오맵으로 이동
