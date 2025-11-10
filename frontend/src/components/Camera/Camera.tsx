@@ -412,9 +412,19 @@ const Camera: React.FC<CameraProps> = ({
                 border: 'none',
                 borderRadius: '6px',
                 cursor: 'pointer',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease',
                 transform: 'scale(1)',
                 boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.boxShadow = '0 4px 10px rgba(0, 0, 0, 0.2)';
+                e.currentTarget.style.background = isAnalyzing ? 'rgba(185, 28, 28, 0.9)' : 'rgba(37, 99, 235, 0.9)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.15)';
+                e.currentTarget.style.background = isAnalyzing ? 'rgba(220, 38, 38, 0.85)' : 'rgba(59, 130, 246, 0.8)';
               }}
             >
               {isAnalyzing ? '분석종료' : '분석하기'}
@@ -437,10 +447,21 @@ const Camera: React.FC<CameraProps> = ({
                 border: 'none',
                 borderRadius: '6px',
                 cursor: isPlacementMode ? 'not-allowed' : 'pointer',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease',
                 transform: 'scale(1)',
                 boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
                 opacity: isPlacementMode ? 0.6 : 1,
+              }}
+              onMouseEnter={(e) => {
+                if (isPlacementMode) return;
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(53, 122, 189, 0.25)';
+                e.currentTarget.style.background = 'rgba(37, 99, 235, 0.9)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
+                e.currentTarget.style.background = 'rgba(53, 122, 189, 0.8)';
               }}
             >
               크게보기
@@ -461,9 +482,19 @@ const Camera: React.FC<CameraProps> = ({
                 border: 'none',
                 borderRadius: '6px',
                 cursor: 'pointer',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease',
                 transform: 'scale(1)',
                 boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(107, 114, 128, 0.25)';
+                e.currentTarget.style.background = 'rgba(75, 85, 99, 0.9)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
+                e.currentTarget.style.background = 'rgba(107, 114, 128, 0.8)';
               }}
             >
               되돌리기
@@ -570,38 +601,38 @@ const Camera: React.FC<CameraProps> = ({
               </div>
             )}
 
-            {onToggleFavorite && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleFavorite();
-                }}
-                style={{
-                  position: 'absolute',
-                  bottom: '12px',
-                  right: '12px',
-                  padding: '6px 12px',
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  color: 'white',
-                  background: isFavorite ? 'rgba(234, 179, 8, 0.9)' : 'rgba(156, 163, 175, 0.8)',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  transform: 'scale(1)',
-                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  zIndex: 5,
-                  backdropFilter: 'blur(10px)',
-                  WebkitBackdropFilter: 'blur(10px)',
-                }}
-              >
-                {isFavorite ? '★' : '☆'} 즐겨찾기
-              </button>
-            )}
+          {onToggleFavorite && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleFavorite();
+              }}
+              style={{
+                position: 'absolute',
+                bottom: '12px',
+                right: '12px',
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                transform: 'scale(1)',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 5,
+                background: 'rgba(17, 24, 39, 0.65)',
+                backdropFilter: 'blur(10px)',
+                WebkitBackdropFilter: 'blur(10px)',
+                color: isFavorite ? '#FACC15' : '#D1D5DB',
+                fontSize: '18px',
+              }}
+            >
+              {isFavorite ? '★' : '☆'}
+            </button>
+          )}
           </div>
         </div>
       </div>
