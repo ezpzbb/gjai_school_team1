@@ -31,6 +31,24 @@ export class CCTVTransaction {
     }
   }
 
+  async getCCTVById(cctvId: number): Promise<CCTV | null> {
+    try {
+      const [rows] = await this.dbPool.query(cctvQueries.getCCTVById, [cctvId]);
+      const record = (rows as CCTV[])[0];
+      return record ?? null;
+    } catch (error: any) {
+      console.error('CCTVTransaction: getCCTVById error:', {
+        message: error.message,
+        code: error.code,
+        errno: error.errno,
+        sql: error.sql,
+        sqlState: error.sqlState,
+        sqlMessage: error.sqlMessage,
+      });
+      throw new Error(`Failed to fetch CCTV(${cctvId}): ${error.message}`);
+    }
+  }
+
   async searchCCTVLocations(keyword: string): Promise<CCTV[]> {
     try {
       if (!keyword || keyword.trim() === '') {

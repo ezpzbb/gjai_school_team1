@@ -85,7 +85,7 @@ export const getUserFavorites = async (retries = 3, delay = 2000): Promise<Favor
   return attemptFetch(retries);
 };
 
-export const addFavorite = async (cctv_id: number): Promise<void> => {
+export const addFavorite = async (cctv_id: number): Promise<Favorite> => {
   const token = localStorage.getItem('token');
   console.log('addFavorite: Adding favorite for cctv_id:', cctv_id);
   const response = await fetch('/api/favorites', {
@@ -99,10 +99,12 @@ export const addFavorite = async (cctv_id: number): Promise<void> => {
   if (!response.ok) {
     throw new Error(`Failed to add favorite: ${await response.text()}`);
   }
+  const favorite = await response.json();
   if (token) {
     delete cache[`user_favorites_${token}`];
   }
   console.log('addFavorite: Cache invalidated for token:', token);
+  return favorite;
 };
 
 export const removeFavorite = async (cctv_id: number): Promise<void> => {

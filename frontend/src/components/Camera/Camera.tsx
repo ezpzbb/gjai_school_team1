@@ -17,69 +17,6 @@ interface CameraProps {
   isAnalyzing?: boolean;
 }
 
-const sanitizeStreamCandidate = (candidate: string): string | null => {
-  if (!candidate) {
-    return null;
-  }
-
-  let cleaned = candidate.trim();
-  cleaned = cleaned.replace(/--+>?$/, '');
-  cleaned = cleaned.replace(/;+$/, '');
-  cleaned = cleaned.replace(/\)+$/, '');
-  cleaned = cleaned.replace(/&amp;/gi, '&');
-  cleaned = cleaned.replace(/\\u0026/g, '&');
-
-  if (!/^https?:\/\//i.test(cleaned)) {
-    return null;
-  }
-
-  try {
-    return decodeURI(cleaned);
-  } catch {
-    return cleaned;
-  }
-};
-
-const extractStreamFromHtml = (html: string): string | null => {
-  const hlsRegex = /https?:\/\/[^"'<>\\s]+\.m3u8[^"'<>\\s]*/gi;
-  let match: RegExpExecArray | null;
-  while ((match = hlsRegex.exec(html)) !== null) {
-    const sanitized = sanitizeStreamCandidate(match[0]);
-    if (sanitized && !sanitized.toLowerCase().includes('undefined')) {
-      return sanitized;
-    }
-  }
-
-  const mp4Regex = /https?:\/\/[^"'<>\\s]+\.mp4[^"'<>\\s]*/gi;
-  while ((match = mp4Regex.exec(html)) !== null) {
-    const sanitized = sanitizeStreamCandidate(match[0]);
-    if (sanitized && !sanitized.toLowerCase().includes('undefined')) {
-      return sanitized;
-    }
-  }
-
-  return null;
-};
-
-const buildGwangjuFallback = (endpoint: URL): string | null => {
-  const kind = endpoint.searchParams.get('kind')?.toLowerCase();
-  const channelRaw = endpoint.searchParams.get('cctvch');
-  const idRaw = endpoint.searchParams.get('id');
-
-  if (kind !== 'v' || !channelRaw || !idRaw) {
-    return null;
-  }
-
-  const channel = channelRaw.match(/\d+/)?.[0];
-  const id = idRaw.match(/\d+/)?.[0];
-
-  if (!channel || !id) {
-    return null;
-  }
-
-  return `https://gjtic.go.kr/cctv${channel}/livehttp/${id}_video2/chunklist.m3u8`;
-};
-
 const Camera: React.FC<CameraProps> = ({
   apiEndpoint,
   location,
@@ -97,66 +34,48 @@ const Camera: React.FC<CameraProps> = ({
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsInstanceRef = useRef<Hls | null>(null);
-  const streamCacheRef = useRef<Record<string, string>>({});
+  const streamCacheRef = useRef<Record<number, { url: string; expiresAt: number }>>({});
 
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [isResolving, setIsResolving] = useState(false);
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const resolveStreamUrl = useCallback(async (endpoint: string): Promise<string> => {
-    const normalized = (() => {
-      try {
-        return new URL(endpoint, window.location.origin).toString();
-      } catch {
-        return endpoint;
-      }
-    })();
-
-    if (streamCacheRef.current[normalized]) {
-      return streamCacheRef.current[normalized];
+  const fetchStreamUrl = useCallback(async (): Promise<string> => {
+    const cached = streamCacheRef.current[cctv_id];
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.url;
     }
 
-    const lower = normalized.toLowerCase();
-    if (lower.includes('.m3u8')) {
-      streamCacheRef.current[normalized] = normalized;
-      return normalized;
+    const token = localStorage.getItem('token');
+    const response = await fetch(`/api/cctv/${cctv_id}/stream`, {
+      headers: {
+        Authorization: token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`스트림 요청 실패: ${response.status} ${body}`);
     }
 
-    const endpointUrl = new URL(normalized, window.location.origin);
-    const fallbackCandidate = buildGwangjuFallback(endpointUrl);
-
-    try {
-      const response = await fetch(normalized, {
-        mode: 'cors',
-        credentials: 'omit',
-        headers: {
-          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const html = await response.text();
-      const extracted = extractStreamFromHtml(html);
-
-      if (extracted) {
-        streamCacheRef.current[normalized] = extracted;
-        return extracted;
-      }
-    } catch (error) {
-      console.warn('Camera: Failed to fetch UTIC stream page', error);
+    const result = await response.json();
+    if (!result.success || !result.data?.streamUrl) {
+      throw new Error(result.message || '스트림 URL을 가져오지 못했습니다.');
     }
 
-    if (fallbackCandidate) {
-      streamCacheRef.current[normalized] = fallbackCandidate;
-      return fallbackCandidate;
-    }
+    const expiresAt = result.data.cachedUntil
+      ? new Date(result.data.cachedUntil).getTime()
+      : Date.now() + 5 * 60 * 1000;
 
-    throw new Error('STREAM_URL_NOT_FOUND');
-  }, []);
+    streamCacheRef.current[cctv_id] = {
+      url: result.data.streamUrl,
+      expiresAt,
+    };
+
+    return result.data.streamUrl;
+  }, [cctv_id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -173,16 +92,16 @@ const Camera: React.FC<CameraProps> = ({
     setIsResolving(true);
     setErrorMessage(null);
 
-    resolveStreamUrl(apiEndpoint)
+    fetchStreamUrl()
       .then((resolved) => {
         if (cancelled) return;
         setStreamUrl(resolved);
       })
       .catch((error) => {
         if (cancelled) return;
-        console.error('Camera: Unable to resolve stream URL', error);
+        console.error('Camera: Unable to load stream URL', error);
         setStreamUrl(null);
-        setErrorMessage('영상 스트림 URL을 불러오지 못했습니다.');
+        setErrorMessage('영상 스트림을 불러오지 못했습니다.');
       })
       .finally(() => {
         if (!cancelled) {
@@ -193,7 +112,7 @@ const Camera: React.FC<CameraProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [apiEndpoint, resolveStreamUrl]);
+  }, [apiEndpoint, fetchStreamUrl]);
 
   useEffect(() => {
     const videoElement = videoRef.current;
