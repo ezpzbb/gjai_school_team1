@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../providers/AuthProvider';
 import { CCTV } from '../types/cctv';
 import { Favorite } from '../types/Favorite';
@@ -11,7 +11,12 @@ import { useLayout } from '../providers/LayoutProvider';
 const FavoritePageContent: React.FC = () => {
   const { isLoggedIn } = useAuth();
   const favoritePageContext = useFavoritePage();
-  const { sidebarCollapsed, dashboardCollapsed } = useLayout();
+  const {
+    sidebarCollapsed,
+    dashboardCollapsed,
+    setSidebarCollapsed,
+    setDashboardCollapsed,
+  } = useLayout();
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
@@ -21,13 +26,18 @@ const FavoritePageContent: React.FC = () => {
     cctv_id: null,
     location: null,
   });
+  const previousLayoutRef = useRef<{ sidebar: boolean; dashboard: boolean } | null>(null);
 
-  // FavoritePageProvider 내부이므로 항상 존재해야 함
-  if (!favoritePageContext) {
-    return <div className="text-center p-4 text-gray-700 dark:text-gray-300">초기화 중...</div>;
-  }
-
-  const { selectedCCTVs, pendingCCTV, placeCCTVAt, setSelectedCCTVs } = favoritePageContext;
+  const {
+    selectedCCTVs,
+    pendingCCTV,
+    placeCCTVAt,
+    setSelectedCCTVs,
+    analysisMode,
+    setAnalysisMode,
+    analysisTargetId,
+    setAnalysisTargetId,
+  } = favoritePageContext;
 
   const fetchFavorites = async (retries = 3, delay = 2000) => {
     try {
@@ -169,6 +179,258 @@ const FavoritePageContent: React.FC = () => {
     }
   };
 
+  const enterAnalysisMode = useCallback(
+    (targetId: number) => {
+      if (!analysisMode) {
+        previousLayoutRef.current = {
+          sidebar: sidebarCollapsed,
+          dashboard: dashboardCollapsed,
+        };
+        if (!sidebarCollapsed) {
+          setSidebarCollapsed(true);
+        }
+        if (!dashboardCollapsed) {
+          setDashboardCollapsed(true);
+        }
+      }
+      setAnalysisTargetId(targetId);
+      setAnalysisMode(true);
+    },
+    [
+      analysisMode,
+      sidebarCollapsed,
+      dashboardCollapsed,
+      setSidebarCollapsed,
+      setDashboardCollapsed,
+      setAnalysisMode,
+      setAnalysisTargetId,
+    ],
+  );
+
+  const exitAnalysisMode = useCallback(
+    (options?: { restoreLayout?: boolean }) => {
+      const shouldRestore = options?.restoreLayout ?? true;
+      setAnalysisMode(false);
+       setAnalysisTargetId(null);
+      if (shouldRestore && previousLayoutRef.current) {
+        setSidebarCollapsed(previousLayoutRef.current.sidebar);
+        setDashboardCollapsed(previousLayoutRef.current.dashboard);
+      }
+      previousLayoutRef.current = null;
+    },
+    [setAnalysisMode, setSidebarCollapsed, setDashboardCollapsed],
+  );
+
+  useEffect(() => {
+    if (!analysisMode) {
+      previousLayoutRef.current = null;
+      return;
+    }
+
+    if (!sidebarCollapsed || !dashboardCollapsed) {
+      exitAnalysisMode({ restoreLayout: false });
+    }
+  }, [analysisMode, sidebarCollapsed, dashboardCollapsed, exitAnalysisMode]);
+
+  const handleExpand = (index: number) => {
+    if (expandedIndex === index) {
+      setIsAnimating(true);
+      setExpandedIndex(null);
+      setTimeout(() => {
+        setIsAnimating(false);
+      }, 400);
+    } else {
+      setIsAnimating(true);
+      setExpandedIndex(index);
+      setTimeout(() => {
+        setIsAnimating(false);
+      }, 400);
+    }
+  };
+
+  const handleAnalysisAction = (cctv: CCTV) => {
+    if (!cctv) {
+      return;
+    }
+
+    if (analysisMode) {
+      if (analysisTargetId === cctv.cctv_id) {
+        exitAnalysisMode();
+      } else {
+        setAnalysisTargetId(cctv.cctv_id);
+      }
+    } else {
+      enterAnalysisMode(cctv.cctv_id);
+    }
+  };
+
+  const renderCameraCard = (cctv: CCTV | undefined, index: number, isCompact: boolean) => {
+    const canPlace = pendingCCTV !== null;
+    const isExpanded = expandedIndex === index && !isCompact;
+    const isAnalyzing = !!(analysisMode && cctv && analysisTargetId === cctv.cctv_id);
+
+    const baseClassName = `border-2 rounded-lg shadow-md overflow-visible bg-white dark:bg-gray-800 relative ${
+      canPlace && !isExpanded
+        ? 'border-blue-500/50 dark:border-blue-400/50 ring-2 ring-blue-400/30 dark:ring-blue-500/30 cursor-pointer hover:ring-blue-400/50 backdrop-blur-sm'
+        : isAnalyzing
+        ? 'border-amber-400 dark:border-amber-300 ring-2 ring-amber-300/50 dark:ring-amber-200/40'
+        : 'border-gray-300 dark:border-gray-700'
+    } ${isExpanded ? 'z-50' : ''}`;
+
+    const cardStyle: React.CSSProperties = isCompact
+      ? {
+          height: '100%',
+          minHeight: 0,
+          transition: 'all 0.3s ease',
+        }
+      : {
+          minHeight: 0,
+          height: isExpanded ? 'auto' : '100%',
+          transition:
+            isExpanded || isAnimating
+              ? 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
+              : 'all 0.3s ease',
+          ...(canPlace && !isExpanded
+            ? {
+                background: 'rgba(53, 122, 189, 0.15)',
+                backdropFilter: 'blur(20px)',
+                WebkitBackdropFilter: 'blur(20px)',
+                boxShadow: '0 8px 32px 0 rgba(53, 122, 189, 0.2)',
+              }
+            : {}),
+          ...(isExpanded
+            ? {
+                position: 'fixed',
+                left: 'calc(16rem + 1rem + 0.5rem)',
+                right: 'calc(20rem + 0.5rem + 0.5rem)',
+                top: 'calc(2rem + 4rem + 0.5rem)',
+                height: 'calc(100vh - 2rem - 4rem - 0.5rem - 2rem)',
+                width: 'calc(100vw - 16rem - 1rem - 0.5rem - 20rem - 0.5rem - 0.5rem)',
+                zIndex: 100,
+                animation: isExpanded && isAnimating ? 'expandAnimation 0.4s ease-out' : 'none',
+              }
+            : {}),
+        };
+
+    const handleCardClick = () => {
+      if (isCompact) return;
+      if (!isExpanded && pendingCCTV) {
+        placeCCTVAt(index);
+      }
+    };
+
+    return (
+      <div
+        key={cctv ? `cctv-${cctv.cctv_id}` : `empty-${index}`}
+        onClick={handleCardClick}
+        className={baseClassName}
+        style={cardStyle}
+      >
+        {cctv ? (
+          <>
+            {canPlace && !isCompact && !isExpanded && (
+              <div
+                className="absolute top-2 left-2 z-10 text-white px-3 py-1.5 rounded-lg text-xs font-semibold backdrop-blur-md"
+                style={{
+                  background: 'rgba(53, 122, 189, 0.4)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  boxShadow: '0 4px 16px rgba(53, 122, 189, 0.3)',
+                }}
+              >
+                여기에 배치
+              </div>
+            )}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
+              <div
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                }}
+              >
+                <Camera
+                  apiEndpoint={cctv.api_endpoint}
+                  location={cctv.location}
+                  cctv_id={cctv.cctv_id}
+                  isFavorite={favorites.some((fav) => fav.cctv_id === cctv.cctv_id)}
+                  onAnalyze={() => handleAnalysisAction(cctv)}
+                  isAnalyzing={isAnalyzing}
+                  onToggleFavorite={() =>
+                    handleToggleFavorite(cctv.cctv_id, favorites.some((fav) => fav.cctv_id === cctv.cctv_id))
+                  }
+                  onExpand={
+                    isCompact
+                      ? undefined
+                      : () => {
+                          handleExpand(index);
+                        }
+                  }
+                  isExpanded={isExpanded}
+                  isPlacementMode={canPlace}
+                  pageType="favorite"
+                />
+              </div>
+            </div>
+          </>
+        ) : (
+          <div
+            className={`w-full h-full flex items-center justify-center transition-all ${
+              canPlace && !isCompact ? '' : 'bg-gray-50 dark:bg-gray-700/50'
+            }`}
+            style={
+              canPlace && !isCompact
+                ? {
+                    background: 'rgba(53, 122, 189, 0.15)',
+                    backdropFilter: 'blur(20px)',
+                    WebkitBackdropFilter: 'blur(20px)',
+                  }
+                : {}
+            }
+          >
+            <div className="text-center">
+              <div
+                className="text-sm mb-1 font-medium"
+                style={
+                  canPlace && !isCompact
+                    ? {
+                        color: 'rgba(255, 255, 255, 0.95)',
+                      }
+                    : {}
+                }
+              >
+                {canPlace && !isCompact
+                  ? `클릭하여 "${pendingCCTV.location}" 배치`
+                  : '대시보드에서 CCTV 선택'}
+              </div>
+              {canPlace && !isCompact && (
+                <div
+                  className="text-xs font-semibold mt-2 px-3 py-1 rounded-lg backdrop-blur-sm"
+                  style={{
+                    color: 'rgba(255, 255, 255, 0.95)',
+                    background: 'rgba(53, 122, 189, 0.3)',
+                    backdropFilter: 'blur(8px)',
+                    WebkitBackdropFilter: 'blur(8px)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                  }}
+                >
+                  ✓ 배치 가능
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   if (!isLoggedIn) {
     return <div className="text-center p-4 text-gray-700 dark:text-gray-300">로그인이 필요합니다.</div>;
   }
@@ -187,24 +449,6 @@ const FavoritePageContent: React.FC = () => {
     );
   }
 
-  const handleExpand = (index: number) => {
-    if (expandedIndex === index) {
-      // 이미 확대된 상태면 축소
-      setIsAnimating(true);
-      setExpandedIndex(null);
-      setTimeout(() => {
-        setIsAnimating(false);
-      }, 400); // 애니메이션 시간과 동일
-    } else {
-      // 확대
-      setIsAnimating(true);
-      setExpandedIndex(index);
-      setTimeout(() => {
-        setIsAnimating(false);
-      }, 400); // 애니메이션 시간과 동일
-    }
-  };
-
   return (
     <>
       <Dashboard />
@@ -215,138 +459,26 @@ const FavoritePageContent: React.FC = () => {
           dashboardCollapsed ? 'right-[calc(4rem+0.5rem+0.5rem)]' : 'right-[calc(20rem+0.5rem+0.5rem)]'
         }`}
       >
-        <div className="grid grid-cols-2 grid-rows-2 gap-4 h-full">
-          {Array.from({ length: 4 }, (_, index) => {
-            const cctv = selectedCCTVs[index];
-            const canPlace = pendingCCTV !== null;
-            const isExpanded = expandedIndex === index;
-            
-            return (
-              <div
-                key={cctv ? `cctv-${cctv.cctv_id}` : `empty-${index}`}
-                onClick={() => {
-                  // 확대된 상태가 아니고 대기 중인 CCTV가 있으면 이 위치에 배치
-                  if (!isExpanded && pendingCCTV) {
-                    placeCCTVAt(index);
-                  }
-                }}
-                className={`border-2 rounded-lg shadow-md overflow-visible bg-white dark:bg-gray-800 relative ${
-                  canPlace && !isExpanded
-                    ? 'border-blue-500/50 dark:border-blue-400/50 ring-2 ring-blue-400/30 dark:ring-blue-500/30 cursor-pointer hover:ring-blue-400/50 backdrop-blur-sm'
-                    : 'border-gray-300 dark:border-gray-700'
-                } ${isExpanded ? 'z-50' : ''}`}
-                style={{
-                  minHeight: 0,
-                  height: isExpanded ? 'auto' : '100%',
-                  transition: isExpanded || isAnimating
-                    ? 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)' 
-                    : 'all 0.3s ease',
-                  ...(canPlace && !isExpanded ? {
-                    background: 'rgba(53, 122, 189, 0.15)',
-                    backdropFilter: 'blur(20px)',
-                    WebkitBackdropFilter: 'blur(20px)',
-                    boxShadow: '0 8px 32px 0 rgba(53, 122, 189, 0.2)',
-                  } : {}),
-                  ...(isExpanded ? {
-                    position: 'fixed',
-                    left: 'calc(16rem + 1rem + 0.5rem)',
-                    right: 'calc(20rem + 0.5rem + 0.5rem)',
-                    top: 'calc(2rem + 4rem + 0.5rem)',
-                    height: 'calc(100vh - 2rem - 4rem - 0.5rem - 2rem)',
-                    width: 'calc(100vw - 16rem - 1rem - 0.5rem - 20rem - 0.5rem - 0.5rem)',
-                    zIndex: 100,
-                    animation: isExpanded && isAnimating ? 'expandAnimation 0.4s ease-out' : 'none',
-                  } : {})
-                }}
-              >
-                {cctv ? (
-                  <>
-                    {/* 대기 중인 CCTV 배치 가능 표시 */}
-                    {canPlace && !isExpanded && (
-                      <div 
-                        className="absolute top-2 left-2 z-10 text-white px-3 py-1.5 rounded-lg text-xs font-semibold backdrop-blur-md"
-                        style={{
-                          background: 'rgba(53, 122, 189, 0.4)',
-                          backdropFilter: 'blur(12px)',
-                          WebkitBackdropFilter: 'blur(12px)',
-                          border: '1px solid rgba(255, 255, 255, 0.2)',
-                          boxShadow: '0 4px 16px rgba(53, 122, 189, 0.3)',
-                        }}
-                      >
-                        여기에 배치
-                      </div>
-                    )}
-                    <div
-                      onClick={(e) => e.stopPropagation()}
-                      style={{
-                        height: '100%',
-                        display: 'flex',
-                        flexDirection: 'column',
-                      }}
-                    >
-                      <div
-                        style={{
-                          flex: 1,
-                          minHeight: 0,
-                        }}
-                      >
-                        <Camera
-                          apiEndpoint={cctv.api_endpoint}
-                          location={cctv.location}
-                          cctv_id={cctv.cctv_id}
-                          isFavorite={favorites.some((fav) => fav.cctv_id === cctv.cctv_id)}
-                          onToggleFavorite={() => handleToggleFavorite(cctv.cctv_id, favorites.some((fav) => fav.cctv_id === cctv.cctv_id))}
-                          onExpand={() => handleExpand(index)}
-                          isExpanded={isExpanded}
-                          isPlacementMode={canPlace}
-                          pageType="favorite"
-                        />
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div 
-                    className={`w-full h-full flex items-center justify-center cursor-pointer transition-all ${
-                      canPlace && !isExpanded ? '' : 'bg-gray-50 dark:bg-gray-700/50'
-                    }`}
-                    style={canPlace && !isExpanded ? {
-                      background: 'rgba(53, 122, 189, 0.15)',
-                      backdropFilter: 'blur(20px)',
-                      WebkitBackdropFilter: 'blur(20px)',
-                    } : {}}
-                  >
-                    <div className="text-center">
-                      <div 
-                        className="text-sm mb-1 font-medium"
-                        style={canPlace && !isExpanded ? {
-                          color: 'rgba(255, 255, 255, 0.95)',
-                        } : {}}
-                      >
-                        {canPlace && !isExpanded
-                          ? `클릭하여 "${pendingCCTV.location}" 배치` 
-                          : '대시보드에서 CCTV 선택'}
-                      </div>
-                      {canPlace && !isExpanded && (
-                        <div 
-                          className="text-xs font-semibold mt-2 px-3 py-1 rounded-lg backdrop-blur-sm"
-                          style={{
-                            color: 'rgba(255, 255, 255, 0.95)',
-                            background: 'rgba(53, 122, 189, 0.3)',
-                            backdropFilter: 'blur(8px)',
-                            WebkitBackdropFilter: 'blur(8px)',
-                            border: '1px solid rgba(255, 255, 255, 0.2)',
-                          }}
-                        >
-                          ✓ 배치 가능
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+        <div className="flex flex-col h-full gap-4 px-2">
+          {analysisMode ? (
+            <>
+              <div className="grid grid-cols-4 gap-4 h-[220px]">
+                {Array.from({ length: 4 }, (_, index) => renderCameraCard(selectedCCTVs[index], index, true))}
               </div>
-            );
-          })}
-          
+              <div className="flex-1 min-h-0 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl bg-white/70 dark:bg-gray-800/60 flex items-center justify-center text-gray-500 dark:text-gray-300 text-sm font-medium">
+                {(() => {
+                  const target = selectedCCTVs.find((cctv) => cctv && cctv.cctv_id === analysisTargetId);
+                  return target ? `${target.location} 분석 그래프 영역 (추후 구현 예정)` : '분석할 CCTV를 선택하세요.';
+                })()}
+              </div>
+            </>
+          ) : (
+            <div className="grid grid-cols-2 grid-rows-2 gap-4 h-full">
+              {Array.from({ length: 4 }, (_, index) => renderCameraCard(selectedCCTVs[index], index, false))}
+            </div>
+          )}
+        </div>
+
           {/* 대기 중인 CCTV 표시 */}
           {pendingCCTV && (
             <div 
@@ -383,7 +515,6 @@ const FavoritePageContent: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
       
       {/* 확대된 CCTV를 가리는 오버레이 - 투명하게 처리 */}
       {expandedIndex !== null && (

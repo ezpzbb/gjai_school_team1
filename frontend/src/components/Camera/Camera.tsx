@@ -13,6 +13,8 @@ interface CameraProps {
   isExpanded?: boolean;
   isPlacementMode?: boolean;
   pageType?: 'kakao-map' | 'favorite';
+  onAnalyze?: () => void;
+  isAnalyzing?: boolean;
 }
 
 const sanitizeStreamCandidate = (candidate: string): string | null => {
@@ -90,6 +92,8 @@ const Camera: React.FC<CameraProps> = ({
   isExpanded,
   isPlacementMode = false,
   pageType,
+  onAnalyze,
+  isAnalyzing = false,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsInstanceRef = useRef<Hls | null>(null);
@@ -393,6 +397,29 @@ const Camera: React.FC<CameraProps> = ({
       >
         <span>📍 {location || 'CCTV 위치'}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {onAnalyze && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onAnalyze();
+              }}
+              style={{
+                padding: '4px 12px',
+                fontSize: '12px',
+                fontWeight: '600',
+                color: 'white',
+                background: isAnalyzing ? 'rgba(220, 38, 38, 0.85)' : 'rgba(59, 130, 246, 0.8)',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                transform: 'scale(1)',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
+              }}
+            >
+              {isAnalyzing ? '분석종료' : '분석하기'}
+            </button>
+          )}
           {onExpand && !isExpanded && (
             <button
               onClick={(e) => {

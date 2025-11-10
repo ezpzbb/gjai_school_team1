@@ -9,6 +9,8 @@ interface FavoritePageContextType {
   setSelectedCCTVs: (cctvs: CCTV[]) => void;
   analysisMode: boolean;
   setAnalysisMode: (mode: boolean) => void;
+  analysisTargetId: number | null;
+  setAnalysisTargetId: (id: number | null) => void;
 }
 
 const FavoritePageContext = createContext<FavoritePageContextType | undefined>(undefined);
@@ -17,6 +19,7 @@ export const FavoritePageProvider: React.FC<{ children: ReactNode }> = ({ childr
   const [selectedCCTVs, setSelectedCCTVs] = useState<CCTV[]>([]);
   const [pendingCCTV, setPendingCCTV] = useState<CCTV | null>(null);
   const [analysisMode, setAnalysisMode] = useState(false);
+  const [analysisTargetId, setAnalysisTargetId] = useState<number | null>(null);
 
   // 특정 인덱스에 대기 중인 CCTV를 배치
   const placeCCTVAt = (index: number) => {
@@ -76,7 +79,9 @@ export const FavoritePageProvider: React.FC<{ children: ReactNode }> = ({ childr
       placeCCTVAt,
       setSelectedCCTVs,
       analysisMode,
-      setAnalysisMode
+      setAnalysisMode,
+      analysisTargetId,
+      setAnalysisTargetId,
     }}>
       {children}
     </FavoritePageContext.Provider>
@@ -86,8 +91,7 @@ export const FavoritePageProvider: React.FC<{ children: ReactNode }> = ({ childr
 export const useFavoritePage = () => {
   const context = useContext(FavoritePageContext);
   if (!context) {
-    // FavoritePageProvider가 없을 때는 null 반환 (optional)
-    return null;
+    throw new Error('useFavoritePage must be used within FavoritePageProvider');
   }
   return context;
 };
