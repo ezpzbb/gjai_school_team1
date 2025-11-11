@@ -449,7 +449,6 @@ const Camera: React.FC<CameraProps> = ({
               maxWidth: isExpanded ? '100%' : '640px',
               maxHeight: '100%',
               backgroundColor: '#000',
-              borderRadius: '8px',
               overflow: 'hidden',
               display: 'flex',
               justifyContent: 'center',
