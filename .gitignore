@@ -78,3 +78,4 @@ models/
 models/*.pt
 ai_server_outputs/
 .venv/
+__pycache__/
