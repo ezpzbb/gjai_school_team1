@@ -1,5 +1,7 @@
 import { Server as SocketIOServer } from 'socket.io';
 import { updateEventData, setEventUpdateCallback, getEvents, EventItem } from './eventUpdater';
+import jwt from 'jsonwebtoken';
+import { JWT_SECRET } from './utils/jwt';
 
 // 이벤트 룸 이름
 const EVENT_ROOM = 'events';
@@ -18,6 +20,21 @@ export function setupSocketHandlers(io: SocketIOServer): void {
 
   io.on('connection', (socket) => {
     console.log(`클라이언트 연결됨: ${socket.id}`);
+
+    // JWT 토큰으로 사용자 인증 및 룸 입장
+    socket.on('authenticate', (token: string) => {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET) as any;
+        const userId = decoded.user_id;
+        
+        // 사용자별 룸 입장
+        socket.join(`user-${userId}`);
+        console.log(`사용자 ${userId} (${socket.id}) 인증 완료 및 룸 입장`);
+      } catch (error) {
+        console.error('Socket 인증 실패:', error);
+        socket.disconnect();
+      }
+    });
 
     // 이벤트 룸 입장
     socket.on('join-events', () => {

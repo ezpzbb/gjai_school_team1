@@ -8,6 +8,8 @@ import { Pool, createPool } from 'mysql2/promise';
 import { setupCCTVRoutes } from './routes/cctvRoutes';
 import userRoutes from './routes/UserRoutes';
 import favoriteRoutes from './routes/FavoriteRoutes';
+import notificationRoutes from './routes/notificationRoutes';
+import congestionRoutes from './routes/congestionRoutes';
 // ITS CCTV 업데이트는 제거됨 (경찰청 UTIC API로 전환)
 
 export const initializeApp = async (): Promise<Express> => {
@@ -60,10 +62,15 @@ export const initializeApp = async (): Promise<Express> => {
   const uploadsPath = path.resolve(__dirname, '../Uploads');
   app.use('/api/uploads', express.static(uploadsPath));
 
+  // 데이터베이스 풀을 앱에 저장 (라우트에서 사용)
+  app.set('dbPool', dbPool);
+
   // API 라우트
   app.use('/api/users', userRoutes);
   app.use('/api', setupCCTVRoutes(dbPool));
-  app.use('/api/favorites', favoriteRoutes(dbPool)); 
+  app.use('/api/favorites', favoriteRoutes(dbPool));
+  app.use('/api/notifications', notificationRoutes);
+  app.use('/api/congestion', congestionRoutes); 
 
   // 기본 엔드포인트
   app.get('/', (_req: Request, res: Response) => {

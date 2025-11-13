@@ -1,18 +1,19 @@
 import { io, Socket } from 'socket.io-client';
 import { EventItem } from '../types/event';
+import { NotificationData } from '../types/notification';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3002';
 
 class SocketService {
   private socket: Socket | null = null;
   private eventListeners: Map<string, Set<(events: EventItem[]) => void>> = new Map();
+  private congestionAlertListeners: Set<(data: NotificationData) => void> = new Set();
 
   /**
    * Socket 연결
    */
   connect(): void {
     if (this.socket?.connected) {
-      console.log('Socket already connected');
       return;
     }
 
@@ -24,15 +25,19 @@ class SocketService {
     });
 
     this.socket.on('connect', () => {
-      console.log('Socket connected:', this.socket?.id);
       // 이미 리스너가 등록되어 있다면 이벤트 룸에 입장하여 현재 이벤트 수신
       if (this.eventListeners.has('event-update')) {
         this.socket?.emit('join-events');
       }
+      // 연결 시 자동으로 인증 시도
+      const token = localStorage.getItem('token');
+      if (token) {
+        this.authenticate(token);
+      }
     });
 
     this.socket.on('disconnect', () => {
-      console.log('Socket disconnected');
+      // 연결 해제됨
     });
 
     this.socket.on('connect_error', (error) => {
@@ -41,9 +46,22 @@ class SocketService {
 
     // 이벤트 업데이트 수신
     this.socket.on('event-update', (events: EventItem[]) => {
-      console.log('Received event-update:', events.length);
       this.notifyListeners('event-update', events);
     });
+
+    // 혼잡도 알림 수신
+    this.socket.on('congestion-alert', (data: NotificationData) => {
+      this.notifyCongestionListeners(data);
+    });
+  }
+
+  /**
+   * Socket 인증 (JWT 토큰으로 사용자 인증)
+   */
+  authenticate(token: string): void {
+    if (this.socket?.connected) {
+      this.socket.emit('authenticate', token);
+    }
   }
 
   /**
@@ -54,7 +72,6 @@ class SocketService {
       this.socket.emit('leave-events');
       this.socket.disconnect();
       this.socket = null;
-      console.log('Socket disconnected');
     }
   }
 
@@ -63,7 +80,6 @@ class SocketService {
    */
   joinEvents(): void {
     if (this.socket?.connected) {
-      console.log('Joining events room');
       this.socket.emit('join-events');
     }
   }
@@ -107,6 +123,33 @@ class SocketService {
         }
       });
     }
+  }
+
+  /**
+   * 혼잡도 알림 리스너 등록
+   */
+  onCongestionAlert(callback: (data: NotificationData) => void): void {
+    this.congestionAlertListeners.add(callback);
+  }
+
+  /**
+   * 혼잡도 알림 리스너 제거
+   */
+  offCongestionAlert(callback: (data: NotificationData) => void): void {
+    this.congestionAlertListeners.delete(callback);
+  }
+
+  /**
+   * 혼잡도 알림 리스너들에게 알림
+   */
+  private notifyCongestionListeners(data: NotificationData): void {
+    this.congestionAlertListeners.forEach((callback) => {
+      try {
+        callback(data);
+      } catch (error) {
+        console.error('Error in congestion alert listener:', error);
+      }
+    });
   }
 
   /**

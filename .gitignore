@@ -49,6 +49,15 @@ backend/models/*
 tmp/
 temp/
 
+# Python virtual environment
+.venv/
+venv/
+env/
+ENV/
+
+# AI Server
+ai_server/
+
 # TypeScript
 *.tsbuildinfo
 
