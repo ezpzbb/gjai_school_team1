@@ -35,11 +35,15 @@ const Camera: React.FC<CameraProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsInstanceRef = useRef<Hls | null>(null);
   const streamCacheRef = useRef<Record<number, { url: string; expiresAt: number }>>({});
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const retryCountRef = useRef<number>(0);
 
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [isResolving, setIsResolving] = useState(false);
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   const fetchStreamUrl = useCallback(async (): Promise<string> => {
     const cached = streamCacheRef.current[cctv_id];
@@ -77,6 +81,62 @@ const Camera: React.FC<CameraProps> = ({
     return result.data.streamUrl;
   }, [cctv_id]);
 
+  const retryStreamLoad = useCallback(() => {
+    // 기존 타이머 정리
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+
+    const MAX_RETRIES = 3;
+    if (retryCountRef.current >= MAX_RETRIES) {
+      setErrorMessage('영상 재생 중 오류가 발생했습니다. 재시도 횟수를 초과했습니다.');
+      setIsRetrying(false);
+      retryCountRef.current = 0;
+      setRetryCount(0);
+      return;
+    }
+
+    setIsRetrying(true);
+    retryCountRef.current += 1;
+    setRetryCount(retryCountRef.current);
+
+    // 캐시 무효화하여 새로운 스트림 URL 요청
+    delete streamCacheRef.current[cctv_id];
+
+    // 5초 후 재시도
+    retryTimeoutRef.current = setTimeout(() => {
+      setIsResolving(true);
+      setErrorMessage(null);
+
+      fetchStreamUrl()
+        .then((resolved) => {
+          setStreamUrl(null); // 강제로 재로드하기 위해 null로 설정 후
+          setTimeout(() => {
+            setStreamUrl(resolved);
+            retryCountRef.current = 0; // 성공 시 재시도 카운터 리셋
+            setRetryCount(0);
+            setIsRetrying(false);
+          }, 100);
+        })
+        .catch((error) => {
+          console.error('Camera: Retry failed', error);
+          setIsRetrying(false);
+          // 재시도 실패 시 다시 재시도 로직 호출
+          if (retryCountRef.current < MAX_RETRIES) {
+            retryStreamLoad();
+          } else {
+            setErrorMessage('영상 재생 중 오류가 발생했습니다. 재시도 횟수를 초과했습니다.');
+            retryCountRef.current = 0;
+            setRetryCount(0);
+          }
+        })
+        .finally(() => {
+          setIsResolving(false);
+        });
+    }, 5000);
+  }, [cctv_id, fetchStreamUrl]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -84,13 +144,24 @@ const Camera: React.FC<CameraProps> = ({
       setStreamUrl(null);
       setErrorMessage(null);
       setIsVideoReady(false);
+      setIsRetrying(false);
+      retryCountRef.current = 0;
+      setRetryCount(0);
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
       return () => {
         cancelled = true;
       };
     }
 
+    // 재시도 카운터 리셋
+    retryCountRef.current = 0;
+    setRetryCount(0);
     setIsResolving(true);
     setErrorMessage(null);
+    setIsRetrying(false);
 
     fetchStreamUrl()
       .then((resolved) => {
@@ -111,6 +182,10 @@ const Camera: React.FC<CameraProps> = ({
 
     return () => {
       cancelled = true;
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
     };
   }, [apiEndpoint, fetchStreamUrl]);
 
@@ -143,10 +218,15 @@ const Camera: React.FC<CameraProps> = ({
 
     const handleLoaded = () => {
       setIsVideoReady(true);
+      setIsRetrying(false);
+      retryCountRef.current = 0; // 성공 시 재시도 카운터 리셋
+      setRetryCount(0);
     };
 
     const handleError = () => {
       setErrorMessage('영상 재생 중 오류가 발생했습니다.');
+      // 5초 후 자동 재시도
+      retryStreamLoad();
     };
 
     videoElement.addEventListener('loadeddata', handleLoaded);
@@ -197,6 +277,8 @@ const Camera: React.FC<CameraProps> = ({
               setErrorMessage('HLS 스트림을 불러오지 못했습니다.');
               hls.destroy();
               hlsInstanceRef.current = null;
+              // HLS fatal 에러 발생 시 재시도 로직 호출
+              retryStreamLoad();
               break;
           }
         }
@@ -216,8 +298,14 @@ const Camera: React.FC<CameraProps> = ({
         hlsInstanceRef.current.destroy();
         hlsInstanceRef.current = null;
       }
+
+      // 재시도 타이머 정리
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
     };
-  }, [streamUrl]);
+  }, [streamUrl, retryStreamLoad]);
 
   const videoObjectFit = useMemo(() => {
     if (pageType === 'kakao-map') {
@@ -501,6 +589,7 @@ const Camera: React.FC<CameraProps> = ({
                   position: 'absolute',
                   inset: 0,
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
                   textAlign: 'center',
@@ -515,7 +604,19 @@ const Camera: React.FC<CameraProps> = ({
                   WebkitBackdropFilter: 'blur(8px)',
                 }}
               >
-                {errorMessage}
+                <div>{errorMessage}</div>
+                {isRetrying && (
+                  <div
+                    style={{
+                      marginTop: '12px',
+                      fontSize: '12px',
+                      fontWeight: 400,
+                      color: '#fecaca',
+                    }}
+                  >
+                    5초 후 자동으로 재시도합니다... ({retryCount}/3)
+                  </div>
+                )}
               </div>
             )}
 

@@ -318,11 +318,17 @@ const FavoritePageContent: React.FC = () => {
           ...(isExpanded
             ? {
                 position: 'fixed',
-                left: 'calc(16rem + 1rem + 0.5rem)',
-                right: 'calc(20rem + 0.5rem + 0.5rem)',
-                top: 'calc(2rem + 4rem + 0.5rem)',
-                height: 'calc(100vh - 2rem - 4rem - 0.5rem - 2rem)',
-                width: 'calc(100vw - 16rem - 1rem - 0.5rem - 20rem - 0.5rem - 0.5rem)',
+                left: sidebarCollapsed ? 'calc(4rem + 1rem)' : 'calc(16rem + 1rem)',
+                right: dashboardCollapsed ? 'calc(4rem + 0.5rem + 0.5rem)' : 'calc(20rem + 0.5rem + 0.5rem)',
+                top: 'calc(2rem + 4rem + 0.25rem)',
+                height: 'calc(100vh - 2rem - 4rem - 0.25rem - 2rem)',
+                width: sidebarCollapsed 
+                  ? (dashboardCollapsed 
+                      ? 'calc(100vw - 4rem - 1rem - 4rem - 0.5rem - 0.5rem)' 
+                      : 'calc(100vw - 4rem - 1rem - 20rem - 0.5rem - 0.5rem)')
+                  : (dashboardCollapsed 
+                      ? 'calc(100vw - 16rem - 1rem - 4rem - 0.5rem - 0.5rem)' 
+                      : 'calc(100vw - 16rem - 1rem - 20rem - 0.5rem - 0.5rem)'),
                 zIndex: 100,
                 animation: isExpanded && isAnimating ? 'expandAnimation 0.4s ease-out' : 'none',
               }
@@ -470,8 +476,8 @@ const FavoritePageContent: React.FC = () => {
     <>
       <Dashboard />
       <div 
-        className={`fixed top-[calc(2rem+4rem+0.5rem)] h-[calc(100vh-2rem-4rem-0.5rem-2rem)] z-30 transition-all duration-300 overflow-hidden ${
-          sidebarCollapsed ? 'left-[calc(4rem+1rem+0.5rem)]' : 'left-[calc(16rem+1rem+0.5rem)]'
+        className={`fixed top-[calc(2rem+4rem+0.25rem)] h-[calc(100vh-2rem-4rem-0.25rem-2rem)] z-30 transition-all duration-300 overflow-hidden ${
+          sidebarCollapsed ? 'left-[calc(4rem+1rem)]' : 'left-[calc(16rem+1rem)]'
         } ${
           dashboardCollapsed ? 'right-[calc(4rem+0.5rem+0.5rem)]' : 'right-[calc(20rem+0.5rem+0.5rem)]'
         }`}
