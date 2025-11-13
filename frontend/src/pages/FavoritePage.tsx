@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../providers/AuthProvider';
 import { CCTV } from '../types/cctv';
 import Camera from '../components/Camera/Camera';
@@ -10,6 +11,7 @@ import { useData } from '../providers/DataProvider';
 const FavoritePageContent: React.FC = () => {
   const { isLoggedIn } = useAuth();
   const favoritePageContext = useFavoritePage();
+  const [searchParams, setSearchParams] = useSearchParams();
   const {
     sidebarCollapsed,
     dashboardCollapsed,
@@ -35,6 +37,7 @@ const FavoritePageContent: React.FC = () => {
     setAnalysisMode,
     analysisTargetId,
     setAnalysisTargetId,
+    focusAndExpandCCTV,
   } = favoritePageContext;
   const {
     cctvLocations,
@@ -185,20 +188,81 @@ const FavoritePageContent: React.FC = () => {
     }
   }, [analysisMode, sidebarCollapsed, dashboardCollapsed, exitAnalysisMode]);
 
-  const handleExpand = (index: number) => {
-    if (expandedIndex === index) {
+  // 확대 애니메이션 처리 헬퍼 함수
+  const expandWithAnimation = useCallback((targetIndex: number | null, delay: number = 0) => {
+    setTimeout(() => {
       setIsAnimating(true);
-      setExpandedIndex(null);
+      setExpandedIndex(targetIndex);
       setTimeout(() => {
         setIsAnimating(false);
       }, 400);
-    } else {
-      setIsAnimating(true);
-      setExpandedIndex(index);
-      setTimeout(() => {
-        setIsAnimating(false);
-      }, 400);
+    }, delay);
+  }, []);
+
+  // 쿼리 파라미터에서 CCTV ID와 확대 여부 파싱
+  const parseCCTVQueryParams = useCallback(() => {
+    const cctvIdParam = searchParams.get('cctv_id');
+    const expandParam = searchParams.get('expand');
+
+    if (!cctvIdParam || expandParam !== 'true') {
+      return null;
     }
+
+    const cctvId = parseInt(cctvIdParam);
+    if (isNaN(cctvId)) {
+      return null;
+    }
+
+    return cctvId;
+  }, [searchParams]);
+
+  // URL 쿼리 파라미터로 CCTV 확대 처리
+  useEffect(() => {
+    const cctvId = parseCCTVQueryParams();
+    if (!cctvId || cctvLocations.length === 0) {
+      return;
+    }
+
+    // selectedCCTVs에서 해당 CCTV가 이미 있는지 확인
+    const existingIndex = selectedCCTVs.findIndex((cctv) => cctv.cctv_id === cctvId);
+
+    if (existingIndex !== -1) {
+      // 이미 슬롯에 있으면 바로 확대
+      if (expandedIndex !== existingIndex) {
+        expandWithAnimation(existingIndex);
+      }
+      // 쿼리 파라미터 제거
+      setSearchParams({}, { replace: true });
+    } else {
+      // 슬롯에 없으면 배치
+      focusAndExpandCCTV(cctvId, cctvLocations);
+      // 쿼리 파라미터는 유지 (다음 useEffect에서 확대 처리)
+    }
+  }, [searchParams, cctvLocations, selectedCCTVs, focusAndExpandCCTV, setSearchParams, expandedIndex, parseCCTVQueryParams, expandWithAnimation]);
+
+  // selectedCCTVs 변경 시 CCTV 인덱스 찾아서 자동 확대 (쿼리 파라미터가 있을 때만)
+  useEffect(() => {
+    const cctvId = parseCCTVQueryParams();
+    if (!cctvId) {
+      return;
+    }
+
+    // selectedCCTVs에서 해당 CCTV의 인덱스 찾기
+    const targetIndex = selectedCCTVs.findIndex((cctv) => cctv.cctv_id === cctvId);
+
+    if (targetIndex !== -1 && expandedIndex !== targetIndex) {
+      // CCTV가 슬롯에 배치되었고 아직 확대되지 않았다면 확대
+      expandWithAnimation(targetIndex, 100);
+      // 확대 완료 후 쿼리 파라미터 제거
+      setTimeout(() => {
+        setSearchParams({}, { replace: true });
+      }, 500);
+    }
+  }, [selectedCCTVs, searchParams, expandedIndex, setSearchParams, parseCCTVQueryParams, expandWithAnimation]);
+
+  const handleExpand = (index: number) => {
+    const targetIndex = expandedIndex === index ? null : index;
+    expandWithAnimation(targetIndex);
   };
 
   const handleAnalysisAction = (cctv: CCTV) => {

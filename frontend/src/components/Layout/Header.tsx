@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../../providers/AuthProvider";
 import { useTheme } from "../../providers/ThemeProvider";
 import { useLayout } from "../../providers/LayoutProvider";
+import NotificationBell from "../Notification/NotificationBell";
 
 
 
@@ -74,6 +75,18 @@ const Header: React.FC = () => {
         <div className="flex items-center space-x-4 ml-auto">
           {/* 높이 유지를 위한 투명 placeholder */}
           <div style={{ width: '180px', height: '40px' }} className="invisible"></div>
+          {/* 알림 버튼 - 다크모드 버튼 좌측 */}
+          <div
+            style={{
+              position: 'fixed',
+              right: 'calc(2rem + 150px)',
+              top: 'calc(0.5rem + 2.25rem)',
+              transform: 'translateY(-50%)',
+              zIndex: 60
+            }}
+          >
+            <NotificationBell />
+          </div>
           {/* 다크모드 전환 버튼 - 우측 고정 */}
           <button
             onClick={toggleTheme}

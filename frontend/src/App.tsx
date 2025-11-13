@@ -12,7 +12,7 @@ import NotificationContainer from './components/Notification/NotificationContain
 
 const App: React.FC = () => {
   const { isLoggedIn, isLoading } = useAuth();
-  const { notifications, removeNotification } = useNotification();
+  const { toastNotifications, removeToastNotification } = useNotification();
 
   console.log('App: Rendering', { isLoading, isLoggedIn });
 
@@ -48,10 +48,10 @@ const App: React.FC = () => {
       </Route>
       <Route path="/auth/login" element={<LoginForm />} />
     </Routes>
-    <NotificationContainer
-      notifications={notifications}
-      onClose={removeNotification}
-    />
+          <NotificationContainer
+            notifications={toastNotifications}
+            onClose={removeToastNotification}
+          />
     </>
   );
 };

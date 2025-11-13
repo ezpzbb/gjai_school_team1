@@ -46,7 +46,6 @@ export const fetchCCTVLocations = async (retries = 3, delay = 2000): Promise<{ s
 
 export const getUserFavorites = async (retries = 3, delay = 2000): Promise<Favorite[]> => {
   const token = localStorage.getItem('token');
-  console.log('getUserFavorites: token=', token);
   const cacheKey = token ? `user_favorites_${token}` : 'user_favorites';
   const cached = cache[cacheKey];
   if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
@@ -103,7 +102,6 @@ export const addFavorite = async (cctv_id: number): Promise<Favorite> => {
   if (token) {
     delete cache[`user_favorites_${token}`];
   }
-  console.log('addFavorite: Cache invalidated for token:', token);
   return favorite;
 };
 
@@ -112,7 +110,6 @@ export const removeFavorite = async (cctv_id: number): Promise<void> => {
   if (!token) {
     throw new Error('No authentication token found');
   }
-  console.log('removeFavorite: Removing favorite for cctv_id:', cctv_id, 'token:', token);
   const response = await fetch(`/api/favorites/me/${cctv_id}`, {
     method: 'DELETE',
     headers: {
@@ -132,7 +129,6 @@ export const removeFavorite = async (cctv_id: number): Promise<void> => {
   if (token) {
     delete cache[`user_favorites_${token}`];
   }
-  console.log('removeFavorite: Cache invalidated for token:', token);
 };
 
 export const searchCCTVLocations = async (query: string): Promise<CCTV[]> => {
