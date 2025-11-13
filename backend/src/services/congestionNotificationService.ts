@@ -71,7 +71,9 @@ export class CongestionNotificationService {
   }
 
   /**
-   * 알림 발송 처리
+   * 알림 발송 처리 (스케줄러용 - 현재 사용 안 함)
+   * DB 삽입 시 즉시 알림으로 전환되어 더 이상 사용하지 않음
+   * @deprecated 즉시 알림 방식으로 전환됨
    */
   async processNotifications(): Promise<NotificationTarget[]> {
     try {

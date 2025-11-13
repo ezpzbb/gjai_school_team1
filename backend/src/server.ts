@@ -5,7 +5,8 @@ import dotenv from 'dotenv';
 import { initializeApp } from './app';
 import { initializeDatabase, closeDatabase } from './config/db';
 // ITS CCTV 스케줄러는 제거됨 (경찰청 UTIC API로 전환)
-import { startEventScheduler, stopEventScheduler, startCongestionNotificationScheduler, stopCongestionNotificationScheduler } from './scheduler';
+// 혼잡도 알림 스케줄러는 제거됨 (DB 삽입 시 즉시 알림으로 전환)
+import { startEventScheduler, stopEventScheduler } from './scheduler';
 import { setupSocketHandlers } from './socket';
 import { congestionNotificationService } from './services/congestionNotificationService';
 
@@ -43,9 +44,8 @@ async function start() {
       console.log(`🌐 CORS Origin: ${process.env.CORS_ORIGIN || 'http://localhost:5173'}`);
 
       // 스케줄러 시작 (ITS CCTV는 제거, 이벤트만 유지)
+      // 혼잡도 알림은 DB 삽입 시 즉시 발송되므로 스케줄러 불필요
       startEventScheduler();
-      // 혼잡도 알림 스케줄러 시작
-      startCongestionNotificationScheduler(io);
     });
   } catch (error) {
     console.error('서버 시작 실패:', error);
@@ -57,14 +57,12 @@ async function start() {
 process.on('SIGTERM', async () => {
   console.log('서버 종료 중...');
   stopEventScheduler();
-  stopCongestionNotificationScheduler();
   await closeDatabase();
   process.exit(0);
 });
 process.on('SIGINT', async () => {
   console.log('서버 종료 중...');
   stopEventScheduler();
-  stopCongestionNotificationScheduler();
   await closeDatabase();
   process.exit(0);
 });
