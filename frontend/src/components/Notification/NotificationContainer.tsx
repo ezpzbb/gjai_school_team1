@@ -23,10 +23,7 @@ const NotificationContainer: React.FC<NotificationContainerProps> = ({
       {notifications.map((notification) => (
         <div key={notification.id} className="pointer-events-auto">
           <NotificationToast
-            id={notification.id}
-            location={notification.location}
-            level={notification.level}
-            timestamp={notification.timestamp}
+            notification={notification}
             onClose={onClose}
           />
         </div>

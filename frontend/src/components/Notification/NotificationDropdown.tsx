@@ -40,22 +40,25 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
   }, [isOpen, onClose]);
 
   // 알림 카드 클릭 핸들러
-  const handleNotificationClick = (notification: { cctv_id: number; id: string }) => {
+  const handleNotificationClick = (notification: { cctv_id: number; id: string; nearest_cctv_id?: number }) => {
     // 읽음 처리
     markAsRead(notification.id);
 
     // 알림 삭제 (사용자가 확인했으므로)
     removeNotification(notification.id);
 
+    // CCTV ID 결정 (사고 알림의 경우 nearest_cctv_id 사용)
+    const targetCctvId = notification.nearest_cctv_id || notification.cctv_id;
+
     // CCTV 정보 찾기
-    const cctv = cctvLocations.find((c) => c.cctv_id === notification.cctv_id);
+    const cctv = cctvLocations.find((c) => c.cctv_id === targetCctvId);
     if (!cctv) {
       return;
     }
 
     // favorite 페이지로 이동 (쿼리 파라미터로 CCTV ID와 확대 여부 전달)
     // FavoritePage에서 focusAndExpandCCTV를 호출하여 처리
-    navigate(`/favorite?cctv_id=${notification.cctv_id}&expand=true`);
+    navigate(`/favorite?cctv_id=${targetCctvId}&expand=true`);
 
     // 드롭다운 닫기
     onClose();

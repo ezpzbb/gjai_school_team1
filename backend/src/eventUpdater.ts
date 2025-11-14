@@ -7,6 +7,9 @@ import https from 'https';
 
 dotenv.config();
 
+// 사고 알림 서비스 import (순환 참조 없음: accidentNotificationService는 EventItem만 import)
+import { accidentNotificationService } from './services/accidentNotificationService';
+
 const API_KEY = process.env.CCTV_KEY || process.env.CCTV_API_KEY || '';
 if (!API_KEY) {
   throw new Error('CCTV_KEY 또는 CCTV_API_KEY가 .env에 설정되지 않았습니다.');
@@ -268,9 +271,18 @@ export async function updateEventData(): Promise<void> {
 
     console.log(`경찰청 돌발 이벤트 업데이트 완료 - 저장된 이벤트: ${eventMap.size}개`);
 
+    // 기존 이벤트 업데이트 콜백 (지도 표시용)
     if (updateCallback) {
       updateCallback(getEvents());
     }
+
+    // 사고 이벤트 알림 발송 (비동기로 처리하여 응답 지연 방지)
+    setImmediate(() => {
+      accidentNotificationService.sendAccidentNotifications(events).catch((error: any) => {
+        console.error('사고 알림 발송 실패:', error);
+        // 알림 실패해도 이벤트 업데이트는 성공한 것으로 처리
+      });
+    });
   } catch (error: any) {
     console.error('경찰청 돌발 이벤트 업데이트 실패:', error.message);
   }

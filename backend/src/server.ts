@@ -9,6 +9,7 @@ import { initializeDatabase, closeDatabase } from './config/db';
 import { startEventScheduler, stopEventScheduler } from './scheduler';
 import { setupSocketHandlers } from './socket';
 import { congestionNotificationService } from './services/congestionNotificationService';
+import { accidentNotificationService } from './services/accidentNotificationService';
 
 dotenv.config();
 
@@ -33,8 +34,9 @@ async function start() {
     // Socket.IO 이벤트 핸들러 설정
     setupSocketHandlers(io);
 
-    // 혼잡도 알림 서비스에 Socket.IO 인스턴스 설정
+    // 알림 서비스에 Socket.IO 인스턴스 설정
     congestionNotificationService.setSocketIO(io);
+    accidentNotificationService.setSocketIO(io);
 
     // 서버 시작
     const PORT = process.env.PORT || 3002;

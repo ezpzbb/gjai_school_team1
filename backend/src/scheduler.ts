@@ -4,20 +4,20 @@
 // 혼잡도 알림 스케줄러는 제거됨 (DB 삽입 시 즉시 알림으로 전환)
 import { updateEventData } from './eventUpdater';
 
-const FIFTEEN_MINUTES = 15 * 60 * 1000;
+const TEN_MINUTES = 10 * 60 * 1000;
 
 let eventIntervalId: NodeJS.Timeout | null = null;
 
 export function startEventScheduler(): void {
   if (eventIntervalId) return;
 
-  console.log('이벤트 스케줄러 시작: 즉시 실행 + 15분 간격');
+  console.log('이벤트 스케줄러 시작: 즉시 실행 + 10분 간격');
   updateEventData();
 
   eventIntervalId = setInterval(() => {
-    console.log('15분 경과 → 경찰청 이벤트 자동 업데이트 시작');
+    console.log('10분 경과 → 경찰청 이벤트 자동 업데이트 시작');
     updateEventData();
-  }, FIFTEEN_MINUTES);
+  }, TEN_MINUTES);
 }
 
 // 혼잡도 알림 스케줄러는 제거됨

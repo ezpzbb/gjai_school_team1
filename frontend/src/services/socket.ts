@@ -1,6 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import { EventItem } from '../types/event';
-import { NotificationData } from '../types/notification';
+import { NotificationData, AccidentNotificationData } from '../types/notification';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3002';
 
@@ -8,6 +8,7 @@ class SocketService {
   private socket: Socket | null = null;
   private eventListeners: Map<string, Set<(events: EventItem[]) => void>> = new Map();
   private congestionAlertListeners: Set<(data: NotificationData) => void> = new Set();
+  private accidentAlertListeners: Set<(data: AccidentNotificationData) => void> = new Set();
 
   /**
    * Socket 연결
@@ -52,6 +53,12 @@ class SocketService {
     // 혼잡도 알림 수신
     this.socket.on('congestion-alert', (data: NotificationData) => {
       this.notifyCongestionListeners(data);
+    });
+
+    // 사고 알림 수신
+    this.socket.on('accident-alert', (data: AccidentNotificationData) => {
+      console.log('[Socket] accident-alert 이벤트 수신:', data);
+      this.notifyAccidentListeners(data);
     });
   }
 
@@ -148,6 +155,34 @@ class SocketService {
         callback(data);
       } catch (error) {
         console.error('Error in congestion alert listener:', error);
+      }
+    });
+  }
+
+  /**
+   * 사고 알림 리스너 등록
+   */
+  onAccidentAlert(callback: (data: AccidentNotificationData) => void): void {
+    this.accidentAlertListeners.add(callback);
+  }
+
+  /**
+   * 사고 알림 리스너 제거
+   */
+  offAccidentAlert(callback: (data: AccidentNotificationData) => void): void {
+    this.accidentAlertListeners.delete(callback);
+  }
+
+  /**
+   * 사고 알림 리스너들에게 알림
+   */
+  private notifyAccidentListeners(data: AccidentNotificationData): void {
+    console.log(`[Socket] 사고 알림 리스너 호출 - 리스너 수: ${this.accidentAlertListeners.size}`);
+    this.accidentAlertListeners.forEach((callback) => {
+      try {
+        callback(data);
+      } catch (error) {
+        console.error('[Socket] 사고 알림 리스너 오류:', error);
       }
     });
   }
