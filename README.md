@@ -70,3 +70,7 @@ API 사용법은 [API.md](docs/API.md)를 참조하세요.
 ## 라이선스
 
 MIT License
+
+## 데이터 제공
+
+경찰청(UTIC)
