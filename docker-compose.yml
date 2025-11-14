@@ -4,7 +4,6 @@ services:
   # 정적 웹서버
   nginx:
     image: nginx:alpine
-    build: ./nginx
     container_name: nginx
     restart: always
     depends_on:
@@ -45,6 +44,7 @@ services:
     restart: always
     env_file:
       - ./traffic_model/.env
+      - ./backend/.env # url값을 받기 위해 db 연동 (backend .env 활용)
     expose:
       - "8000"
     networks:
@@ -61,8 +61,8 @@ services:
       - backend
     env_file:
       - ./frontend/.env
-    ports:
-      - "3000:80"
+    expose:
+      - "3000"
     networks:
       - app_networks
 

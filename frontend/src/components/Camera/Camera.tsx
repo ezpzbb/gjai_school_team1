@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Hls from 'hls.js';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Hls from "hls.js";
+import { socketService } from "../../services/socket";
 
 interface CameraProps {
   apiEndpoint: string | null;
@@ -12,7 +13,7 @@ interface CameraProps {
   onExpand?: () => void;
   isExpanded?: boolean;
   isPlacementMode?: boolean;
-  pageType?: 'kakao-map' | 'favorite';
+  pageType?: "kakao-map" | "favorite";
   onAnalyze?: () => void;
   isAnalyzing?: boolean;
 }
@@ -23,11 +24,11 @@ const sanitizeStreamCandidate = (candidate: string): string | null => {
   }
 
   let cleaned = candidate.trim();
-  cleaned = cleaned.replace(/--+>?$/, '');
-  cleaned = cleaned.replace(/;+$/, '');
-  cleaned = cleaned.replace(/\)+$/, '');
-  cleaned = cleaned.replace(/&amp;/gi, '&');
-  cleaned = cleaned.replace(/\\u0026/g, '&');
+  cleaned = cleaned.replace(/--+>?$/, "");
+  cleaned = cleaned.replace(/;+$/, "");
+  cleaned = cleaned.replace(/\)+$/, "");
+  cleaned = cleaned.replace(/&amp;/gi, "&");
+  cleaned = cleaned.replace(/\\u0026/g, "&");
 
   if (!/^https?:\/\//i.test(cleaned)) {
     return null;
@@ -45,7 +46,7 @@ const extractStreamFromHtml = (html: string): string | null => {
   let match: RegExpExecArray | null;
   while ((match = hlsRegex.exec(html)) !== null) {
     const sanitized = sanitizeStreamCandidate(match[0]);
-    if (sanitized && !sanitized.toLowerCase().includes('undefined')) {
+    if (sanitized && !sanitized.toLowerCase().includes("undefined")) {
       return sanitized;
     }
   }
@@ -53,7 +54,7 @@ const extractStreamFromHtml = (html: string): string | null => {
   const mp4Regex = /https?:\/\/[^"'<>\\s]+\.mp4[^"'<>\\s]*/gi;
   while ((match = mp4Regex.exec(html)) !== null) {
     const sanitized = sanitizeStreamCandidate(match[0]);
-    if (sanitized && !sanitized.toLowerCase().includes('undefined')) {
+    if (sanitized && !sanitized.toLowerCase().includes("undefined")) {
       return sanitized;
     }
   }
@@ -62,11 +63,11 @@ const extractStreamFromHtml = (html: string): string | null => {
 };
 
 const buildGwangjuFallback = (endpoint: URL): string | null => {
-  const kind = endpoint.searchParams.get('kind')?.toLowerCase();
-  const channelRaw = endpoint.searchParams.get('cctvch');
-  const idRaw = endpoint.searchParams.get('id');
+  const kind = endpoint.searchParams.get("kind")?.toLowerCase();
+  const channelRaw = endpoint.searchParams.get("cctvch");
+  const idRaw = endpoint.searchParams.get("id");
 
-  if (kind !== 'v' || !channelRaw || !idRaw) {
+  if (kind !== "v" || !channelRaw || !idRaw) {
     return null;
   }
 
@@ -96,6 +97,8 @@ const Camera: React.FC<CameraProps> = ({
   isAnalyzing = false,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
   const hlsInstanceRef = useRef<Hls | null>(null);
   const streamCacheRef = useRef<Record<string, string>>({});
 
@@ -118,7 +121,7 @@ const Camera: React.FC<CameraProps> = ({
     }
 
     const lower = normalized.toLowerCase();
-    if (lower.includes('.m3u8')) {
+    if (lower.includes(".m3u8")) {
       streamCacheRef.current[normalized] = normalized;
       return normalized;
     }
@@ -128,10 +131,10 @@ const Camera: React.FC<CameraProps> = ({
 
     try {
       const response = await fetch(normalized, {
-        mode: 'cors',
-        credentials: 'omit',
+        mode: "cors",
+        credentials: "omit",
         headers: {
-          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp',
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp",
         },
       });
 
@@ -147,7 +150,7 @@ const Camera: React.FC<CameraProps> = ({
         return extracted;
       }
     } catch (error) {
-      console.warn('Camera: Failed to fetch UTIC stream page', error);
+      console.warn("Camera: Failed to fetch UTIC stream page", error);
     }
 
     if (fallbackCandidate) {
@@ -155,7 +158,7 @@ const Camera: React.FC<CameraProps> = ({
       return fallbackCandidate;
     }
 
-    throw new Error('STREAM_URL_NOT_FOUND');
+    throw new Error("STREAM_URL_NOT_FOUND");
   }, []);
 
   useEffect(() => {
@@ -180,9 +183,9 @@ const Camera: React.FC<CameraProps> = ({
       })
       .catch((error) => {
         if (cancelled) return;
-        console.error('Camera: Unable to resolve stream URL', error);
+        console.error("Camera: Unable to resolve stream URL", error);
         setStreamUrl(null);
-        setErrorMessage('영상 스트림 URL을 불러오지 못했습니다.');
+        setErrorMessage("영상 스트림 URL을 불러오지 못했습니다.");
       })
       .finally(() => {
         if (!cancelled) {
@@ -208,7 +211,7 @@ const Camera: React.FC<CameraProps> = ({
         hlsInstanceRef.current = null;
       }
       videoElement.pause();
-      videoElement.removeAttribute('src');
+      videoElement.removeAttribute("src");
       videoElement.load();
       setIsVideoReady(false);
       return;
@@ -227,24 +230,24 @@ const Camera: React.FC<CameraProps> = ({
     };
 
     const handleError = () => {
-      setErrorMessage('영상 재생 중 오류가 발생했습니다.');
+      setErrorMessage("영상 재생 중 오류가 발생했습니다.");
     };
 
-    videoElement.addEventListener('loadeddata', handleLoaded);
-    videoElement.addEventListener('error', handleError);
+    videoElement.addEventListener("loadeddata", handleLoaded);
+    videoElement.addEventListener("error", handleError);
 
-    const isHlsStream = streamUrl.toLowerCase().includes('.m3u8');
+    const isHlsStream = streamUrl.toLowerCase().includes(".m3u8");
 
     const attemptAutoplay = () => {
       const playPromise = videoElement.play();
-      if (playPromise && typeof playPromise.then === 'function') {
+      if (playPromise && typeof playPromise.then === "function") {
         playPromise.catch(() => {
-          setErrorMessage('자동 재생이 차단되었습니다. 브라우저 설정을 확인해주세요.');
+          setErrorMessage("자동 재생이 차단되었습니다. 브라우저 설정을 확인해주세요.");
         });
       }
     };
 
-    if (isHlsStream && videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+    if (isHlsStream && videoElement.canPlayType("application/vnd.apple.mpegurl")) {
       videoElement.src = streamUrl;
       videoElement.load();
       attemptAutoplay();
@@ -275,7 +278,7 @@ const Camera: React.FC<CameraProps> = ({
               hls.recoverMediaError();
               break;
             default:
-              setErrorMessage('HLS 스트림을 불러오지 못했습니다.');
+              setErrorMessage("HLS 스트림을 불러오지 못했습니다.");
               hls.destroy();
               hlsInstanceRef.current = null;
               break;
@@ -290,8 +293,8 @@ const Camera: React.FC<CameraProps> = ({
 
     return () => {
       videoElement.pause();
-      videoElement.removeEventListener('loadeddata', handleLoaded);
-      videoElement.removeEventListener('error', handleError);
+      videoElement.removeEventListener("loadeddata", handleLoaded);
+      videoElement.removeEventListener("error", handleError);
 
       if (hlsInstanceRef.current) {
         hlsInstanceRef.current.destroy();
@@ -300,11 +303,65 @@ const Camera: React.FC<CameraProps> = ({
     };
   }, [streamUrl]);
 
+  // 모델의 바운딩 박스 값으로 오버레이 시각화
+  useEffect(() => {
+    // 소켓 연결 및 vehicle-updates 구독
+    const unsubscribe = socketService.onVehicleUpdate(cctv_id, (payload) => {
+      const canvas = overlayCanvasRef.current;
+      const videoEl = videoRef.current;
+      if (!canvas || !videoEl) return;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      // canvas 크기를 video와 동기화
+      canvas.width = videoEl.clientWidth;
+      canvas.height = videoEl.clientHeight;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "lime";
+      ctx.lineWidth = 2;
+
+      // ROI 폴리곤 그리기
+      if (payload.roiPolygon) {
+        const scaleX = canvas.width / videoEl.videoWidth;
+        const scaleY = canvas.height / videoEl.videoHeight;
+        ctx.beginPath();
+        payload.roiPolygon.forEach(([x, y], idx) => {
+          const sx = x * scaleX;
+          const sy = y * scaleY;
+          if (idx === 0) ctx.moveTo(sx, sy);
+          else ctx.lineTo(sx, sy);
+        });
+        ctx.closePath();
+        ctx.stroke();
+      }
+
+      // bbox 그리기
+      payload.detections.forEach((det) => {
+        const [x1, y1, x2, y2] = det.bbox;
+        const scaleX = canvas.width / videoEl.videoWidth;
+        const scaleY = canvas.height / videoEl.videoHeight;
+        ctx.strokeStyle = "yellow";
+        ctx.strokeRect(x1 * scaleX, y1 * scaleY, (x2 - x1) * scaleX, (y2 - y1) * scaleY);
+
+        ctx.fillStyle = "rgba(0,0,0,0.5)";
+        ctx.fillRect(x1 * scaleX, (y1 - 18) * scaleY, 80, 18);
+        ctx.fillStyle = "white";
+        ctx.fillText(`${det.cls} ${(det.conf * 100).toFixed(1)}%`, x1 * scaleX + 4, (y1 - 6) * scaleY);
+      });
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [cctv_id]);
+
   const videoObjectFit = useMemo(() => {
-    if (pageType === 'kakao-map') {
-      return 'cover';
+    if (pageType === "kakao-map") {
+      return "cover";
     }
-    return isExpanded ? 'cover' : 'contain';
+    return isExpanded ? "cover" : "contain";
   }, [isExpanded, pageType]);
 
   const resolvedMimeType = useMemo(() => {
@@ -312,10 +369,10 @@ const Camera: React.FC<CameraProps> = ({
       return undefined;
     }
     const lower = streamUrl.toLowerCase();
-    if (lower.endsWith('.mp4')) return 'video/mp4';
-    if (lower.endsWith('.webm')) return 'video/webm';
-    if (lower.endsWith('.ogg')) return 'video/ogg';
-    if (lower.endsWith('.mov')) return 'video/quicktime';
+    if (lower.endsWith(".mp4")) return "video/mp4";
+    if (lower.endsWith(".webm")) return "video/webm";
+    if (lower.endsWith(".ogg")) return "video/ogg";
+    if (lower.endsWith(".mov")) return "video/quicktime";
     return undefined;
   }, [streamUrl]);
 
@@ -325,15 +382,15 @@ const Camera: React.FC<CameraProps> = ({
     return (
       <div
         style={{
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: '#f0f0f0',
-          borderRadius: '6px',
-          fontSize: '14px',
-          color: '#333',
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "#f0f0f0",
+          borderRadius: "6px",
+          fontSize: "14px",
+          color: "#333",
         }}
       >
         영상을 선택하려면 CCTV 마커를 클릭하세요.
@@ -344,16 +401,16 @@ const Camera: React.FC<CameraProps> = ({
   return (
     <div
       style={{
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        background: 'rgba(255, 255, 255, 0.01)',
-        backdropFilter: 'blur(25px)',
-        WebkitBackdropFilter: 'blur(25px)',
-        borderRadius: '6px',
-        overflow: 'hidden',
-        position: 'relative',
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        background: "rgba(255, 255, 255, 0.01)",
+        backdropFilter: "blur(25px)",
+        WebkitBackdropFilter: "blur(25px)",
+        borderRadius: "6px",
+        overflow: "hidden",
+        position: "relative",
         minHeight: 0,
       }}
     >
@@ -361,17 +418,17 @@ const Camera: React.FC<CameraProps> = ({
         <button
           onClick={onClose}
           style={{
-            position: 'absolute',
-            top: '10px',
-            right: '10px',
-            width: '24px',
-            height: '24px',
-            borderRadius: '50%',
-            background: '#ff4444',
-            color: 'white',
-            border: 'none',
-            fontSize: '16px',
-            cursor: 'pointer',
+            position: "absolute",
+            top: "10px",
+            right: "10px",
+            width: "24px",
+            height: "24px",
+            borderRadius: "50%",
+            background: "#ff4444",
+            color: "white",
+            border: "none",
+            fontSize: "16px",
+            cursor: "pointer",
             zIndex: 20,
           }}
         >
@@ -381,22 +438,22 @@ const Camera: React.FC<CameraProps> = ({
 
       <div
         style={{
-          height: '40px',
-          padding: '0 15px',
-          background: 'rgba(255, 255, 255, 0.015)',
-          backdropFilter: 'blur(25px)',
-          WebkitBackdropFilter: 'blur(25px)',
-          color: 'black',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          fontSize: '14px',
-          fontWeight: 'bold',
-          borderBottom: '1px solid rgba(53, 122, 189, 0.1)',
+          height: "40px",
+          padding: "0 15px",
+          background: "rgba(255, 255, 255, 0.015)",
+          backdropFilter: "blur(25px)",
+          WebkitBackdropFilter: "blur(25px)",
+          color: "black",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          fontSize: "14px",
+          fontWeight: "bold",
+          borderBottom: "1px solid rgba(53, 122, 189, 0.1)",
         }}
       >
-        <span>📍 {location || 'CCTV 위치'}</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span>📍 {location || "CCTV 위치"}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           {onAnalyze && (
             <button
               onClick={(e) => {
@@ -404,30 +461,30 @@ const Camera: React.FC<CameraProps> = ({
                 onAnalyze();
               }}
               style={{
-                padding: '4px 12px',
-                fontSize: '12px',
-                fontWeight: '600',
-                color: 'white',
-                background: isAnalyzing ? 'rgba(220, 38, 38, 0.85)' : 'rgba(59, 130, 246, 0.8)',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease',
-                transform: 'scale(1)',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
+                padding: "4px 12px",
+                fontSize: "12px",
+                fontWeight: "600",
+                color: "white",
+                background: isAnalyzing ? "rgba(220, 38, 38, 0.85)" : "rgba(59, 130, 246, 0.8)",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+                transition: "transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease",
+                transform: "scale(1)",
+                boxShadow: "0 2px 4px rgba(0, 0, 0, 0.15)",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'scale(1.05)';
-                e.currentTarget.style.boxShadow = '0 4px 10px rgba(0, 0, 0, 0.2)';
-                e.currentTarget.style.background = isAnalyzing ? 'rgba(185, 28, 28, 0.9)' : 'rgba(37, 99, 235, 0.9)';
+                e.currentTarget.style.transform = "scale(1.05)";
+                e.currentTarget.style.boxShadow = "0 4px 10px rgba(0, 0, 0, 0.2)";
+                e.currentTarget.style.background = isAnalyzing ? "rgba(185, 28, 28, 0.9)" : "rgba(37, 99, 235, 0.9)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.15)';
-                e.currentTarget.style.background = isAnalyzing ? 'rgba(220, 38, 38, 0.85)' : 'rgba(59, 130, 246, 0.8)';
+                e.currentTarget.style.transform = "scale(1)";
+                e.currentTarget.style.boxShadow = "0 2px 4px rgba(0, 0, 0, 0.15)";
+                e.currentTarget.style.background = isAnalyzing ? "rgba(220, 38, 38, 0.85)" : "rgba(59, 130, 246, 0.8)";
               }}
             >
-              {isAnalyzing ? '분석종료' : '분석하기'}
+              {isAnalyzing ? "분석종료" : "분석하기"}
             </button>
           )}
           {onExpand && !isExpanded && (
@@ -439,29 +496,29 @@ const Camera: React.FC<CameraProps> = ({
               }}
               disabled={isPlacementMode}
               style={{
-                padding: '4px 12px',
-                fontSize: '12px',
-                fontWeight: '600',
-                color: isPlacementMode ? 'rgba(255, 255, 255, 0.5)' : 'white',
-                background: isPlacementMode ? 'rgba(156, 163, 175, 0.5)' : 'rgba(53, 122, 189, 0.8)',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: isPlacementMode ? 'not-allowed' : 'pointer',
-                transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease',
-                transform: 'scale(1)',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                padding: "4px 12px",
+                fontSize: "12px",
+                fontWeight: "600",
+                color: isPlacementMode ? "rgba(255, 255, 255, 0.5)" : "white",
+                background: isPlacementMode ? "rgba(156, 163, 175, 0.5)" : "rgba(53, 122, 189, 0.8)",
+                border: "none",
+                borderRadius: "6px",
+                cursor: isPlacementMode ? "not-allowed" : "pointer",
+                transition: "transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease",
+                transform: "scale(1)",
+                boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
                 opacity: isPlacementMode ? 0.6 : 1,
               }}
               onMouseEnter={(e) => {
                 if (isPlacementMode) return;
-                e.currentTarget.style.transform = 'scale(1.05)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(53, 122, 189, 0.25)';
-                e.currentTarget.style.background = 'rgba(37, 99, 235, 0.9)';
+                e.currentTarget.style.transform = "scale(1.05)";
+                e.currentTarget.style.boxShadow = "0 4px 12px rgba(53, 122, 189, 0.25)";
+                e.currentTarget.style.background = "rgba(37, 99, 235, 0.9)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
-                e.currentTarget.style.background = 'rgba(53, 122, 189, 0.8)';
+                e.currentTarget.style.transform = "scale(1)";
+                e.currentTarget.style.boxShadow = "0 2px 4px rgba(0, 0, 0, 0.1)";
+                e.currentTarget.style.background = "rgba(53, 122, 189, 0.8)";
               }}
             >
               크게보기
@@ -474,27 +531,27 @@ const Camera: React.FC<CameraProps> = ({
                 onExpand();
               }}
               style={{
-                padding: '4px 12px',
-                fontSize: '12px',
-                fontWeight: '600',
-                color: 'white',
-                background: 'rgba(107, 114, 128, 0.8)',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease',
-                transform: 'scale(1)',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                padding: "4px 12px",
+                fontSize: "12px",
+                fontWeight: "600",
+                color: "white",
+                background: "rgba(107, 114, 128, 0.8)",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+                transition: "transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease",
+                transform: "scale(1)",
+                boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'scale(1.05)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(107, 114, 128, 0.25)';
-                e.currentTarget.style.background = 'rgba(75, 85, 99, 0.9)';
+                e.currentTarget.style.transform = "scale(1.05)";
+                e.currentTarget.style.boxShadow = "0 4px 12px rgba(107, 114, 128, 0.25)";
+                e.currentTarget.style.background = "rgba(75, 85, 99, 0.9)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
-                e.currentTarget.style.background = 'rgba(107, 114, 128, 0.8)';
+                e.currentTarget.style.transform = "scale(1)";
+                e.currentTarget.style.boxShadow = "0 2px 4px rgba(0, 0, 0, 0.1)";
+                e.currentTarget.style.background = "rgba(107, 114, 128, 0.8)";
               }}
             >
               되돌리기
@@ -506,9 +563,9 @@ const Camera: React.FC<CameraProps> = ({
       <div
         style={{
           flex: 1,
-          display: 'flex',
-          position: 'relative',
-          backgroundColor: '#000',
+          display: "flex",
+          position: "relative",
+          backgroundColor: "#000",
           minHeight: 0,
         }}
       >
@@ -516,25 +573,25 @@ const Camera: React.FC<CameraProps> = ({
           style={{
             flex: 1,
             minHeight: 0,
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            position: 'relative',
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            position: "relative",
           }}
         >
           <div
             style={{
-              position: 'relative',
-              width: '100%',
-              height: '100%',
-              maxWidth: isExpanded ? '100%' : '640px',
-              maxHeight: '100%',
-              backgroundColor: '#000',
-              borderRadius: '8px',
-              overflow: 'hidden',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
+              position: "relative",
+              width: "100%",
+              height: "100%",
+              maxWidth: isExpanded ? "100%" : "640px",
+              maxHeight: "100%",
+              backgroundColor: "#000",
+              borderRadius: "8px",
+              overflow: "hidden",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
             }}
           >
             <video
@@ -546,31 +603,35 @@ const Camera: React.FC<CameraProps> = ({
               title={`CCTV ${location || cctv_id}`}
               data-cctv-id={cctv_id}
               style={{
-                width: '100%',
-                height: '100%',
+                width: "100%",
+                height: "100%",
                 objectFit: videoObjectFit,
-                backgroundColor: '#000',
+                backgroundColor: "#000",
               }}
             >
-              {streamUrl && resolvedMimeType && (
-                <source src={streamUrl} type={resolvedMimeType} />
-              )}
+              {streamUrl && resolvedMimeType && <source src={streamUrl} type={resolvedMimeType} />}
             </video>
-
+            <canvas
+              ref={overlayCanvasRef}
+              style={{
+                position: "absolute",
+                inset: 0,
+                pointerEvents: "none",
+              }}
+            />
             {isLoading && (
               <div
                 style={{
-                  position: 'absolute',
+                  position: "absolute",
                   inset: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#f9fafb',
-                  fontSize: '14px',
-                  background:
-                    'linear-gradient(180deg, rgba(17, 24, 39, 0.82) 0%, rgba(17, 24, 39, 0.7) 50%, rgba(17, 24, 39, 0.82) 100%)',
-                  backdropFilter: 'blur(6px)',
-                  WebkitBackdropFilter: 'blur(6px)',
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#f9fafb",
+                  fontSize: "14px",
+                  background: "linear-gradient(180deg, rgba(17, 24, 39, 0.82) 0%, rgba(17, 24, 39, 0.7) 50%, rgba(17, 24, 39, 0.82) 100%)",
+                  backdropFilter: "blur(6px)",
+                  WebkitBackdropFilter: "blur(6px)",
                 }}
               >
                 영상 로딩 중...
@@ -580,59 +641,58 @@ const Camera: React.FC<CameraProps> = ({
             {errorMessage && (
               <div
                 style={{
-                  position: 'absolute',
+                  position: "absolute",
                   inset: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  textAlign: 'center',
-                  padding: '16px',
-                  color: '#ffe4e6',
-                  fontSize: '14px',
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  textAlign: "center",
+                  padding: "16px",
+                  color: "#ffe4e6",
+                  fontSize: "14px",
                   fontWeight: 600,
-                  background:
-                    'linear-gradient(180deg, rgba(127, 29, 29, 0.75) 0%, rgba(127, 29, 29, 0.6) 50%, rgba(127, 29, 29, 0.75) 100%)',
-                  border: '1px solid rgba(248, 113, 113, 0.5)',
-                  backdropFilter: 'blur(8px)',
-                  WebkitBackdropFilter: 'blur(8px)',
+                  background: "linear-gradient(180deg, rgba(127, 29, 29, 0.75) 0%, rgba(127, 29, 29, 0.6) 50%, rgba(127, 29, 29, 0.75) 100%)",
+                  border: "1px solid rgba(248, 113, 113, 0.5)",
+                  backdropFilter: "blur(8px)",
+                  WebkitBackdropFilter: "blur(8px)",
                 }}
               >
                 {errorMessage}
               </div>
             )}
 
-          {onToggleFavorite && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleFavorite();
-              }}
-              style={{
-                position: 'absolute',
-                bottom: '12px',
-                right: '12px',
-                width: '40px',
-                height: '40px',
-                borderRadius: '50%',
-                border: 'none',
-                cursor: 'pointer',
-                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                transform: 'scale(1)',
-                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 5,
-                background: 'rgba(17, 24, 39, 0.65)',
-                backdropFilter: 'blur(10px)',
-                WebkitBackdropFilter: 'blur(10px)',
-                color: isFavorite ? '#FACC15' : '#D1D5DB',
-                fontSize: '18px',
-              }}
-            >
-              {isFavorite ? '★' : '☆'}
-            </button>
-          )}
+            {onToggleFavorite && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleFavorite();
+                }}
+                style={{
+                  position: "absolute",
+                  bottom: "12px",
+                  right: "12px",
+                  width: "40px",
+                  height: "40px",
+                  borderRadius: "50%",
+                  border: "none",
+                  cursor: "pointer",
+                  transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                  transform: "scale(1)",
+                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  zIndex: 5,
+                  background: "rgba(17, 24, 39, 0.65)",
+                  backdropFilter: "blur(10px)",
+                  WebkitBackdropFilter: "blur(10px)",
+                  color: isFavorite ? "#FACC15" : "#D1D5DB",
+                  fontSize: "18px",
+                }}
+              >
+                {isFavorite ? "★" : "☆"}
+              </button>
+            )}
           </div>
         </div>
       </div>

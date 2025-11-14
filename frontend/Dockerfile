@@ -6,9 +6,15 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# run stage
-FROM nginx:1.27-alpine
-COPY --chown=nginx:nginx --from=build /app/dist /usr/share/nginx/html
-# 기본 nginx 설정 사용. 라우팅을 위해 SPA fallback이 필요하면 nginx.conf 추가.
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+# node에서 서빙
+FROM node:20-alpine AS runtime
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+RUN npm ci --omit=dev
+
+# 빌드 결과 복사
+COPY --from=build /app/dist ./dist
+
+EXPOSE 3000
+CMD ["npm", "run", "start"]
