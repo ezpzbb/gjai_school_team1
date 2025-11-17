@@ -14,6 +14,7 @@ AI 모델을 활용한 실시간 차량 탐지 및 관리 시스템입니다.
 ## 기술 스택
 
 ### Frontend
+
 - React 18 + TypeScript
 - Redux Toolkit (상태 관리)
 - Socket.IO Client (실시간 통신)
@@ -21,6 +22,7 @@ AI 모델을 활용한 실시간 차량 탐지 및 관리 시스템입니다.
 - Vite (빌드 도구)
 
 ### Backend
+
 - Node.js + Express + TypeScript
 - Socket.IO (실시간 통신)
 - Mysql(데이터베이스)
@@ -28,6 +30,7 @@ AI 모델을 활용한 실시간 차량 탐지 및 관리 시스템입니다.
 - JWT (인증)
 
 ### AI/ML
+
 - ONNX Runtime (모델 추론)
 - OpenCV (이미지 처리)
 - Custom trained model (차량 탐지)
@@ -70,3 +73,7 @@ API 사용법은 [API.md](docs/API.md)를 참조하세요.
 ## 라이선스
 
 MIT License
+
+## 데이터 제공
+
+경찰청(UTIC)
