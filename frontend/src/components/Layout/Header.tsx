@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../../providers/AuthProvider";
 import { useTheme } from "../../providers/ThemeProvider";
-import { useLayout } from "../../providers/LayoutProvider";
 import NotificationBell from "../Notification/NotificationBell";
 
 
@@ -11,7 +10,6 @@ const Header: React.FC = () => {
   const location = useLocation();
   const { isLoggedIn, user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const { sidebarCollapsed } = useLayout();
   const pathname = location.pathname;
 
   // 유저 메뉴 상태
