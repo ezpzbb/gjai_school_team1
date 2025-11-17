@@ -49,6 +49,15 @@ backend/models/*
 tmp/
 temp/
 
+# Python virtual environment
+.venv/
+venv/
+env/
+ENV/
+
+# AI Server
+ai_server/
+
 # TypeScript
 *.tsbuildinfo
 
@@ -69,3 +78,6 @@ out/
 *.sqlite3
 
 cctv.ts
+
+# 인증서
+backend/certs/

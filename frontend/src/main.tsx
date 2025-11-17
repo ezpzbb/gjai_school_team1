@@ -7,6 +7,7 @@ import AuthProvider from './providers/AuthProvider';
 import AppProvider from './providers/AppProvider';
 import { DataProvider } from './providers/DataProvider';
 import { ThemeProvider } from './providers/ThemeProvider';
+import NotificationProvider from './providers/NotificationProvider';
 
 const root = createRoot(document.getElementById('root')!);
 root.render(
@@ -14,11 +15,13 @@ root.render(
     <ThemeProvider>
       <AppProvider>
         <AuthProvider>
-          <DataProvider>  
-            <BrowserRouter>
-              <App />
-            </BrowserRouter>
-          </DataProvider>
+          <NotificationProvider>
+            <DataProvider>  
+              <BrowserRouter>
+                <App />
+              </BrowserRouter>
+            </DataProvider>
+          </NotificationProvider>
         </AuthProvider>
       </AppProvider>
     </ThemeProvider>

@@ -5,6 +5,12 @@ export const cctvQueries = {
     SELECT cctv_id, location, latitude, longitude, api_endpoint
     FROM CCTV
   `,
+  getCCTVById: `
+    SELECT cctv_id, location, latitude, longitude, api_endpoint
+    FROM CCTV
+    WHERE cctv_id = ?
+    LIMIT 1
+  `,
   searchCCTVLocations: (keyword: string): string => `
     SELECT cctv_id, location, latitude, longitude, api_endpoint
     FROM CCTV

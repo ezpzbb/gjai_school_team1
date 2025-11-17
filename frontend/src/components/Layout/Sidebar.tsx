@@ -16,8 +16,8 @@ const Sidebar: React.FC = () => {
 
   return (
     <aside 
-      className={`fixed left-2 top-2 h-[calc(100vh-2.5rem)] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 flex flex-col rounded-lg shadow-lg transition-all duration-300 ${
-        sidebarCollapsed ? 'w-16' : 'w-64'
+      className={`fixed left-2 top-[calc(0.5rem+4rem+0.5rem)] h-[calc(100vh-0.5rem-4rem-0.5rem-0.5rem)] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 flex flex-col rounded-lg shadow-lg transition-all duration-300 ${
+        sidebarCollapsed ? 'w-16' : 'w-56'
       }`}
     >
       {/* 축소 버튼 */}
@@ -25,7 +25,7 @@ const Sidebar: React.FC = () => {
         onClick={toggleSidebar}
         className="fixed w-6 h-6 bg-blue-600 dark:bg-blue-700 text-white rounded-full flex items-center justify-center hover:bg-blue-700 dark:hover:bg-blue-800 transition-all duration-300 z-50 shadow-lg"
         style={{ 
-          left: `calc(0.5rem + ${sidebarCollapsed ? '4rem' : '16rem'} - 0.75rem)`,
+          left: `calc(0.5rem + ${sidebarCollapsed ? '4rem' : '14rem'} - 0.75rem)`,
           top: '50vh', 
           transform: 'translateY(-50%)' 
         }}
@@ -41,17 +41,6 @@ const Sidebar: React.FC = () => {
         </svg>
       </button>
 
-      {/* 최상단: 로고 */}
-      <div className={`mb-2 ${sidebarCollapsed ? 'p-2 text-center' : 'p-4'}`}>
-        <Link to="/" className="flex items-center justify-center">
-          <span className={`text-gray-900 dark:text-gray-100 font-bold transition-all duration-300 ${
-            sidebarCollapsed ? 'text-xl' : 'text-2xl'
-          }`}>
-            {sidebarCollapsed ? 'P' : 'Palantir'}
-          </span>
-        </Link>
-      </div>
-
       {/* 네비게이션 메뉴 */}
       <nav className={`flex-1 ${sidebarCollapsed ? 'p-2' : 'p-4'}`}>
         <div className="flex flex-col space-y-3">
@@ -63,8 +52,8 @@ const Sidebar: React.FC = () => {
               <Link
                 key={item.key}
                 to={item.path}
-                className={`rounded-lg transition flex items-center justify-center ${
-                  sidebarCollapsed ? 'p-2' : 'px-4 py-3'
+                className={`rounded-lg transition flex items-center ${
+                  sidebarCollapsed ? 'justify-center p-2' : 'px-4 py-3 gap-3'
                 } ${
                   isActive
                     ? "bg-blue-600 dark:bg-blue-700 text-white font-semibold"
@@ -72,15 +61,14 @@ const Sidebar: React.FC = () => {
                 }`}
                 title={sidebarCollapsed ? item.label : ''}
               >
-                {sidebarCollapsed ? (
-                  <img 
-                    src={item.icon} 
-                    alt={item.label}
-                    className={`w-8 h-8 transition-all duration-300 ${
-                      isActive ? 'brightness-0 invert' : 'dark:brightness-0 dark:invert'
-                    }`}
-                  />
-                ) : (
+                <img 
+                  src={item.icon} 
+                  alt={item.label}
+                  className={`w-6 h-6 transition-all duration-300 ${
+                    isActive ? 'brightness-0 invert' : 'dark:brightness-0 dark:invert'
+                  }`}
+                />
+                {!sidebarCollapsed && (
                   <span>{item.label}</span>
                 )}
               </Link>

@@ -1,23 +1,23 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../providers/AuthProvider';
 import { CCTV } from '../types/cctv';
-import { Favorite } from '../types/Favorite';
-import { fetchCCTVLocations, getUserFavorites, addFavorite, removeFavorite } from '../services/api';
 import Camera from '../components/Camera/Camera';
 import Dashboard from '../components/Dashboard/Dashboard';
 import { FavoritePageProvider, useFavoritePage } from '../providers/FavoritePageProvider';
 import { useLayout } from '../providers/LayoutProvider';
+import { useData } from '../providers/DataProvider';
 
 const FavoritePageContent: React.FC = () => {
   const { isLoggedIn } = useAuth();
   const favoritePageContext = useFavoritePage();
+  const [searchParams, setSearchParams] = useSearchParams();
   const {
     sidebarCollapsed,
     dashboardCollapsed,
     setSidebarCollapsed,
     setDashboardCollapsed,
   } = useLayout();
-  const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -37,48 +37,39 @@ const FavoritePageContent: React.FC = () => {
     setAnalysisMode,
     analysisTargetId,
     setAnalysisTargetId,
+    focusAndExpandCCTV,
   } = favoritePageContext;
-
-  const fetchFavorites = async (retries = 3, delay = 2000) => {
-    try {
-      const favoriteData = await getUserFavorites();
-      console.log('FavoritePage: User favorites fetched:', favoriteData);
-      const cctvResponse = await fetchCCTVLocations();
-      console.log('FavoritePage: CCTV locations fetched:', cctvResponse);
-          // added_at 기준 내림차순 정렬 (최신순)
-          const sortedFavorites = favoriteData.sort((a, b) => 
-            new Date(b.added_at || 0).getTime() - new Date(a.added_at || 0).getTime()
-          );
-          setFavorites(sortedFavorites);
-          
-          // 초기 선택된 CCTV 설정 (최신 즐겨찾기 4개)
-          const initialCCTVs = sortedFavorites
-            .slice(0, 4)
-            .map((fav) => cctvResponse.data.find((cctv) => cctv.cctv_id === fav.cctv_id))
-            .filter((cctv): cctv is CCTV => cctv !== undefined);
-          setSelectedCCTVs(initialCCTVs);
-          
-          setError(null);
-    } catch (error: any) {
-      console.error('FavoritePage: Failed to fetch favorites:', error);
-      if (error.message.includes('429') && retries > 0) {
-        console.log(`FavoritePage: Retrying fetchFavorites (${retries} retries left)...`);
-        setTimeout(() => fetchFavorites(retries - 1, delay), delay);
-      } else {
-        setError('즐겨찾기 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
-      }
-    }
-  };
+  const {
+    cctvLocations,
+    favorites,
+    addFavorite,
+    removeFavorite,
+    refreshFavorites,
+    error: dataError,
+  } = useData();
 
   useEffect(() => {
-    if (isLoggedIn) {
-      console.log('FavoritePage: Fetching favorites');
-      fetchFavorites();
+    if (dataError) {
+      setError(dataError);
+    } else {
+      setError(null);
     }
-  }, [isLoggedIn]);
+  }, [dataError]);
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      return;
+    }
+
+    const initialCCTVs = favorites
+      .slice(0, 4)
+      .map((fav) => cctvLocations.find((cctv) => cctv.cctv_id === fav.cctv_id))
+      .filter((cctv): cctv is CCTV => Boolean(cctv));
+
+    setSelectedCCTVs(initialCCTVs);
+  }, [isLoggedIn, favorites, cctvLocations, setSelectedCCTVs]);
 
   const handleToggleFavorite = async (cctv_id: number, isFavorite: boolean) => {
-    console.log('FavoritePage: handleToggleFavorite called', { cctv_id, isFavorite });
     try {
       if (isFavorite) {
         // 즐겨찾기 해제 - 확인 모달 표시
@@ -101,18 +92,23 @@ const FavoritePageContent: React.FC = () => {
       } else {
         // 즐겨찾기 추가
         await addFavorite(cctv_id);
-        const updatedFavorites = await getUserFavorites();
-        const sortedFavorites = updatedFavorites.sort((a, b) => 
-          new Date(b.added_at || 0).getTime() - new Date(a.added_at || 0).getTime()
-        );
-        setFavorites(sortedFavorites);
-        console.log('FavoritePage: Added favorite, new favorites:', sortedFavorites);
+        console.log('FavoritePage: Added favorite', cctv_id);
       }
     } catch (error: any) {
       console.error('FavoritePage: Failed to toggle favorite for cctv_id:', cctv_id, error);
       setError(`즐겨찾기 처리 중 오류: ${error.message}`);
     }
   };
+
+  const handleRefreshFavorites = useCallback(async () => {
+    try {
+      await refreshFavorites();
+      setError(null);
+    } catch (err: any) {
+      console.error('FavoritePage: Failed to refresh favorites:', err);
+      setError(err?.message || '즐겨찾기를 다시 불러오지 못했습니다.');
+    }
+  }, [refreshFavorites]);
 
   const confirmRemoveFavorite = async () => {
     if (!confirmModal.cctv_id) return;
@@ -127,50 +123,10 @@ const FavoritePageContent: React.FC = () => {
       }
       
       await removeFavorite(cctv_id);
-        const updatedFavorites = await getUserFavorites();
-        const sortedFavorites = updatedFavorites.sort((a, b) => 
-          new Date(b.added_at || 0).getTime() - new Date(a.added_at || 0).getTime()
-        );
-        setFavorites(sortedFavorites);
-        
-        // CCTV 위치 정보 가져오기
-        const cctvResponse = await fetchCCTVLocations();
-        
-        // 현재 선택된 CCTV 목록에서 제거된 CCTV 찾기
-        const removedCCTVIndex = selectedCCTVs.findIndex((cctv) => cctv?.cctv_id === cctv_id);
-        
-        if (removedCCTVIndex !== -1) {
-          // 현재 표시 중인 CCTV ID 목록
-          const currentCCTVIds = selectedCCTVs.map((cctv) => cctv.cctv_id);
-          
-          // 새로운 즐겨찾기 목록에서 아직 표시되지 않은 CCTV 찾기
-          let replacementCCTV: CCTV | undefined;
-          for (const favorite of sortedFavorites) {
-            if (!currentCCTVIds.includes(favorite.cctv_id)) {
-              replacementCCTV = cctvResponse.data.find((cctv) => cctv.cctv_id === favorite.cctv_id);
-              if (replacementCCTV) {
-                break;
-              }
-            }
-          }
-          
-          // 새로운 배열 생성: 제거된 CCTV를 교체 CCTV로 대체하거나 제거
-          const updatedCCTVs = [...selectedCCTVs];
-          if (replacementCCTV) {
-            // 교체 CCTV가 있으면 해당 위치에 배치
-            updatedCCTVs[removedCCTVIndex] = replacementCCTV;
-            setSelectedCCTVs(updatedCCTVs);
-          } else {
-            // 교체 CCTV가 없으면 해당 CCTV만 제거
-            updatedCCTVs.splice(removedCCTVIndex, 1);
-            setSelectedCCTVs(updatedCCTVs);
-          }
-        }
-        
-        console.log('FavoritePage: Removed favorite, new favorites:', sortedFavorites);
-        
-        // 모달 닫기
-        setConfirmModal({ show: false, cctv_id: null, location: null });
+      console.log('FavoritePage: Removed favorite', cctv_id);
+
+      // 모달 닫기
+      setConfirmModal({ show: false, cctv_id: null, location: null });
     } catch (error: any) {
       console.error('FavoritePage: Failed to remove favorite for cctv_id:', cctv_id, error);
       setError(`즐겨찾기 처리 중 오류: ${error.message}`);
@@ -232,20 +188,81 @@ const FavoritePageContent: React.FC = () => {
     }
   }, [analysisMode, sidebarCollapsed, dashboardCollapsed, exitAnalysisMode]);
 
-  const handleExpand = (index: number) => {
-    if (expandedIndex === index) {
+  // 확대 애니메이션 처리 헬퍼 함수
+  const expandWithAnimation = useCallback((targetIndex: number | null, delay: number = 0) => {
+    setTimeout(() => {
       setIsAnimating(true);
-      setExpandedIndex(null);
+      setExpandedIndex(targetIndex);
       setTimeout(() => {
         setIsAnimating(false);
       }, 400);
-    } else {
-      setIsAnimating(true);
-      setExpandedIndex(index);
-      setTimeout(() => {
-        setIsAnimating(false);
-      }, 400);
+    }, delay);
+  }, []);
+
+  // 쿼리 파라미터에서 CCTV ID와 확대 여부 파싱
+  const parseCCTVQueryParams = useCallback(() => {
+    const cctvIdParam = searchParams.get('cctv_id');
+    const expandParam = searchParams.get('expand');
+
+    if (!cctvIdParam || expandParam !== 'true') {
+      return null;
     }
+
+    const cctvId = parseInt(cctvIdParam);
+    if (isNaN(cctvId)) {
+      return null;
+    }
+
+    return cctvId;
+  }, [searchParams]);
+
+  // URL 쿼리 파라미터로 CCTV 확대 처리
+  useEffect(() => {
+    const cctvId = parseCCTVQueryParams();
+    if (!cctvId || cctvLocations.length === 0) {
+      return;
+    }
+
+    // selectedCCTVs에서 해당 CCTV가 이미 있는지 확인
+    const existingIndex = selectedCCTVs.findIndex((cctv) => cctv.cctv_id === cctvId);
+
+    if (existingIndex !== -1) {
+      // 이미 슬롯에 있으면 바로 확대
+      if (expandedIndex !== existingIndex) {
+        expandWithAnimation(existingIndex);
+      }
+      // 쿼리 파라미터 제거
+      setSearchParams({}, { replace: true });
+    } else {
+      // 슬롯에 없으면 배치
+      focusAndExpandCCTV(cctvId, cctvLocations);
+      // 쿼리 파라미터는 유지 (다음 useEffect에서 확대 처리)
+    }
+  }, [searchParams, cctvLocations, selectedCCTVs, focusAndExpandCCTV, setSearchParams, expandedIndex, parseCCTVQueryParams, expandWithAnimation]);
+
+  // selectedCCTVs 변경 시 CCTV 인덱스 찾아서 자동 확대 (쿼리 파라미터가 있을 때만)
+  useEffect(() => {
+    const cctvId = parseCCTVQueryParams();
+    if (!cctvId) {
+      return;
+    }
+
+    // selectedCCTVs에서 해당 CCTV의 인덱스 찾기
+    const targetIndex = selectedCCTVs.findIndex((cctv) => cctv.cctv_id === cctvId);
+
+    if (targetIndex !== -1 && expandedIndex !== targetIndex) {
+      // CCTV가 슬롯에 배치되었고 아직 확대되지 않았다면 확대
+      expandWithAnimation(targetIndex, 100);
+      // 확대 완료 후 쿼리 파라미터 제거
+      setTimeout(() => {
+        setSearchParams({}, { replace: true });
+      }, 500);
+    }
+  }, [selectedCCTVs, searchParams, expandedIndex, setSearchParams, parseCCTVQueryParams, expandWithAnimation]);
+
+  const handleExpand = (index: number) => {
+    const targetIndex = expandedIndex === index ? null : index;
+    expandWithAnimation(targetIndex);
   };
 
   const handleAnalysisAction = (cctv: CCTV) => {
@@ -301,11 +318,17 @@ const FavoritePageContent: React.FC = () => {
           ...(isExpanded
             ? {
                 position: 'fixed',
-                left: 'calc(16rem + 1rem + 0.5rem)',
-                right: 'calc(20rem + 0.5rem + 0.5rem)',
-                top: 'calc(2rem + 4rem + 0.5rem)',
-                height: 'calc(100vh - 2rem - 4rem - 0.5rem - 2rem)',
-                width: 'calc(100vw - 16rem - 1rem - 0.5rem - 20rem - 0.5rem - 0.5rem)',
+                left: sidebarCollapsed ? 'calc(4rem + 1rem)' : 'calc(14rem + 1rem)',
+                right: dashboardCollapsed ? 'calc(4rem + 0.5rem + 0.5rem)' : 'calc(18rem + 0.5rem + 0.5rem)',
+                top: 'calc(0.5rem + 4rem + 0.5rem)',
+                height: 'calc(100vh - 0.5rem - 4rem - 0.5rem - 0.5rem)',
+                width: sidebarCollapsed 
+                  ? (dashboardCollapsed 
+                      ? 'calc(100vw - 4rem - 1rem - 4rem - 0.5rem - 0.5rem)' 
+                      : 'calc(100vw - 4rem - 1rem - 18rem - 0.5rem - 0.5rem)')
+                  : (dashboardCollapsed 
+                      ? 'calc(100vw - 14rem - 1rem - 4rem - 0.5rem - 0.5rem)' 
+                      : 'calc(100vw - 14rem - 1rem - 18rem - 0.5rem - 0.5rem)'),
                 zIndex: 100,
                 animation: isExpanded && isAnimating ? 'expandAnimation 0.4s ease-out' : 'none',
               }
@@ -441,7 +464,7 @@ const FavoritePageContent: React.FC = () => {
         {error}
         <button
           className="mt-4 bg-blue-600 dark:bg-blue-700 text-white px-4 py-2 rounded hover:bg-blue-700 dark:hover:bg-blue-800 transition"
-          onClick={() => fetchFavorites()}
+          onClick={handleRefreshFavorites}
         >
           재시도
         </button>
@@ -453,10 +476,10 @@ const FavoritePageContent: React.FC = () => {
     <>
       <Dashboard />
       <div 
-        className={`fixed top-[calc(2rem+4rem+0.5rem)] h-[calc(100vh-2rem-4rem-0.5rem-2rem)] z-30 transition-all duration-300 overflow-hidden ${
-          sidebarCollapsed ? 'left-[calc(4rem+1rem+0.5rem)]' : 'left-[calc(16rem+1rem+0.5rem)]'
+        className={`fixed top-[calc(0.5rem+4rem+0.5rem)] h-[calc(100vh-0.5rem-4rem-0.5rem-0.5rem)] z-30 transition-all duration-300 overflow-hidden ${
+          sidebarCollapsed ? 'left-[calc(4rem+1rem)]' : 'left-[calc(14rem+1rem)]'
         } ${
-          dashboardCollapsed ? 'right-[calc(4rem+0.5rem+0.5rem)]' : 'right-[calc(20rem+0.5rem+0.5rem)]'
+          dashboardCollapsed ? 'right-[calc(4rem+0.5rem+0.5rem)]' : 'right-[calc(18rem+0.5rem+0.5rem)]'
         }`}
       >
         <div className="flex flex-col h-full gap-4 px-2">

@@ -1,15 +1,18 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './providers/AuthProvider';
+import { useNotification } from './providers/NotificationProvider';
 import MainPage from './pages/MainPage';
 import LoginForm from './components/LoginForm';
 import Home from './pages/Home';
 import FavoritePage from './pages/FavoritePage';
 import KakaoMapPage from './pages/KakaoMapPage';
 import DashBoardPage from './pages/DashBoardPage';
+import NotificationContainer from './components/Notification/NotificationContainer';
 
 const App: React.FC = () => {
   const { isLoggedIn, isLoading } = useAuth();
+  const { toastNotifications, removeToastNotification } = useNotification();
 
   console.log('App: Rendering', { isLoading, isLoggedIn });
 
@@ -19,7 +22,8 @@ const App: React.FC = () => {
   }
 
   return (
-    <Routes>
+    <>
+      <Routes>
       <Route path="/" element={<MainPage />}>
         <Route
           index
@@ -44,6 +48,11 @@ const App: React.FC = () => {
       </Route>
       <Route path="/auth/login" element={<LoginForm />} />
     </Routes>
+          <NotificationContainer
+            notifications={toastNotifications}
+            onClose={removeToastNotification}
+          />
+    </>
   );
 };
 

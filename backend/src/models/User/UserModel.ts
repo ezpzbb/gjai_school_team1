@@ -29,6 +29,9 @@ const pool: Pool = db;
 
 export class UserModel {
   static async findUserByIdentifier(identifier: string): Promise<RowDataPacket | null> {
+    if (!identifier || identifier === undefined) {
+      throw new Error('identifier는 필수입니다.');
+    }
     const [rows] = await pool.execute<RowDataPacket[]>(UserQueries.FIND_BY_IDENTIFIER, [identifier, identifier]);
     return rows.length > 0 ? rows[0] : null;
   }

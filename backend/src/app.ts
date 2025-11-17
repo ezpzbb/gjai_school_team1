@@ -8,6 +8,8 @@ import { Pool, createPool } from 'mysql2/promise';
 import { setupCCTVRoutes } from './routes/cctvRoutes';
 import userRoutes from './routes/UserRoutes';
 import favoriteRoutes from './routes/FavoriteRoutes';
+import notificationRoutes from './routes/notificationRoutes';
+import congestionRoutes from './routes/congestionRoutes';
 // ITS CCTV 업데이트는 제거됨 (경찰청 UTIC API로 전환)
 
 export const initializeApp = async (): Promise<Express> => {
@@ -44,13 +46,29 @@ export const initializeApp = async (): Promise<Express> => {
     })
   );
   app.use(morgan(process.env.NODE_ENV === 'development' ? 'dev' : 'combined'));
+  
+  // Rate limiting 설정
+  // 로그인 엔드포인트: 보안을 위해 엄격한 제한 (15분에 20회)
+  const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15분
+    max: 20, // 15분에 20회 로그인 시도 허용
+    message: '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.',
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  
+  // 일반 API: 개발과 프로덕션 모두 고려한 적절한 제한 (15분에 300회)
   app.use(
     rateLimit({
       windowMs: 15 * 60 * 1000, // 15분
-      max: 100,
+      max: 300, // 15분에 300개 요청 허용 (초당 약 0.33개)
       message: '너무 많은 요청입니다. 잠시 후 다시 시도해주세요.',
       standardHeaders: true,
       legacyHeaders: false,
+      skip: (req) => {
+        // 로그인 엔드포인트는 별도 처리
+        return req.path === '/api/users/login';
+      },
     })
   );
   app.use(express.json({ limit: '10mb' }));
@@ -60,10 +78,17 @@ export const initializeApp = async (): Promise<Express> => {
   const uploadsPath = path.resolve(__dirname, '../Uploads');
   app.use('/api/uploads', express.static(uploadsPath));
 
+  // 데이터베이스 풀을 앱에 저장 (라우트에서 사용)
+  app.set('dbPool', dbPool);
+
   // API 라우트
+  // 로그인 엔드포인트에만 별도 rate limit 적용
+  app.use('/api/users/login', loginLimiter);
   app.use('/api/users', userRoutes);
   app.use('/api', setupCCTVRoutes(dbPool));
-  app.use('/api/favorites', favoriteRoutes(dbPool)); 
+  app.use('/api/favorites', favoriteRoutes(dbPool));
+  app.use('/api/notifications', notificationRoutes);
+  app.use('/api/congestion', congestionRoutes); 
 
   // 기본 엔드포인트
   app.get('/', (_req: Request, res: Response) => {

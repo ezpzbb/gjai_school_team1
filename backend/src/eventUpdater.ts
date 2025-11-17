@@ -1,293 +1,290 @@
 import axios from 'axios';
-import https from 'https';
 import { parseStringPromise } from 'xml2js';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
+import https from 'https';
 
 dotenv.config();
 
-const API_KEY = process.env.CCTV_API_KEY;
+// 사고 알림 서비스 import (순환 참조 없음: accidentNotificationService는 EventItem만 import)
+import { accidentNotificationService } from './services/accidentNotificationService';
+
+const API_KEY = process.env.CCTV_KEY || process.env.CCTV_API_KEY || '';
 if (!API_KEY) {
-  throw new Error('CCTV_API_KEY가 .env에 설정되지 않았습니다.');
+  throw new Error('CCTV_KEY 또는 CCTV_API_KEY가 .env에 설정되지 않았습니다.');
 }
 
-const BASE_URL = 'https://openapi.its.go.kr:9443/eventInfo';
+const CA_PATH = process.env.NODE_EXTRA_CA_CERTS || process.env.UTIC_CA_PATH;
 
-// 좌표 범위 설정 (한국 전역 기본값)
-export interface EventBounds {
-  minX: number; // 최소 경도
-  maxX: number; // 최대 경도
-  minY: number; // 최소 위도
-  maxY: number; // 최대 위도
+let httpsAgent: https.Agent | undefined;
+
+if (CA_PATH) {
+  try {
+    const resolvedPath = path.isAbsolute(CA_PATH)
+      ? CA_PATH
+      : path.resolve(process.cwd(), CA_PATH);
+    const caContent = fs.readFileSync(resolvedPath, 'utf8');
+    httpsAgent = new https.Agent({ ca: caContent });
+    console.log(`경찰청 인증서 CA 로드 완료: ${resolvedPath}`);
+  } catch (error) {
+    console.error(`경찰청 인증서 로드 실패 (${CA_PATH}):`, (error as Error).message);
+  }
 }
 
-// 기본 좌표 범위 (한국 전역)
-const DEFAULT_BOUNDS: EventBounds = {
-  minX: 124.0,
-  maxX: 132.0,
-  minY: 33.0,
-  maxY: 39.0,
+const BASE_URL = 'https://www.utic.go.kr/guide/imsOpenData.do';
+
+export interface EventItem {
+  type: string;
+  eventType: string;
+  eventDetailType: string;
+  startDate: string;
+  coordX: string;
+  coordY: string;
+  linkId: string;
+  roadName: string;
+  roadNo: string;
+  roadDrcType: string;
+  lanesBlockType: string;
+  lanesBlocked: string;
+  message: string;
+  endDate: string;
+  id: string;
+}
+
+type PoliceEventRaw = {
+  incidentId?: string;
+  incidenteTypeCd?: string;
+  incidenteSubTypeCd?: string;
+  incidenteTrafficCd?: string;
+  incTrafficCode?: string;
+  incidentTitle?: string;
+  addressJibun?: string;
+  addressNew?: string;
+  addressJibunCd?: string;
+  locationDataX?: string;
+  locationDataY?: string;
+  locationTypeCd?: string;
+  linkId?: string;
+  roadName?: string;
+  lane?: string;
+  startDate?: string;
+  endDate?: string;
+  controlType?: string;
+  updateDate?: string;
 };
 
-// 이벤트 아이템 인터페이스
-export interface EventItem {
-  type: string; // 도로 유형
-  eventType: string; // 이벤트 유형
-  eventDetailType: string; // 이벤트 세부 유형
-  startDate: string; // 발생 일시
-  coordX: string; // 경도
-  coordY: string; // 위도
-  linkId: string; // 링크 ID
-  roadName: string; // 도로명
-  roadNo: string; // 도로 번호
-  roadDrcType: string; // 도로 방향 유형
-  lanesBlockType: string; // 차단 통제 유형
-  lanesBlocked: string; // 차단 차로
-  message: string; // 돌발 내용
-  endDate: string; // 종료 일시
-  id: string; // 고유 ID (linkId + startDate 조합)
-}
-
-// XML 응답 인터페이스
-interface EventItemRaw {
-  type?: string[];
-  eventType?: string[];
-  eventDetailType?: string[];
-  startDate?: string[];
-  coordX?: string[];
-  coordY?: string[];
-  linkId?: string[];
-  roadName?: string[];
-  roadNo?: string[];
-  roadDrcType?: string[];
-  lanesBlockType?: string[];
-  lanesBlocked?: string[];
-  message?: string[];
-  endDate?: string[];
-}
-
-// 메모리에 저장할 이벤트 맵 (id -> EventItem)
-const eventMap = new Map<string, EventItem>();
-
-// 현재 설정된 좌표 범위
-let currentBounds: EventBounds = DEFAULT_BOUNDS;
-
-// 이벤트 업데이트 콜백 함수 타입
 export type EventUpdateCallback = (events: EventItem[]) => void;
 
+const GWANGJU_KEYWORDS = ['광주광역시', '광주시', '광산구', '북구', '남구', '동구', '서구'];
+const GWANGJU_JIBUN_PREFIX = '29';
+
+const eventMap = new Map<string, EventItem>();
 let updateCallback: EventUpdateCallback | null = null;
 
-/**
- * 이벤트 업데이트 콜백 함수 설정
- */
 export function setEventUpdateCallback(callback: EventUpdateCallback): void {
   updateCallback = callback;
 }
 
-/**
- * 좌표 범위 설정
- */
-export function setBounds(bounds: EventBounds): void {
-  currentBounds = bounds;
-  console.log('이벤트 좌표 범위 업데이트:', bounds);
-}
-
-/**
- * 현재 저장된 이벤트 목록 가져오기
- */
 export function getEvents(): EventItem[] {
   return Array.from(eventMap.values());
 }
 
-/**
- * 고유 ID 생성
- */
-function generateEventId(linkId: string, startDate: string): string {
-  return `${linkId}_${startDate}`;
-}
+const INCIDENT_TYPE_MAP: Record<string, string> = {
+  '1': '교통사고',
+  '2': '공사',
+  '3': '기상',
+  '4': '재난',
+  '5': '행사',
+  '6': '차량고장',
+};
 
-/**
- * 종료된 이벤트 제거
- */
-function removeExpiredEvents(): void {
-  const now = new Date();
-  const expiredIds: string[] = [];
+const INCIDENT_SUBTYPE_MAP: Record<string, string> = {
+  '1': '추돌',
+  '2': '전복',
+  '3': '측면충돌',
+  '4': '정면충돌',
+  '5': '화재',
+  '6': '보행자사고',
+  '7': '낙하물사고',
+  '8': '차량고장',
+};
 
-  for (const [id, event] of eventMap.entries()) {
-    // endDate가 있고 현재 시간보다 이전이면 삭제
-    if (event.endDate && event.endDate.trim() !== '') {
-      // endDate 형식: YYYYMMDDHH24MISS
-      const year = event.endDate.substring(0, 4);
-      const month = event.endDate.substring(4, 6);
-      const day = event.endDate.substring(6, 8);
-      const hour = event.endDate.substring(8, 10);
-      const minute = event.endDate.substring(10, 12);
-      const second = event.endDate.substring(12, 14);
-
-      const endDate = new Date(
-        parseInt(year),
-        parseInt(month) - 1,
-        parseInt(day),
-        parseInt(hour),
-        parseInt(minute),
-        parseInt(second)
-      );
-
-      if (endDate < now) {
-        expiredIds.push(id);
-      }
-    }
+function normalizeDate(dateStr?: string): string {
+  if (!dateStr) {
+    return '';
   }
 
-  expiredIds.forEach((id) => {
-    eventMap.delete(id);
-  });
+  const trimmed = dateStr.trim();
 
-  if (expiredIds.length > 0) {
-    console.log(`종료된 이벤트 ${expiredIds.length}개 제거`);
+  if (/^\d{14}$/.test(trimmed)) {
+    return trimmed;
   }
+
+  const koreanFormat = trimmed.match(
+    /(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*(\d{1,2})시\s*(\d{1,2})분(?:\s*(\d{1,2})초)?/
+  );
+
+  if (koreanFormat) {
+    const [, year, month, day, hour, minute, second] = koreanFormat;
+    const sec = second ?? '0';
+    return (
+      year.padStart(4, '0') +
+      month.padStart(2, '0') +
+      day.padStart(2, '0') +
+      hour.padStart(2, '0') +
+      minute.padStart(2, '0') +
+      sec.padStart(2, '0')
+    );
+  }
+
+  return '';
 }
 
-/**
- * XML 파싱하여 EventItem으로 변환
- */
-function parseEventItem(item: EventItemRaw): EventItem | null {
-  const linkId = item.linkId?.[0]?.trim() || '';
-  const startDate = item.startDate?.[0]?.trim() || '';
+function determineEventType(record: PoliceEventRaw): string {
+  const typeCd = record.incidenteTypeCd?.trim();
+  if (typeCd && INCIDENT_TYPE_MAP[typeCd]) {
+    return INCIDENT_TYPE_MAP[typeCd];
+  }
 
-  if (!linkId || !startDate) {
+  const title = record.incidentTitle ?? '';
+  if (title.includes('사고')) return '교통사고';
+  if (title.includes('공사')) return '공사';
+  if (title.includes('호우') || title.includes('폭설') || title.includes('기상')) return '기상';
+  if (title.includes('재난')) return '재난';
+  if (title.includes('행사')) return '행사';
+
+  return '기타돌발';
+}
+
+function determineEventDetail(record: PoliceEventRaw): string {
+  const detailCd = record.incidenteSubTypeCd?.trim();
+  if (detailCd && INCIDENT_SUBTYPE_MAP[detailCd]) {
+    return INCIDENT_SUBTYPE_MAP[detailCd];
+  }
+  return detailCd || '';
+}
+
+function determineRoadType(record: PoliceEventRaw): string {
+  const locationType = record.locationTypeCd?.trim();
+  if (locationType === 'C0101') return 'ex';
+  if (locationType === 'C0102') return 'its';
+  return 'pol';
+}
+
+function isGwangjuRecord(record: PoliceEventRaw): boolean {
+  const jibunCd = record.addressJibunCd?.trim();
+  const jibun = record.addressJibun?.trim() ?? '';
+
+  if (!jibunCd || !jibunCd.startsWith(GWANGJU_JIBUN_PREFIX)) {
+    return false;
+  }
+
+  if (!jibun || !jibun.includes('광주')) {
+    return false;
+  }
+
+  return true;
+}
+
+function parsePoliceRecord(record: PoliceEventRaw): EventItem | null {
+  const incidentId = record.incidentId?.trim();
+  const coordX = record.locationDataX?.trim();
+  const coordY = record.locationDataY?.trim();
+
+  if (!incidentId || !coordX || !coordY) {
     return null;
   }
 
+  const startDate = normalizeDate(record.startDate || record.updateDate);
+  const endDate = normalizeDate(record.endDate);
+
   return {
-    type: item.type?.[0]?.trim() || '',
-    eventType: item.eventType?.[0]?.trim() || '',
-    eventDetailType: item.eventDetailType?.[0]?.trim() || '',
+    id: incidentId,
+    type: determineRoadType(record),
+    eventType: determineEventType(record),
+    eventDetailType: determineEventDetail(record),
     startDate,
-    coordX: item.coordX?.[0]?.trim() || '',
-    coordY: item.coordY?.[0]?.trim() || '',
-    linkId,
-    roadName: item.roadName?.[0]?.trim() || '',
-    roadNo: item.roadNo?.[0]?.trim() || '',
-    roadDrcType: item.roadDrcType?.[0]?.trim() || '',
-    lanesBlockType: item.lanesBlockType?.[0]?.trim() || '',
-    lanesBlocked: item.lanesBlocked?.[0]?.trim() || '',
-    message: item.message?.[0]?.trim() || '',
-    endDate: item.endDate?.[0]?.trim() || '',
-    id: generateEventId(linkId, startDate),
+    coordX,
+    coordY,
+    linkId: record.linkId?.trim() || incidentId,
+    roadName: record.roadName?.trim() || '',
+    roadNo: record.linkId?.trim() || '',
+    roadDrcType: '',
+    lanesBlockType: record.incidenteTrafficCd?.trim() || record.incTrafficCode?.trim() || record.controlType?.trim() || '',
+    lanesBlocked: record.lane?.trim() || '',
+    message: record.incidentTitle?.trim() || '',
+    endDate,
   };
 }
 
-/**
- * API 요청 (단일 도로 유형)
- */
-async function fetchEventsByType(type: string): Promise<EventItem[]> {
-  const params = new URLSearchParams({
-    apiKey: API_KEY!,
-    type,
-    eventType: 'all',
-    minX: currentBounds.minX.toString(),
-    maxX: currentBounds.maxX.toString(),
-    minY: currentBounds.minY.toString(),
-    maxY: currentBounds.maxY.toString(),
-    getType: 'xml',
-  } as Record<string, string>);
+async function fetchPoliceEvents(): Promise<EventItem[]> {
+  const params = new URLSearchParams();
+  params.append('key', API_KEY);
+  params.append('dataType', 'xml');
+  params.append('serviceID', 'incident');
 
-  const fullUrl = `${BASE_URL}?${params.toString()}`;
-  console.log(`이벤트 요청 (${type}): ${fullUrl}`);
+  const url = `${BASE_URL}?${params.toString()}`;
+  console.log(`경찰청 돌발 이벤트 요청: ${url}`);
 
   try {
-    const response = await axios.get(fullUrl, {
-      headers: { 'Content-Type': 'text/xml;charset=UTF-8' },
+    const response = await axios.get(url, {
       timeout: 30000,
-      httpsAgent: new https.Agent({ rejectUnauthorized: false }),
+      responseType: 'text',
+      httpsAgent,
+    });
+    const json = await parseStringPromise(response.data, {
+      explicitArray: false,
+      trim: true,
     });
 
-    const xmlData: string = response.data;
-    const jsonResult = await parseStringPromise(xmlData);
+    const records = json?.result?.record;
+    const recordArray: PoliceEventRaw[] = Array.isArray(records) ? records : records ? [records] : [];
 
-    // resultCode 확인
-    const resultCode = jsonResult?.response?.header?.[0]?.resultCode?.[0];
-    if (resultCode !== '0') {
-      const resultMsg = jsonResult?.response?.header?.[0]?.resultMsg?.[0] || 'Unknown error';
-      console.error(`API 오류 (${type}): ${resultMsg}`);
-      return [];
-    }
-
-    const totalCount = parseInt(jsonResult?.response?.body?.[0]?.totalCount?.[0] || '0', 10);
-    console.log(`${type} 이벤트 총 개수: ${totalCount}`);
-
-    if (totalCount === 0) {
-      return [];
-    }
-
-    const itemsNode = jsonResult?.response?.body?.[0]?.items?.[0];
-    const items: EventItemRaw[] = Array.isArray(itemsNode?.item)
-      ? itemsNode.item
-      : itemsNode?.item
-        ? [itemsNode.item]
-        : [];
-
+    const filtered = recordArray.filter(isGwangjuRecord);
     const events: EventItem[] = [];
-    for (const item of items) {
-      const event = parseEventItem(item);
+
+    for (const record of filtered) {
+      const event = parsePoliceRecord(record);
       if (event) {
         events.push(event);
       }
     }
 
+    console.log(`경찰청 이벤트 수신: 총 ${events.length}건 (광주 지역 필터 적용)`);
     return events;
   } catch (error: any) {
-    console.error(`이벤트 요청 실패 (${type}):`, error.message);
+    console.error('경찰청 돌발 이벤트 요청 실패:', error.message);
     return [];
   }
 }
 
-/**
- * 이벤트 데이터 업데이트
- */
 export async function updateEventData(): Promise<void> {
-  console.log('\n고속도로/국도 이벤트 데이터 업데이트 시작...');
-
-  // 종료된 이벤트 제거
-  removeExpiredEvents();
+  console.log('\n경찰청 돌발 이벤트 업데이트 시작...');
 
   try {
-    // 고속도로와 국도 각각 요청
-    const [highwayEvents, nationalEvents] = await Promise.all([
-      fetchEventsByType('ex'), // 고속도로
-      fetchEventsByType('its'), // 국도
-    ]);
-
-    console.log(`고속도로 이벤트: ${highwayEvents.length}개`);
-    console.log(`국도 이벤트: ${nationalEvents.length}개`);
-
-    const allEvents = [...highwayEvents, ...nationalEvents];
-    console.log(`총 이벤트: ${allEvents.length}개`);
-
-    // 메모리에 저장 (기존 데이터 업데이트 또는 추가)
-    let updated = 0;
-    let added = 0;
-
-    for (const event of allEvents) {
-      if (eventMap.has(event.id)) {
-        // 기존 이벤트 업데이트
-        eventMap.set(event.id, event);
-        updated++;
-      } else {
-        // 새 이벤트 추가
-        eventMap.set(event.id, event);
-        added++;
-      }
+    const events = await fetchPoliceEvents();
+    eventMap.clear();
+    for (const event of events) {
+      eventMap.set(event.id, event);
     }
 
-    console.log(`이벤트 업데이트 완료 - 신규: ${added}개, 업데이트: ${updated}개, 총: ${eventMap.size}개`);
+    console.log(`경찰청 돌발 이벤트 업데이트 완료 - 저장된 이벤트: ${eventMap.size}개`);
 
-    // 콜백 호출하여 소켓으로 전송
+    // 기존 이벤트 업데이트 콜백 (지도 표시용)
     if (updateCallback) {
       updateCallback(getEvents());
     }
+
+    // 사고 이벤트 알림 발송 (비동기로 처리하여 응답 지연 방지)
+    setImmediate(() => {
+      accidentNotificationService.sendAccidentNotifications(events).catch((error: any) => {
+        console.error('사고 알림 발송 실패:', error);
+        // 알림 실패해도 이벤트 업데이트는 성공한 것으로 처리
+      });
+    });
   } catch (error: any) {
-    console.error('이벤트 업데이트 실패:', error.message);
+    console.error('경찰청 돌발 이벤트 업데이트 실패:', error.message);
   }
 }
 

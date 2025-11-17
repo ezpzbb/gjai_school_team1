@@ -1,6 +1,26 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Hls from 'hls.js';
 
+// 아이콘 컴포넌트들
+const FullscreenIcon: React.FC<{ size?: number; color?: string }> = ({ size = 16, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path fillRule="evenodd" clipRule="evenodd" d="M18 4.654v.291a10 10 0 0 0-1.763 1.404l-2.944 2.944a1 1 0 0 0 1.414 1.414l2.933-2.932A9.995 9.995 0 0 0 19.05 6h.296l-.09.39A9.998 9.998 0 0 0 19 8.64v.857a1 1 0 1 0 2 0V4.503a1.5 1.5 0 0 0-1.5-1.5L14.5 3a1 1 0 1 0 0 2h.861a10 10 0 0 0 2.249-.256l.39-.09zM4.95 18a10 10 0 0 1 1.41-1.775l2.933-2.932a1 1 0 0 1 1.414 1.414l-2.944 2.944A9.998 9.998 0 0 1 6 19.055v.291l.39-.09A9.998 9.998 0 0 1 8.64 19H9.5a1 1 0 1 1 0 2l-5-.003a1.5 1.5 0 0 1-1.5-1.5V14.5a1 1 0 1 1 2 0v.861a10 10 0 0 1-.256 2.249l-.09.39h.295z" fill={color}/>
+  </svg>
+);
+
+const FullscreenExitIcon: React.FC<{ size?: number; color?: string }> = ({ size = 16, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path fillRule="evenodd" clipRule="evenodd" d="M19.293 3.293a1 1 0 1 1 1.414 1.414l-2.944 2.944A10 10 0 0 1 16 9.055v.291l.39-.09A10 10 0 0 1 18.64 9h.861a1 1 0 1 1 0 2l-5-.003a1.5 1.5 0 0 1-1.5-1.5V4.5a1 1 0 1 1 2 0v.861c0 .757-.086 1.511-.256 2.249l-.09.39h.295a9.995 9.995 0 0 1 1.411-1.775l2.933-2.932zM8 14.653v.292c-.638.4-1.23.87-1.763 1.404l-2.944 2.944a1 1 0 1 0 1.414 1.414l2.933-2.932A10 10 0 0 0 9.05 16h.296l-.09.39A10 10 0 0 0 9 18.64v.861a1 1 0 1 0 2 0v-4.997a1.5 1.5 0 0 0-1.5-1.5L4.5 13a1 1 0 1 0 0 2h.861c.757 0 1.511-.086 2.249-.256l.39-.09z" fill={color}/>
+  </svg>
+);
+
+const SearchIcon: React.FC<{ size?: number; color?: string }> = ({ size = 16, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="7" cy="7" r="4" stroke={color} strokeWidth="1.5" fill="none"/>
+    <line x1="10" y1="10" x2="13" y2="13" stroke={color} strokeWidth="1.5" strokeLinecap="round"/>
+  </svg>
+);
+
 interface CameraProps {
   apiEndpoint: string | null;
   location?: string;
@@ -16,69 +36,6 @@ interface CameraProps {
   onAnalyze?: () => void;
   isAnalyzing?: boolean;
 }
-
-const sanitizeStreamCandidate = (candidate: string): string | null => {
-  if (!candidate) {
-    return null;
-  }
-
-  let cleaned = candidate.trim();
-  cleaned = cleaned.replace(/--+>?$/, '');
-  cleaned = cleaned.replace(/;+$/, '');
-  cleaned = cleaned.replace(/\)+$/, '');
-  cleaned = cleaned.replace(/&amp;/gi, '&');
-  cleaned = cleaned.replace(/\\u0026/g, '&');
-
-  if (!/^https?:\/\//i.test(cleaned)) {
-    return null;
-  }
-
-  try {
-    return decodeURI(cleaned);
-  } catch {
-    return cleaned;
-  }
-};
-
-const extractStreamFromHtml = (html: string): string | null => {
-  const hlsRegex = /https?:\/\/[^"'<>\\s]+\.m3u8[^"'<>\\s]*/gi;
-  let match: RegExpExecArray | null;
-  while ((match = hlsRegex.exec(html)) !== null) {
-    const sanitized = sanitizeStreamCandidate(match[0]);
-    if (sanitized && !sanitized.toLowerCase().includes('undefined')) {
-      return sanitized;
-    }
-  }
-
-  const mp4Regex = /https?:\/\/[^"'<>\\s]+\.mp4[^"'<>\\s]*/gi;
-  while ((match = mp4Regex.exec(html)) !== null) {
-    const sanitized = sanitizeStreamCandidate(match[0]);
-    if (sanitized && !sanitized.toLowerCase().includes('undefined')) {
-      return sanitized;
-    }
-  }
-
-  return null;
-};
-
-const buildGwangjuFallback = (endpoint: URL): string | null => {
-  const kind = endpoint.searchParams.get('kind')?.toLowerCase();
-  const channelRaw = endpoint.searchParams.get('cctvch');
-  const idRaw = endpoint.searchParams.get('id');
-
-  if (kind !== 'v' || !channelRaw || !idRaw) {
-    return null;
-  }
-
-  const channel = channelRaw.match(/\d+/)?.[0];
-  const id = idRaw.match(/\d+/)?.[0];
-
-  if (!channel || !id) {
-    return null;
-  }
-
-  return `https://gjtic.go.kr/cctv${channel}/livehttp/${id}_video2/chunklist.m3u8`;
-};
 
 const Camera: React.FC<CameraProps> = ({
   apiEndpoint,
@@ -97,66 +54,108 @@ const Camera: React.FC<CameraProps> = ({
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsInstanceRef = useRef<Hls | null>(null);
-  const streamCacheRef = useRef<Record<string, string>>({});
+  const streamCacheRef = useRef<Record<number, { url: string; expiresAt: number }>>({});
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const retryCountRef = useRef<number>(0);
 
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [isResolving, setIsResolving] = useState(false);
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
-  const resolveStreamUrl = useCallback(async (endpoint: string): Promise<string> => {
-    const normalized = (() => {
-      try {
-        return new URL(endpoint, window.location.origin).toString();
-      } catch {
-        return endpoint;
-      }
-    })();
-
-    if (streamCacheRef.current[normalized]) {
-      return streamCacheRef.current[normalized];
+  const fetchStreamUrl = useCallback(async (): Promise<string> => {
+    const cached = streamCacheRef.current[cctv_id];
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.url;
     }
 
-    const lower = normalized.toLowerCase();
-    if (lower.includes('.m3u8')) {
-      streamCacheRef.current[normalized] = normalized;
-      return normalized;
+    const token = localStorage.getItem('token');
+    const response = await fetch(`/api/cctv/${cctv_id}/stream`, {
+      headers: {
+        Authorization: token ? `Bearer ${token}` : '',
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`스트림 요청 실패: ${response.status} ${body}`);
     }
 
-    const endpointUrl = new URL(normalized, window.location.origin);
-    const fallbackCandidate = buildGwangjuFallback(endpointUrl);
-
-    try {
-      const response = await fetch(normalized, {
-        mode: 'cors',
-        credentials: 'omit',
-        headers: {
-          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const html = await response.text();
-      const extracted = extractStreamFromHtml(html);
-
-      if (extracted) {
-        streamCacheRef.current[normalized] = extracted;
-        return extracted;
-      }
-    } catch (error) {
-      console.warn('Camera: Failed to fetch UTIC stream page', error);
+    const result = await response.json();
+    if (!result.success || !result.data?.streamUrl) {
+      throw new Error(result.message || '스트림 URL을 가져오지 못했습니다.');
     }
 
-    if (fallbackCandidate) {
-      streamCacheRef.current[normalized] = fallbackCandidate;
-      return fallbackCandidate;
+    const expiresAt = result.data.cachedUntil
+      ? new Date(result.data.cachedUntil).getTime()
+      : Date.now() + 5 * 60 * 1000;
+
+    streamCacheRef.current[cctv_id] = {
+      url: result.data.streamUrl,
+      expiresAt,
+    };
+
+    return result.data.streamUrl;
+  }, [cctv_id]);
+
+  const retryStreamLoad = useCallback(() => {
+    // 기존 타이머 정리
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
     }
 
-    throw new Error('STREAM_URL_NOT_FOUND');
-  }, []);
+    const MAX_RETRIES = 3;
+    if (retryCountRef.current >= MAX_RETRIES) {
+      setErrorMessage('영상 재생 중 오류가 발생했습니다. 재시도 횟수를 초과했습니다.');
+      setIsRetrying(false);
+      retryCountRef.current = 0;
+      setRetryCount(0);
+      return;
+    }
+
+    setIsRetrying(true);
+    retryCountRef.current += 1;
+    setRetryCount(retryCountRef.current);
+
+    // 캐시 무효화하여 새로운 스트림 URL 요청
+    delete streamCacheRef.current[cctv_id];
+
+    // 5초 후 재시도
+    retryTimeoutRef.current = setTimeout(() => {
+      setIsResolving(true);
+      setErrorMessage(null);
+
+      fetchStreamUrl()
+        .then((resolved) => {
+          setStreamUrl(null); // 강제로 재로드하기 위해 null로 설정 후
+          setTimeout(() => {
+            setStreamUrl(resolved);
+            retryCountRef.current = 0; // 성공 시 재시도 카운터 리셋
+            setRetryCount(0);
+            setIsRetrying(false);
+          }, 100);
+        })
+        .catch((error) => {
+          console.error('Camera: Retry failed', error);
+          setIsRetrying(false);
+          // 재시도 실패 시 다시 재시도 로직 호출
+          if (retryCountRef.current < MAX_RETRIES) {
+            retryStreamLoad();
+          } else {
+            setErrorMessage('영상 재생 중 오류가 발생했습니다. 재시도 횟수를 초과했습니다.');
+            retryCountRef.current = 0;
+            setRetryCount(0);
+          }
+        })
+        .finally(() => {
+          setIsResolving(false);
+        });
+    }, 5000);
+  }, [cctv_id, fetchStreamUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -165,24 +164,35 @@ const Camera: React.FC<CameraProps> = ({
       setStreamUrl(null);
       setErrorMessage(null);
       setIsVideoReady(false);
+      setIsRetrying(false);
+      retryCountRef.current = 0;
+      setRetryCount(0);
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
       return () => {
         cancelled = true;
       };
     }
 
+    // 재시도 카운터 리셋
+    retryCountRef.current = 0;
+    setRetryCount(0);
     setIsResolving(true);
     setErrorMessage(null);
+    setIsRetrying(false);
 
-    resolveStreamUrl(apiEndpoint)
+    fetchStreamUrl()
       .then((resolved) => {
         if (cancelled) return;
         setStreamUrl(resolved);
       })
       .catch((error) => {
         if (cancelled) return;
-        console.error('Camera: Unable to resolve stream URL', error);
+        console.error('Camera: Unable to load stream URL', error);
         setStreamUrl(null);
-        setErrorMessage('영상 스트림 URL을 불러오지 못했습니다.');
+        setErrorMessage('영상 스트림을 불러오지 못했습니다.');
       })
       .finally(() => {
         if (!cancelled) {
@@ -192,8 +202,12 @@ const Camera: React.FC<CameraProps> = ({
 
     return () => {
       cancelled = true;
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
     };
-  }, [apiEndpoint, resolveStreamUrl]);
+  }, [apiEndpoint, fetchStreamUrl]);
 
   useEffect(() => {
     const videoElement = videoRef.current;
@@ -224,10 +238,15 @@ const Camera: React.FC<CameraProps> = ({
 
     const handleLoaded = () => {
       setIsVideoReady(true);
+      setIsRetrying(false);
+      retryCountRef.current = 0; // 성공 시 재시도 카운터 리셋
+      setRetryCount(0);
     };
 
     const handleError = () => {
       setErrorMessage('영상 재생 중 오류가 발생했습니다.');
+      // 5초 후 자동 재시도
+      retryStreamLoad();
     };
 
     videoElement.addEventListener('loadeddata', handleLoaded);
@@ -278,6 +297,8 @@ const Camera: React.FC<CameraProps> = ({
               setErrorMessage('HLS 스트림을 불러오지 못했습니다.');
               hls.destroy();
               hlsInstanceRef.current = null;
+              // HLS fatal 에러 발생 시 재시도 로직 호출
+              retryStreamLoad();
               break;
           }
         }
@@ -297,15 +318,21 @@ const Camera: React.FC<CameraProps> = ({
         hlsInstanceRef.current.destroy();
         hlsInstanceRef.current = null;
       }
+
+      // 재시도 타이머 정리
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
     };
-  }, [streamUrl]);
+  }, [streamUrl, retryStreamLoad]);
 
   const videoObjectFit = useMemo(() => {
     if (pageType === 'kakao-map') {
       return 'cover';
     }
-    return isExpanded ? 'cover' : 'contain';
-  }, [isExpanded, pageType]);
+    return 'contain';
+  }, [pageType]);
 
   const resolvedMimeType = useMemo(() => {
     if (!streamUrl) {
@@ -404,7 +431,7 @@ const Camera: React.FC<CameraProps> = ({
                 onAnalyze();
               }}
               style={{
-                padding: '4px 12px',
+                padding: '6px',
                 fontSize: '12px',
                 fontWeight: '600',
                 color: 'white',
@@ -415,6 +442,11 @@ const Camera: React.FC<CameraProps> = ({
                 transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease',
                 transform: 'scale(1)',
                 boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '28px',
+                height: '28px',
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'scale(1.05)';
@@ -427,7 +459,7 @@ const Camera: React.FC<CameraProps> = ({
                 e.currentTarget.style.background = isAnalyzing ? 'rgba(220, 38, 38, 0.85)' : 'rgba(59, 130, 246, 0.8)';
               }}
             >
-              {isAnalyzing ? '분석종료' : '분석하기'}
+              <SearchIcon size={16} color="white" />
             </button>
           )}
           {onExpand && !isExpanded && (
@@ -439,7 +471,7 @@ const Camera: React.FC<CameraProps> = ({
               }}
               disabled={isPlacementMode}
               style={{
-                padding: '4px 12px',
+                padding: '6px',
                 fontSize: '12px',
                 fontWeight: '600',
                 color: isPlacementMode ? 'rgba(255, 255, 255, 0.5)' : 'white',
@@ -451,6 +483,11 @@ const Camera: React.FC<CameraProps> = ({
                 transform: 'scale(1)',
                 boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
                 opacity: isPlacementMode ? 0.6 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '28px',
+                height: '28px',
               }}
               onMouseEnter={(e) => {
                 if (isPlacementMode) return;
@@ -464,7 +501,7 @@ const Camera: React.FC<CameraProps> = ({
                 e.currentTarget.style.background = 'rgba(53, 122, 189, 0.8)';
               }}
             >
-              크게보기
+              <FullscreenIcon size={16} color="white" />
             </button>
           )}
           {onExpand && isExpanded && (
@@ -474,7 +511,7 @@ const Camera: React.FC<CameraProps> = ({
                 onExpand();
               }}
               style={{
-                padding: '4px 12px',
+                padding: '6px',
                 fontSize: '12px',
                 fontWeight: '600',
                 color: 'white',
@@ -485,6 +522,11 @@ const Camera: React.FC<CameraProps> = ({
                 transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease',
                 transform: 'scale(1)',
                 boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '28px',
+                height: '28px',
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'scale(1.05)';
@@ -497,7 +539,7 @@ const Camera: React.FC<CameraProps> = ({
                 e.currentTarget.style.background = 'rgba(107, 114, 128, 0.8)';
               }}
             >
-              되돌리기
+              <FullscreenExitIcon size={16} color="white" />
             </button>
           )}
         </div>
@@ -530,7 +572,6 @@ const Camera: React.FC<CameraProps> = ({
               maxWidth: isExpanded ? '100%' : '640px',
               maxHeight: '100%',
               backgroundColor: '#000',
-              borderRadius: '8px',
               overflow: 'hidden',
               display: 'flex',
               justifyContent: 'center',
@@ -583,6 +624,7 @@ const Camera: React.FC<CameraProps> = ({
                   position: 'absolute',
                   inset: 0,
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
                   textAlign: 'center',
@@ -597,7 +639,19 @@ const Camera: React.FC<CameraProps> = ({
                   WebkitBackdropFilter: 'blur(8px)',
                 }}
               >
-                {errorMessage}
+                <div>{errorMessage}</div>
+                {isRetrying && (
+                  <div
+                    style={{
+                      marginTop: '12px',
+                      fontSize: '12px',
+                      fontWeight: 400,
+                      color: '#fecaca',
+                    }}
+                  >
+                    5초 후 자동으로 재시도합니다... ({retryCount}/3)
+                  </div>
+                )}
               </div>
             )}
 

@@ -1,24 +1,27 @@
 // src/scheduler.ts
 // ITS CCTV 업데이트는 제거됨 (경찰청 UTIC API로 전환)
 // ITS 이벤트 업데이트는 유지
+// 혼잡도 알림 스케줄러는 제거됨 (DB 삽입 시 즉시 알림으로 전환)
 import { updateEventData } from './eventUpdater';
 
-const THIRTY_MINUTES = 30 * 60 * 1000;
+const TEN_MINUTES = 10 * 60 * 1000;
 
 let eventIntervalId: NodeJS.Timeout | null = null;
 
 export function startEventScheduler(): void {
   if (eventIntervalId) return;
 
-  // 서버 시작 시 즉시 실행
-  console.log('이벤트 스케줄러 시작: 즉시 실행 + 30분 간격');
+  console.log('이벤트 스케줄러 시작: 즉시 실행 + 10분 간격');
   updateEventData();
 
   eventIntervalId = setInterval(() => {
-    console.log('30분 경과 → 이벤트 자동 업데이트 시작');
+    console.log('10분 경과 → 경찰청 이벤트 자동 업데이트 시작');
     updateEventData();
-  }, THIRTY_MINUTES);
+  }, TEN_MINUTES);
 }
+
+// 혼잡도 알림 스케줄러는 제거됨
+// DB 삽입 시 즉시 알림으로 전환되었으므로 스케줄러 불필요
 
 export function stopEventScheduler(): void {
   if (eventIntervalId) {
@@ -27,3 +30,5 @@ export function stopEventScheduler(): void {
     console.log('이벤트 스케줄러 중지됨');
   }
 }
+
+// 혼잡도 알림 스케줄러는 제거됨

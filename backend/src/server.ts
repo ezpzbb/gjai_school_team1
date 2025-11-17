@@ -5,8 +5,11 @@ import dotenv from 'dotenv';
 import { initializeApp } from './app';
 import { initializeDatabase, closeDatabase } from './config/db';
 // ITS CCTV 스케줄러는 제거됨 (경찰청 UTIC API로 전환)
+// 혼잡도 알림 스케줄러는 제거됨 (DB 삽입 시 즉시 알림으로 전환)
 import { startEventScheduler, stopEventScheduler } from './scheduler';
 import { setupSocketHandlers } from './socket';
+import { congestionNotificationService } from './services/congestionNotificationService';
+import { accidentNotificationService } from './services/accidentNotificationService';
 
 dotenv.config();
 
@@ -31,6 +34,10 @@ async function start() {
     // Socket.IO 이벤트 핸들러 설정
     setupSocketHandlers(io);
 
+    // 알림 서비스에 Socket.IO 인스턴스 설정
+    congestionNotificationService.setSocketIO(io);
+    accidentNotificationService.setSocketIO(io);
+
     // 서버 시작
     const PORT = process.env.PORT || 3002;
     server.listen(PORT, () => {
@@ -39,6 +46,7 @@ async function start() {
       console.log(`🌐 CORS Origin: ${process.env.CORS_ORIGIN || 'http://localhost:5173'}`);
 
       // 스케줄러 시작 (ITS CCTV는 제거, 이벤트만 유지)
+      // 혼잡도 알림은 DB 삽입 시 즉시 발송되므로 스케줄러 불필요
       startEventScheduler();
     });
   } catch (error) {

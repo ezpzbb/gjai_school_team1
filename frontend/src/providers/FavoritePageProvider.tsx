@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { CCTV } from '../types/cctv';
 
 interface FavoritePageContextType {
@@ -11,6 +11,7 @@ interface FavoritePageContextType {
   setAnalysisMode: (mode: boolean) => void;
   analysisTargetId: number | null;
   setAnalysisTargetId: (id: number | null) => void;
+  focusAndExpandCCTV: (cctvId: number, cctvLocations: CCTV[]) => number | null;
 }
 
 const FavoritePageContext = createContext<FavoritePageContextType | undefined>(undefined);
@@ -71,6 +72,51 @@ export const FavoritePageProvider: React.FC<{ children: ReactNode }> = ({ childr
     setPendingCCTV(null);
   };
 
+  // 특정 CCTV를 찾아서 슬롯에 배치하고 인덱스 반환
+  const focusAndExpandCCTV = useCallback((cctvId: number, cctvLocations: CCTV[]): number | null => {
+    // CCTV 정보 찾기
+    const targetCCTV = cctvLocations.find((cctv) => cctv.cctv_id === cctvId);
+    if (!targetCCTV) {
+      return null;
+    }
+
+    let resultIndex: number | null = null;
+
+    setSelectedCCTVs((prev) => {
+      // 현재 배열을 4개로 채우기 (빈 자리는 null로)
+      const current: (CCTV | null)[] = Array(4).fill(null).map((_, i) => prev[i] || null);
+      
+      // 이미 해당 CCTV가 있는지 확인
+      const existingIndex = current.findIndex(
+        (cctv) => cctv && cctv.cctv_id === cctvId
+      );
+
+      if (existingIndex !== -1) {
+        // 이미 있으면 해당 인덱스 반환
+        resultIndex = existingIndex;
+        return prev;
+      }
+
+      // 빈 자리 찾기
+      const emptyIndex = current.findIndex((cctv) => cctv === null);
+      
+      if (emptyIndex !== -1) {
+        // 빈 자리가 있으면 그 자리에 배치
+        resultIndex = emptyIndex;
+        const newArray = [...current];
+        newArray[emptyIndex] = targetCCTV;
+        return newArray.filter((c): c is CCTV => c !== null).slice(0, 4);
+      } else {
+        // 빈 자리가 없으면 첫 번째 자리에 배치
+        resultIndex = 0;
+        const newArray = [targetCCTV, ...current.slice(1)];
+        return newArray.filter((c): c is CCTV => c !== null).slice(0, 4);
+      }
+    });
+
+    return resultIndex;
+  }, []);
+
   return (
     <FavoritePageContext.Provider value={{ 
       selectedCCTVs, 
@@ -82,6 +128,7 @@ export const FavoritePageProvider: React.FC<{ children: ReactNode }> = ({ childr
       setAnalysisMode,
       analysisTargetId,
       setAnalysisTargetId,
+      focusAndExpandCCTV,
     }}>
       {children}
     </FavoritePageContext.Provider>

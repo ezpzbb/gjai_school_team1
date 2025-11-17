@@ -4,11 +4,12 @@ import { createRoot } from 'react-dom/client';
 import { CCTV } from '../types/cctv';
 import { Favorite } from '../types/Favorite';
 import { EventItem } from '../types/event';
-import { fetchCCTVLocations, getUserFavorites, addFavorite, removeFavorite, searchCCTVLocations } from '../services/api';
+import { searchCCTVLocations } from '../services/api';
 import { socketService } from '../services/socket';
 import Camera from './Camera/Camera';
 import { useMap } from '../providers/MapProvider';
 import { useLayout } from '../providers/LayoutProvider';
+import { useData } from '../providers/DataProvider';
 
 interface KakaoMap {
   LatLng: new (lat: number, lng: number) => any;
@@ -63,6 +64,14 @@ const KakaoMap: React.FC = () => {
   const KAKAO_API_KEY = import.meta.env.VITE_KAKAO_API_KEY as string;
   const { registerSelectCCTV, registerSelectEvent } = useMap();
   const { sidebarCollapsed, dashboardCollapsed } = useLayout();
+  const {
+    cctvLocations: globalCctvs,
+    favorites: globalFavorites,
+    toggleFavorite: toggleFavoriteMutation,
+    refreshAll,
+    isLoading: isDataLoading,
+    error: dataError,
+  } = useData();
   
   // 검색 자동완성 관련 상태
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -74,6 +83,22 @@ const KakaoMap: React.FC = () => {
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  useEffect(() => {
+    setCctvLocations(globalCctvs);
+  }, [globalCctvs]);
+
+  useEffect(() => {
+    setFavorites(globalFavorites);
+  }, [globalFavorites]);
+
+  useEffect(() => {
+    if (dataError) {
+      setError(dataError);
+    } else {
+      setError(null);
+    }
+  }, [dataError]);
+
   const toggleFavorite = async (cctv_id: number) => {
     if (isToggling !== null) {
       console.log('KakaoMap: Toggle in progress, ignoring click for cctv_id:', cctv_id);
@@ -82,22 +107,10 @@ const KakaoMap: React.FC = () => {
     setIsToggling(cctv_id);
     console.log('KakaoMap: toggleFavorite called', { cctv_id });
     try {
-      // 서버에서 최신 즐겨찾기 상태 확인
-      const currentFavorites = await getUserFavorites();
-      const isFavorite = currentFavorites.some((fav: Favorite) => fav.cctv_id === cctv_id);
-      console.log('KakaoMap: Current favorite status for cctv_id:', cctv_id, isFavorite);
-
-      if (isFavorite) {
-        await removeFavorite(cctv_id);
-        console.log('KakaoMap: Removed favorite for cctv_id:', cctv_id);
-      } else {
-        await addFavorite(cctv_id);
-        console.log('KakaoMap: Added favorite for cctv_id:', cctv_id);
-      }
-      // 최신 즐겨찾기 목록으로 상태 갱신
-      const updatedFavorites = await getUserFavorites();
-      setFavorites(updatedFavorites);
-      console.log('KakaoMap: Updated favorites:', updatedFavorites);
+      const isFavorite = favorites.some((fav: Favorite) => fav.cctv_id === cctv_id);
+      await toggleFavoriteMutation(cctv_id);
+      console.log('KakaoMap: Toggled favorite for cctv_id:', cctv_id, !isFavorite);
+      setError(null);
     } catch (error: any) {
       console.error('KakaoMap: Failed to toggle favorite for cctv_id:', cctv_id, error);
       setError(`즐겨찾기 처리 중 오류: ${error.message}`);
@@ -106,57 +119,27 @@ const KakaoMap: React.FC = () => {
     }
   };
 
-  const loadData = async (retries = 3, delay = 2000) => {
+  const loadData = useCallback(async (retries = 3, delay = 2000) => {
     console.log('KakaoMap: loadData started');
     try {
-      // CCTV 데이터와 즐겨찾기 데이터를 개별적으로 로드 (하나가 실패해도 다른 것은 로드)
-      let cctvResponse: { success: boolean; data: CCTV[] } | null = null;
-      let favoriteData: Favorite[] = [];
-
-      // CCTV 데이터 로드
-      try {
-        cctvResponse = await fetchCCTVLocations();
-        console.log('KakaoMap: CCTV locations fetched:', cctvResponse);
-        if (cctvResponse && cctvResponse.data) {
-          setCctvLocations(cctvResponse.data);
-        }
-      } catch (error: any) {
-        console.error('KakaoMap: Failed to load CCTV locations:', error);
-        if (error.message.includes('429') && retries > 0) {
-          console.log(`KakaoMap: Retrying CCTV load (${retries} retries left)...`);
-          setTimeout(() => loadData(retries - 1, delay), delay);
-          return;
-        }
-        // CCTV 로드 실패 시에도 계속 진행 (즐겨찾기는 시도)
+      if (!isDataLoading) {
+        await refreshAll();
       }
-
-      // 즐겨찾기 데이터 로드 (실패해도 계속 진행)
-      try {
-        favoriteData = await getUserFavorites();
-        console.log('KakaoMap: User favorites fetched:', favoriteData);
-        setFavorites(favoriteData);
-      } catch (error: any) {
-        console.warn('KakaoMap: Failed to load favorites (continuing without favorites):', error);
-        // 즐겨찾기 로드 실패는 경고만 하고 계속 진행
-        setFavorites([]);
-      }
-
-      // CCTV 데이터가 성공적으로 로드되었는지 확인
-      if (!cctvResponse || !cctvResponse.data) {
-        throw new Error('CCTV 데이터를 불러오지 못했습니다.');
-      }
-
       setError(null);
     } catch (error: any) {
       console.error('KakaoMap: Failed to load data:', error);
-      setError('데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+      if (retries > 0) {
+        setTimeout(() => loadData(retries - 1, delay), delay);
+      } else {
+        setError('데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+      }
     }
-  };
+  }, [isDataLoading, refreshAll]);
 
   useEffect(() => {
     console.log('KakaoMap: loadData triggered');
     loadData();
-  }, []);
+  }, [loadData]);
 
   // Socket 연결 및 이벤트 구독
   useEffect(() => {
@@ -599,6 +582,7 @@ const KakaoMap: React.FC = () => {
           if (type === 'its') return '국도';
           if (type === 'loc') return '지방도';
           if (type === 'sgg') return '시군도';
+          if (type === 'pol') return '경찰청';
           return type;
         };
 
@@ -861,6 +845,7 @@ const KakaoMap: React.FC = () => {
         if (type === 'its') return '국도';
         if (type === 'loc') return '지방도';
         if (type === 'sgg') return '시군도';
+        if (type === 'pol') return '경찰청';
         return type;
       };
 
