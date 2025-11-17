@@ -10,6 +10,7 @@ import userRoutes from './routes/UserRoutes';
 import favoriteRoutes from './routes/FavoriteRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import congestionRoutes from './routes/congestionRoutes';
+import { dashboardRoutes } from './routes/dashboardRoutes';
 // ITS CCTV 업데이트는 제거됨 (경찰청 UTIC API로 전환)
 
 export const initializeApp = async (): Promise<Express> => {
@@ -88,7 +89,8 @@ export const initializeApp = async (): Promise<Express> => {
   app.use('/api', setupCCTVRoutes(dbPool));
   app.use('/api/favorites', favoriteRoutes(dbPool));
   app.use('/api/notifications', notificationRoutes);
-  app.use('/api/congestion', congestionRoutes); 
+  app.use('/api/congestion', congestionRoutes);
+  app.use('/api/dashboard', dashboardRoutes(dbPool)); 
 
   // 기본 엔드포인트
   app.get('/', (_req: Request, res: Response) => {

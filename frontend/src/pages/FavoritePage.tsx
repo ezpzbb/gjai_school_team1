@@ -431,7 +431,7 @@ const FavoritePageContent: React.FC = () => {
               >
                 {canPlace && !isCompact
                   ? `클릭하여 "${pendingCCTV.location}" 배치`
-                  : '대시보드에서 CCTV 선택'}
+                  : '지도에서 CCTV 선택'}
               </div>
               {canPlace && !isCompact && (
                 <div

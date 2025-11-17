@@ -1,5 +1,11 @@
 import { CCTV } from '../types/cctv';
 import { Favorite } from '../types/Favorite';
+import {
+  AnalyzedTimeRange,
+  CongestionDataPoint,
+  VehicleStatisticsPoint,
+  DetectionStatistics,
+} from '../types/dashboard';
 
 const cache: { [key: string]: { data: any; timestamp: number } } = {};
 const CACHE_DURATION = 5 * 60 * 1000; // 5분 캐시
@@ -157,6 +163,129 @@ export const searchCCTVLocations = async (query: string): Promise<CCTV[]> => {
     return result.data;
   } catch (error: any) {
     console.error('searchCCTVLocations: Error searching:', error);
+    throw error;
+  }
+};
+
+// 대시보드 API 함수들
+
+/**
+ * 분석 완료 시간대 조회
+ */
+export const getAnalyzedTimeRanges = async (cctvId: number): Promise<AnalyzedTimeRange[]> => {
+  const token = localStorage.getItem('token');
+  try {
+    const response = await fetch(`/api/dashboard/cctv/${cctvId}/analyzed-time-ranges`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const result = await response.json();
+    if (!result.success || !result.data?.timeRanges) {
+      throw new Error('Invalid response format');
+    }
+    return result.data.timeRanges;
+  } catch (error: any) {
+    console.error('getAnalyzedTimeRanges: Error fetching data:', error);
+    throw error;
+  }
+};
+
+/**
+ * 혼잡도 데이터 조회
+ */
+export const getCongestionData = async (
+  cctvId: number,
+  startTime: string,
+  endTime: string
+): Promise<CongestionDataPoint[]> => {
+  const token = localStorage.getItem('token');
+  try {
+    const response = await fetch(
+      `/api/dashboard/cctv/${cctvId}/congestion?startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const result = await response.json();
+    if (!result.success || !Array.isArray(result.data)) {
+      throw new Error('Invalid response format');
+    }
+    return result.data;
+  } catch (error: any) {
+    console.error('getCongestionData: Error fetching data:', error);
+    throw error;
+  }
+};
+
+/**
+ * 차량 통계 데이터 조회
+ */
+export const getVehicleStatistics = async (
+  cctvId: number,
+  startTime: string,
+  endTime: string
+): Promise<VehicleStatisticsPoint[]> => {
+  const token = localStorage.getItem('token');
+  try {
+    const response = await fetch(
+      `/api/dashboard/cctv/${cctvId}/vehicles?startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const result = await response.json();
+    if (!result.success || !Array.isArray(result.data)) {
+      throw new Error('Invalid response format');
+    }
+    return result.data;
+  } catch (error: any) {
+    console.error('getVehicleStatistics: Error fetching data:', error);
+    throw error;
+  }
+};
+
+/**
+ * 객체 유형별 통계 조회
+ */
+export const getDetectionStatistics = async (
+  cctvId: number,
+  startTime: string,
+  endTime: string
+): Promise<DetectionStatistics[]> => {
+  const token = localStorage.getItem('token');
+  try {
+    const response = await fetch(
+      `/api/dashboard/cctv/${cctvId}/detections?startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const result = await response.json();
+    if (!result.success || !Array.isArray(result.data)) {
+      throw new Error('Invalid response format');
+    }
+    return result.data;
+  } catch (error: any) {
+    console.error('getDetectionStatistics: Error fetching data:', error);
     throw error;
   }
 };

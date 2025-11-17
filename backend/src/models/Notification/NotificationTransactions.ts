@@ -17,34 +17,13 @@ export class NotificationTransaction {
   }
 
   /**
-   * Notification 관련 테이블 초기화 (Frame, Congestion, Notification 순서로 생성)
+   * Notification 테이블 초기화
+   * 주의: Frame, Congestion 테이블은 각각의 모델에서 초기화됨
    * @param connection 데이터베이스 연결
    */
-  async initializeNotificationTables(connection: PoolConnection): Promise<void> {
+  async initializeNotificationTable(connection: PoolConnection): Promise<void> {
     try {
       const dbName = process.env.DB_NAME || 'new_schema';
-
-      // Frame 테이블 생성 (CCTV에 의존)
-      const [frameTables] = await connection.execute<any[]>(
-        NotificationQueries.CHECK_FRAME_TABLE_EXISTS,
-        [dbName]
-      );
-      if (frameTables.length === 0) {
-        console.log('📋 Frame 테이블이 없습니다. 생성 중...');
-        await connection.execute(NotificationQueries.CREATE_FRAME_TABLE);
-        console.log('✅ Frame 테이블 생성 완료');
-      }
-
-      // Congestion 테이블 생성 (Frame에 의존)
-      const [congestionTables] = await connection.execute<any[]>(
-        NotificationQueries.CHECK_CONGESTION_TABLE_EXISTS,
-        [dbName]
-      );
-      if (congestionTables.length === 0) {
-        console.log('📋 Congestion 테이블이 없습니다. 생성 중...');
-        await connection.execute(NotificationQueries.CREATE_CONGESTION_TABLE);
-        console.log('✅ Congestion 테이블 생성 완료');
-      }
 
       // Notification 테이블 생성 (User, CCTV, Congestion에 의존)
       const [notificationTables] = await connection.execute<any[]>(
@@ -210,33 +189,5 @@ export class NotificationTransaction {
     }
   }
 
-  /**
-   * CCTV의 최신 혼잡도 조회
-   */
-  async getLatestCongestionByCCTV(cctvId: number): Promise<{
-    congestion_id: number;
-    level: number;
-    timestamp: Date;
-  } | null> {
-    try {
-      const [rows] = await this.pool.execute<RowDataPacket[]>(
-        NotificationQueries.GET_LATEST_CONGESTION_BY_CCTV,
-        [cctvId]
-      );
-
-      if (rows.length === 0) {
-        return null;
-      }
-
-      return {
-        congestion_id: rows[0].congestion_id,
-        level: rows[0].level,
-        timestamp: rows[0].timestamp,
-      };
-    } catch (error) {
-      console.error('최신 혼잡도 조회 실패:', error);
-      throw error;
-    }
-  }
 }
 
