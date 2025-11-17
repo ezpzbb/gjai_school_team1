@@ -23,9 +23,29 @@ async function start() {
 
     // HTTP 서버 및 Socket.IO 설정
     const server = http.createServer(app);
+    // Socket.IO CORS 설정: 다중 origin 지원
+    const corsOrigins = process.env.CORS_ORIGIN
+      ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim())
+      : ['http://localhost:5173'];
+    
     const io = new SocketIOServer(server, {
       cors: {
-        origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+        origin: (origin, callback) => {
+          // origin이 없으면 허용
+          if (!origin) {
+            return callback(null, true);
+          }
+          // 허용된 origin 목록에 있으면 허용
+          if (corsOrigins.includes(origin)) {
+            return callback(null, true);
+          }
+          // 개발 환경에서는 모든 origin 허용 (선택사항)
+          if (process.env.NODE_ENV === 'development') {
+            return callback(null, true);
+          }
+          // 그 외의 경우 거부
+          callback(new Error('Not allowed by CORS'));
+        },
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
         credentials: true,
       },
@@ -39,8 +59,9 @@ async function start() {
     accidentNotificationService.setSocketIO(io);
 
     // 서버 시작
-    const PORT = process.env.PORT || 3002;
-    server.listen(PORT, () => {
+    const PORT = Number(process.env.PORT) || 3002;
+    const HOST = process.env.HOST || '0.0.0.0'; // Docker 컨테이너에서 모든 인터페이스에 바인딩
+    server.listen(PORT, HOST, () => {
       console.log(`🚀 서버가 포트 ${PORT}에서 시작되었습니다.`);
       console.log(`📍 환경: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🌐 CORS Origin: ${process.env.CORS_ORIGIN || 'http://localhost:5173'}`);

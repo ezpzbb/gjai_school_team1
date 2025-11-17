@@ -2,6 +2,7 @@
 
 import axios, { AxiosError } from 'axios';
 import jwtDecode from 'jwt-decode';
+import { createApiUrl } from '../config/apiConfig';
 
 interface User {
   user_id: number;
@@ -19,7 +20,7 @@ interface ErrorResponse {
   message: string;
 }
 
-const API_BASE_URL = '/api/users';
+const API_BASE_URL = createApiUrl('/api/users');
 
 // JWT 토큰 페이로드 타입
 interface JwtPayload {

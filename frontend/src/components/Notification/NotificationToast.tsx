@@ -5,7 +5,6 @@ import {
   getLevelColor,
   getLevelBorderColor,
   getLevelText,
-  getNotificationDotColor,
 } from '../../utils/notificationHelpers';
 
 interface NotificationToastProps {

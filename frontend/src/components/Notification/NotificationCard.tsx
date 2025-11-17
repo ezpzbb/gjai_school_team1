@@ -4,7 +4,6 @@ import {
   formatRelativeTime,
   getLevelTextColor,
   getLevelBgColor,
-  getLevelBorderColor,
   getNotificationDotColor,
   getNotificationBorderColor,
 } from '../../utils/notificationHelpers';

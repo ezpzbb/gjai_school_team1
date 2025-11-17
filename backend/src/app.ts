@@ -26,10 +26,31 @@ export const initializeApp = async (): Promise<Express> => {
   };
   const dbPool: Pool = createPool(dbConfig);
 
-  // 미들웨어
+  // CORS 설정: 다중 origin 지원
+  // 환경 변수에서 여러 origin을 쉼표로 구분하여 받을 수 있음
+  // 예: CORS_ORIGIN=http://localhost:5173,https://example.com,https://app.example.com
+  const corsOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim())
+    : ['http://localhost:5173'];
+  
   app.use(
     cors({
-      origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+      origin: (origin, callback) => {
+        // origin이 없으면 (같은 도메인 요청 등) 허용
+        if (!origin) {
+          return callback(null, true);
+        }
+        // 허용된 origin 목록에 있으면 허용
+        if (corsOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+        // 개발 환경에서는 모든 origin 허용 (선택사항)
+        if (process.env.NODE_ENV === 'development') {
+          return callback(null, true);
+        }
+        // 그 외의 경우 거부
+        callback(new Error('Not allowed by CORS'));
+      },
       credentials: true,
     })
   );
@@ -95,6 +116,26 @@ export const initializeApp = async (): Promise<Express> => {
   // 기본 엔드포인트
   app.get('/', (_req: Request, res: Response) => {
     res.send('Hello from Express with WebSocket!');
+  });
+
+  // 헬스 체크 엔드포인트 (Docker 헬스 체크용)
+  app.get('/health', async (_req: Request, res: Response) => {
+    try {
+      // 데이터베이스 연결 상태 확인
+      const [result] = await dbPool.execute('SELECT 1 as health');
+      res.status(200).json({
+        status: 'ok',
+        database: 'connected',
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      res.status(503).json({
+        status: 'error',
+        database: 'disconnected',
+        message: error.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
   });
 
   // ITS CCTV 업데이트 엔드포인트는 제거됨 (경찰청 UTIC API로 전환)

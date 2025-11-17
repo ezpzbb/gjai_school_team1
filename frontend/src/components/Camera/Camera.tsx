@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Hls from 'hls.js';
+import { createApiUrl } from '../../config/apiConfig';
 
 // 아이콘 컴포넌트들
 const FullscreenIcon: React.FC<{ size?: number; color?: string }> = ({ size = 16, color = 'currentColor' }) => (
@@ -72,7 +73,7 @@ const Camera: React.FC<CameraProps> = ({
     }
 
     const token = localStorage.getItem('token');
-    const response = await fetch(`/api/cctv/${cctv_id}/stream`, {
+    const response = await fetch(createApiUrl(`/api/cctv/${cctv_id}/stream`), {
       headers: {
         Authorization: token ? `Bearer ${token}` : '',
         'Content-Type': 'application/json',

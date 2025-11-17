@@ -6,6 +6,7 @@ import {
   VehicleStatisticsPoint,
   DetectionStatistics,
 } from '../types/dashboard';
+import { createApiUrl } from '../config/apiConfig';
 
 const cache: { [key: string]: { data: any; timestamp: number } } = {};
 const CACHE_DURATION = 5 * 60 * 1000; // 5분 캐시
@@ -21,7 +22,7 @@ export const fetchCCTVLocations = async (retries = 3, delay = 2000): Promise<{ s
   const attemptFetch = async (attempt: number): Promise<{ success: boolean; data: CCTV[] }> => {
     try {
       console.log('fetchCCTVLocations: Fetching data');
-      const response = await fetch('/api/cctv/locations', {
+      const response = await fetch(createApiUrl('/api/cctv/locations'), {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`,
         },
@@ -61,7 +62,7 @@ export const getUserFavorites = async (retries = 3, delay = 2000): Promise<Favor
 
   const attemptFetch = async (attempt: number): Promise<Favorite[]> => {
     try {
-      const response = await fetch('/api/favorites/user/me', {
+      const response = await fetch(createApiUrl('/api/favorites/user/me'), {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -93,7 +94,7 @@ export const getUserFavorites = async (retries = 3, delay = 2000): Promise<Favor
 export const addFavorite = async (cctv_id: number): Promise<Favorite> => {
   const token = localStorage.getItem('token');
   console.log('addFavorite: Adding favorite for cctv_id:', cctv_id);
-  const response = await fetch('/api/favorites', {
+  const response = await fetch(createApiUrl('/api/favorites'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -116,7 +117,7 @@ export const removeFavorite = async (cctv_id: number): Promise<void> => {
   if (!token) {
     throw new Error('No authentication token found');
   }
-  const response = await fetch(`/api/favorites/me/${cctv_id}`, {
+  const response = await fetch(createApiUrl(`/api/favorites/me/${cctv_id}`), {
     method: 'DELETE',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -144,7 +145,7 @@ export const searchCCTVLocations = async (query: string): Promise<CCTV[]> => {
 
   try {
     console.log('searchCCTVLocations: Searching with query:', query);
-    const response = await fetch(`/api/cctv/search?q=${encodeURIComponent(query)}`, {
+    const response = await fetch(createApiUrl(`/api/cctv/search?q=${encodeURIComponent(query)}`), {
       headers: {
         Authorization: `Bearer ${localStorage.getItem('token')}`,
       },
@@ -175,7 +176,7 @@ export const searchCCTVLocations = async (query: string): Promise<CCTV[]> => {
 export const getAnalyzedTimeRanges = async (cctvId: number): Promise<AnalyzedTimeRange[]> => {
   const token = localStorage.getItem('token');
   try {
-    const response = await fetch(`/api/dashboard/cctv/${cctvId}/analyzed-time-ranges`, {
+    const response = await fetch(createApiUrl(`/api/dashboard/cctv/${cctvId}/analyzed-time-ranges`), {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -205,7 +206,7 @@ export const getCongestionData = async (
   const token = localStorage.getItem('token');
   try {
     const response = await fetch(
-      `/api/dashboard/cctv/${cctvId}/congestion?startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`,
+      createApiUrl(`/api/dashboard/cctv/${cctvId}/congestion?startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`),
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -237,7 +238,7 @@ export const getVehicleStatistics = async (
   const token = localStorage.getItem('token');
   try {
     const response = await fetch(
-      `/api/dashboard/cctv/${cctvId}/vehicles?startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`,
+      createApiUrl(`/api/dashboard/cctv/${cctvId}/vehicles?startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`),
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -269,7 +270,7 @@ export const getDetectionStatistics = async (
   const token = localStorage.getItem('token');
   try {
     const response = await fetch(
-      `/api/dashboard/cctv/${cctvId}/detections?startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`,
+      createApiUrl(`/api/dashboard/cctv/${cctvId}/detections?startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`),
       {
         headers: {
           Authorization: `Bearer ${token}`,
