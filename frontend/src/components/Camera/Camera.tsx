@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Hls from "hls.js";
 import { socketService } from "../../services/socket";
+import { VehicleDetectionItem } from "../../types/vehicle";
 
 interface CameraProps {
   apiEndpoint: string | null;
@@ -327,7 +328,7 @@ const Camera: React.FC<CameraProps> = ({
         const scaleX = canvas.width / videoEl.videoWidth;
         const scaleY = canvas.height / videoEl.videoHeight;
         ctx.beginPath();
-        payload.roiPolygon.forEach(([x, y], idx) => {
+        payload.roiPolygon.forEach(([x, y]: [number, number], idx: number) => {
           const sx = x * scaleX;
           const sy = y * scaleY;
           if (idx === 0) ctx.moveTo(sx, sy);
@@ -338,7 +339,7 @@ const Camera: React.FC<CameraProps> = ({
       }
 
       // bbox 그리기
-      payload.detections.forEach((det) => {
+      payload.detections.forEach((det: VehicleDetectionItem) => {
         const [x1, y1, x2, y2] = det.bbox;
         const scaleX = canvas.width / videoEl.videoWidth;
         const scaleY = canvas.height / videoEl.videoHeight;

@@ -1,4 +1,4 @@
-import { VehicleUpdatePayload } from "./../../../backend/src/socket";
+import { VehicleUpdatePayload } from "../types/vehicle";
 import { io, Socket } from "socket.io-client";
 import { EventItem } from "../types/event";
 

@@ -222,7 +222,7 @@ def _is_inside_polygon(cx: float, cy: float, polygon: np.ndarray) -> bool:
     return result >= 0.0
 
 
-def _gen(url: str, cctv_id: int):
+def _gen(url: str):
     eng: YOLOEngine = YOLOEngine()
     fs: FrameStream = FrameStream(url)
     font: ImageFont.FreeTypeFont = _load_korean_font(20)
@@ -296,7 +296,7 @@ def _gen(url: str, cctv_id: int):
             print(report)
 
             # backend로 raw detection + ROI 전달
-            _send_detection_to_backend(cctv_id, filtered_preds, _ROI_POLYGON)
+            # _send_detection_to_backend(cctv_id, filtered_preds, _ROI_POLYGON)
 
         ok: bool
         jpg: np.ndarray
@@ -313,7 +313,7 @@ def _gen(url: str, cctv_id: int):
 @router.get("/mjpeg")
 def mjpeg_auto(
     index: int = Query(0, ge=0),
-    cctv_id: int = Query(..., ge=0),
+    # cctv_id: int = Query(..., ge=0),
     minX: str = "126.900000",
     maxX: str = "128.890000",
     minY: str = "35.900000",
@@ -339,6 +339,6 @@ def mjpeg_auto(
 
     url: str = urls[index]["url"]
     return StreamingResponse(
-        _gen(url, cctv_id),
+        _gen(url),
         media_type="multipart/x-mixed-replace; boundary=frame",
     )
