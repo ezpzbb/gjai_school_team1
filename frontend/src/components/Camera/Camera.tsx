@@ -1,6 +1,26 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Hls from 'hls.js';
 
+// 아이콘 컴포넌트들
+const FullscreenIcon: React.FC<{ size?: number; color?: string }> = ({ size = 16, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path fillRule="evenodd" clipRule="evenodd" d="M18 4.654v.291a10 10 0 0 0-1.763 1.404l-2.944 2.944a1 1 0 0 0 1.414 1.414l2.933-2.932A9.995 9.995 0 0 0 19.05 6h.296l-.09.39A9.998 9.998 0 0 0 19 8.64v.857a1 1 0 1 0 2 0V4.503a1.5 1.5 0 0 0-1.5-1.5L14.5 3a1 1 0 1 0 0 2h.861a10 10 0 0 0 2.249-.256l.39-.09zM4.95 18a10 10 0 0 1 1.41-1.775l2.933-2.932a1 1 0 0 1 1.414 1.414l-2.944 2.944A9.998 9.998 0 0 1 6 19.055v.291l.39-.09A9.998 9.998 0 0 1 8.64 19H9.5a1 1 0 1 1 0 2l-5-.003a1.5 1.5 0 0 1-1.5-1.5V14.5a1 1 0 1 1 2 0v.861a10 10 0 0 1-.256 2.249l-.09.39h.295z" fill={color}/>
+  </svg>
+);
+
+const FullscreenExitIcon: React.FC<{ size?: number; color?: string }> = ({ size = 16, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path fillRule="evenodd" clipRule="evenodd" d="M19.293 3.293a1 1 0 1 1 1.414 1.414l-2.944 2.944A10 10 0 0 1 16 9.055v.291l.39-.09A10 10 0 0 1 18.64 9h.861a1 1 0 1 1 0 2l-5-.003a1.5 1.5 0 0 1-1.5-1.5V4.5a1 1 0 1 1 2 0v.861c0 .757-.086 1.511-.256 2.249l-.09.39h.295a9.995 9.995 0 0 1 1.411-1.775l2.933-2.932zM8 14.653v.292c-.638.4-1.23.87-1.763 1.404l-2.944 2.944a1 1 0 1 0 1.414 1.414l2.933-2.932A10 10 0 0 0 9.05 16h.296l-.09.39A10 10 0 0 0 9 18.64v.861a1 1 0 1 0 2 0v-4.997a1.5 1.5 0 0 0-1.5-1.5L4.5 13a1 1 0 1 0 0 2h.861c.757 0 1.511-.086 2.249-.256l.39-.09z" fill={color}/>
+  </svg>
+);
+
+const SearchIcon: React.FC<{ size?: number; color?: string }> = ({ size = 16, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="7" cy="7" r="4" stroke={color} strokeWidth="1.5" fill="none"/>
+    <line x1="10" y1="10" x2="13" y2="13" stroke={color} strokeWidth="1.5" strokeLinecap="round"/>
+  </svg>
+);
+
 interface CameraProps {
   apiEndpoint: string | null;
   location?: string;
@@ -311,8 +331,8 @@ const Camera: React.FC<CameraProps> = ({
     if (pageType === 'kakao-map') {
       return 'cover';
     }
-    return isExpanded ? 'cover' : 'contain';
-  }, [isExpanded, pageType]);
+    return 'contain';
+  }, [pageType]);
 
   const resolvedMimeType = useMemo(() => {
     if (!streamUrl) {
@@ -411,7 +431,7 @@ const Camera: React.FC<CameraProps> = ({
                 onAnalyze();
               }}
               style={{
-                padding: '4px 12px',
+                padding: '6px',
                 fontSize: '12px',
                 fontWeight: '600',
                 color: 'white',
@@ -422,6 +442,11 @@ const Camera: React.FC<CameraProps> = ({
                 transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease',
                 transform: 'scale(1)',
                 boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '28px',
+                height: '28px',
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'scale(1.05)';
@@ -434,7 +459,7 @@ const Camera: React.FC<CameraProps> = ({
                 e.currentTarget.style.background = isAnalyzing ? 'rgba(220, 38, 38, 0.85)' : 'rgba(59, 130, 246, 0.8)';
               }}
             >
-              {isAnalyzing ? '분석종료' : '분석하기'}
+              <SearchIcon size={16} color="white" />
             </button>
           )}
           {onExpand && !isExpanded && (
@@ -446,7 +471,7 @@ const Camera: React.FC<CameraProps> = ({
               }}
               disabled={isPlacementMode}
               style={{
-                padding: '4px 12px',
+                padding: '6px',
                 fontSize: '12px',
                 fontWeight: '600',
                 color: isPlacementMode ? 'rgba(255, 255, 255, 0.5)' : 'white',
@@ -458,6 +483,11 @@ const Camera: React.FC<CameraProps> = ({
                 transform: 'scale(1)',
                 boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
                 opacity: isPlacementMode ? 0.6 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '28px',
+                height: '28px',
               }}
               onMouseEnter={(e) => {
                 if (isPlacementMode) return;
@@ -471,7 +501,7 @@ const Camera: React.FC<CameraProps> = ({
                 e.currentTarget.style.background = 'rgba(53, 122, 189, 0.8)';
               }}
             >
-              크게보기
+              <FullscreenIcon size={16} color="white" />
             </button>
           )}
           {onExpand && isExpanded && (
@@ -481,7 +511,7 @@ const Camera: React.FC<CameraProps> = ({
                 onExpand();
               }}
               style={{
-                padding: '4px 12px',
+                padding: '6px',
                 fontSize: '12px',
                 fontWeight: '600',
                 color: 'white',
@@ -492,6 +522,11 @@ const Camera: React.FC<CameraProps> = ({
                 transition: 'transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease',
                 transform: 'scale(1)',
                 boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '28px',
+                height: '28px',
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'scale(1.05)';
@@ -504,7 +539,7 @@ const Camera: React.FC<CameraProps> = ({
                 e.currentTarget.style.background = 'rgba(107, 114, 128, 0.8)';
               }}
             >
-              되돌리기
+              <FullscreenExitIcon size={16} color="white" />
             </button>
           )}
         </div>

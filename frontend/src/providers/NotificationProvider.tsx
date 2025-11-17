@@ -72,8 +72,8 @@ const NotificationProvider: React.FC<NotificationProviderProps> = ({ children })
   // 알림 사운드 재생
   const playNotificationSound = useCallback(() => {
     try {
-      const audio = new Audio('/sounds/alert.mp3');
-      audio.volume = 0.3; // 볼륨 조절 (0.0 ~ 1.0)
+      const audio = new Audio('/sounds/notify.mp3');
+      audio.volume = 0.5; // 볼륨 조절 (0.0 ~ 1.0)
       audio.play().catch((error) => {
         console.warn('알림 사운드 재생 실패:', error);
       });

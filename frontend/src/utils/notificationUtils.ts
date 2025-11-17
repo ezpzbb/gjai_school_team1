@@ -76,8 +76,8 @@ export const loadNotificationsFromStorage = (userId: number): NotificationState[
  * 로컬 스토리지에 알림 목록 저장
  */
 export const saveNotificationsToStorage = (userId: number, notifications: NotificationState[]): void => {
+  const key = `notifications_${userId}`;
   try {
-    const key = `notifications_${userId}`;
     const data = JSON.stringify(notifications);
     
     // 로컬 스토리지 용량 제한 체크 (약 5MB)

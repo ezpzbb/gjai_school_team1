@@ -96,12 +96,12 @@ const Dashboard: React.FC = () => {
 
   if (error) {
     return (
-      <div className={`fixed top-[calc(2rem+4rem+0.25rem)] right-2 h-[calc(100vh-2rem-4rem-0.25rem-2rem)] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 p-4 z-40 rounded-lg shadow-lg flex flex-col transition-all duration-300 ${dashboardCollapsed ? 'w-16' : 'w-80'}`}>
+      <div className={`fixed top-[calc(0.5rem+4rem+0.5rem)] right-2 h-[calc(100vh-0.5rem-4rem-0.5rem-0.5rem)] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 p-4 z-40 rounded-lg shadow-lg flex flex-col transition-all duration-300 ${dashboardCollapsed ? 'w-16' : 'w-72'}`}>
         <button
           onClick={toggleDashboard}
           className="fixed w-6 h-6 bg-blue-600 dark:bg-blue-700 text-white rounded-full flex items-center justify-center hover:bg-blue-700 dark:hover:bg-blue-800 transition-all duration-300 z-50 shadow-lg"
           style={{ 
-            right: `calc(0.5rem + ${dashboardCollapsed ? '4rem' : '20rem'} - 0.75rem)`,
+            right: `calc(0.5rem + ${dashboardCollapsed ? '4rem' : '18rem'} - 0.75rem)`,
             top: '50vh', 
             transform: 'translateY(-50%)' 
           }}
@@ -146,15 +146,15 @@ const Dashboard: React.FC = () => {
   }, [events]);
 
   return (
-    <div className={`fixed top-[calc(2rem+4rem+0.25rem)] right-2 h-[calc(100vh-2rem-4rem-0.25rem-2rem)] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 p-4 z-40 rounded-lg shadow-lg flex flex-col transition-all duration-300 ${
-      dashboardCollapsed ? 'w-16' : 'w-80'
+    <div className={`fixed top-[calc(0.5rem+4rem+0.5rem)] right-2 h-[calc(100vh-0.5rem-4rem-0.5rem-0.5rem)] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 p-4 z-40 rounded-lg shadow-lg flex flex-col transition-all duration-300 ${
+      dashboardCollapsed ? 'w-16' : 'w-72'
     }`}>
       {/* 축소 버튼 */}
       <button
         onClick={toggleDashboard}
         className="fixed w-6 h-6 bg-blue-600 dark:bg-blue-700 text-white rounded-full flex items-center justify-center hover:bg-blue-700 dark:hover:bg-blue-800 transition-all duration-300 z-50 shadow-lg"
         style={{ 
-          right: `calc(0.5rem + ${dashboardCollapsed ? '4rem' : '20rem'} - 0.75rem)`,
+          right: `calc(0.5rem + ${dashboardCollapsed ? '4rem' : '18rem'} - 0.75rem)`,
           top: '50vh', 
           transform: 'translateY(-50%)' 
         }}
