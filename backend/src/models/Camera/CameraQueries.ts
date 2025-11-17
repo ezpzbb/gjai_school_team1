@@ -24,4 +24,21 @@ export const cctvQueries = {
       location ASC
     LIMIT 10
   `,
+  CREATE_TABLE: `
+    CREATE TABLE IF NOT EXISTS cctv (
+      cctv_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      cctv_code VARCHAR(64) NOT NULL UNIQUE,
+      location VARCHAR(125) NOT NULL,
+      latitude FLOAT NOT NULL,
+      longitude FLOAT NOT NULL,
+      api_endpoint VARCHAR(255) NOT NULL,
+      updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      KEY idx_coords (longitude, latitude),
+      KEY idx_location (location)
+    ) ENGINE=InnoDB AUTO_INCREMENT=149416 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+  `,
+  CHECK_TABLE_EXISTS: `
+    SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES 
+    WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'cctv'
+  `,
 };

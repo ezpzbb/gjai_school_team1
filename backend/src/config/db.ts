@@ -1,5 +1,9 @@
 import dotenv from 'dotenv';
 import mysql from 'mysql2/promise';
+import { UserTransaction } from '../models/User/UserTransactions';
+import { FavoriteTransaction } from '../models/Favorites/FavoriteTransactions';
+import { CCTVTransaction } from '../models/Camera/CameraTransactions';
+import { NotificationTransaction } from '../models/Notification/NotificationTransactions';
 
 dotenv.config();
 
@@ -17,6 +21,26 @@ export async function initializeDatabase(): Promise<void> {
   try {
     const connection = await pool.getConnection();
     console.log(`✅ 데이터베이스 연결 성공: ${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`);
+    
+    // 테이블 초기화 순서: User -> CCTV -> Frame -> Congestion -> Notification -> Favorite
+    // (외래키 의존성 순서대로 생성)
+    
+    // 1. User 테이블 초기화 및 관리자 계정 생성
+    const userTransaction = new UserTransaction(pool);
+    await userTransaction.initializeUserTable(connection);
+    
+    // 2. CCTV 테이블 초기화
+    const cctvTransaction = new CCTVTransaction(pool);
+    await cctvTransaction.initializeCCTVTable(connection);
+    
+    // 3. Notification 관련 테이블 초기화 (Frame, Congestion, Notification)
+    const notificationTransaction = new NotificationTransaction(pool);
+    await notificationTransaction.initializeNotificationTables(connection);
+    
+    // 4. Favorite 테이블 초기화 (User, CCTV에 의존)
+    const favoriteTransaction = new FavoriteTransaction(pool);
+    await favoriteTransaction.initializeFavoriteTable(connection);
+    
     connection.release();
   } catch (error) {
     console.error('❌ 데이터베이스 연결 실패:', error);

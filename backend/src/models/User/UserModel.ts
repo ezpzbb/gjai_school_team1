@@ -1,6 +1,7 @@
 import { Pool, RowDataPacket } from 'mysql2/promise';
 import db from '../../config/db';
 import { UserQueries } from './UserQueries';
+import { UserTransaction } from './UserTransactions';
 
 export interface User {
   user_id: number;
@@ -26,6 +27,7 @@ export interface UserAuthResponse {
 }
 
 const pool: Pool = db;
+const userTransaction = new UserTransaction(pool);
 
 export class UserModel {
   static async findUserByIdentifier(identifier: string): Promise<RowDataPacket | null> {
@@ -47,7 +49,6 @@ export class UserModel {
   }
 
   static async createUser(username: string, hashedPassword: string, email: string): Promise<number> {
-    const [result] = await pool.execute(UserQueries.CREATE_USER, [username, hashedPassword, email]);
-    return (result as any).insertId;
+    return await userTransaction.createUser(username, hashedPassword, email);
   }
 }

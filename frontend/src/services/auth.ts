@@ -1,6 +1,7 @@
 // 인증 서비스 - JWT 토큰 관리
 
 import axios, { AxiosError } from 'axios';
+import jwtDecode from 'jwt-decode';
 
 interface User {
   user_id: number;
@@ -19,6 +20,42 @@ interface ErrorResponse {
 }
 
 const API_BASE_URL = '/api/users';
+
+// JWT 토큰 페이로드 타입
+interface JwtPayload {
+  user_id: number;
+  username: string;
+  email: string;
+  exp?: number; // 만료 시간 (Unix timestamp)
+  iat?: number; // 발급 시간 (Unix timestamp)
+}
+
+// 토큰 유효성 검증 함수
+const isTokenValid = (token: string): boolean => {
+  try {
+    const decoded = jwtDecode<JwtPayload>(token);
+    
+    // 만료 시간 확인
+    if (decoded.exp) {
+      const currentTime = Math.floor(Date.now() / 1000);
+      if (decoded.exp < currentTime) {
+        console.warn('Token expired');
+        return false;
+      }
+    }
+    
+    // 필수 필드 확인
+    if (!decoded.user_id || !decoded.username || !decoded.email) {
+      console.warn('Token missing required fields');
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.warn('Invalid token format:', error);
+    return false;
+  }
+};
 
 // JWT 토큰 관리 및 인증 API 호출
 const AuthService = {
@@ -61,12 +98,25 @@ const AuthService = {
     if (!token) {
       throw new Error('No token found');
     }
+    
+    // 토큰 유효성 검증
+    if (!isTokenValid(token)) {
+      localStorage.removeItem('token');
+      throw new Error('Token is invalid or expired');
+    }
+    
     try {
       const response = await axios.get<{ user: User }>(`${API_BASE_URL}/profile`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       return response.data.user;
     } catch (error) {
+      // 401 Unauthorized 또는 403 Forbidden인 경우 토큰 삭제
+      const axiosError = error as AxiosError;
+      if (axiosError.response?.status === 401 || axiosError.response?.status === 403) {
+        localStorage.removeItem('token');
+        throw new Error('Authentication failed. Please login again.');
+      }
       localStorage.removeItem('token');
       throw new Error('Failed to fetch profile');
     }
@@ -77,9 +127,21 @@ const AuthService = {
     localStorage.removeItem('token');
   },
 
-  // 토큰 존재 여부 확인
+  // 토큰 존재 여부 및 유효성 확인
   isAuthenticated(): boolean {
-    return !!localStorage.getItem('token');
+    const token = localStorage.getItem('token');
+    if (!token) {
+      return false;
+    }
+    
+    // 토큰 유효성 검증
+    if (!isTokenValid(token)) {
+      // 만료되거나 유효하지 않은 토큰 삭제
+      localStorage.removeItem('token');
+      return false;
+    }
+    
+    return true;
   },
 
   // 토큰 가져오기

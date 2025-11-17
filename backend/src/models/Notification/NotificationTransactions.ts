@@ -1,16 +1,65 @@
-import { Pool, RowDataPacket } from 'mysql2/promise';
+import { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { NotificationQueries } from './NotificationQueries';
 import {
   NotificationTarget,
   NotificationHistoryInput,
   AccidentNotificationHistoryInput,
 } from './NotificationModel';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 export class NotificationTransaction {
   private pool: Pool;
 
   constructor(pool: Pool) {
     this.pool = pool;
+  }
+
+  /**
+   * Notification 관련 테이블 초기화 (Frame, Congestion, Notification 순서로 생성)
+   * @param connection 데이터베이스 연결
+   */
+  async initializeNotificationTables(connection: PoolConnection): Promise<void> {
+    try {
+      const dbName = process.env.DB_NAME || 'new_schema';
+
+      // Frame 테이블 생성 (CCTV에 의존)
+      const [frameTables] = await connection.execute<any[]>(
+        NotificationQueries.CHECK_FRAME_TABLE_EXISTS,
+        [dbName]
+      );
+      if (frameTables.length === 0) {
+        console.log('📋 Frame 테이블이 없습니다. 생성 중...');
+        await connection.execute(NotificationQueries.CREATE_FRAME_TABLE);
+        console.log('✅ Frame 테이블 생성 완료');
+      }
+
+      // Congestion 테이블 생성 (Frame에 의존)
+      const [congestionTables] = await connection.execute<any[]>(
+        NotificationQueries.CHECK_CONGESTION_TABLE_EXISTS,
+        [dbName]
+      );
+      if (congestionTables.length === 0) {
+        console.log('📋 Congestion 테이블이 없습니다. 생성 중...');
+        await connection.execute(NotificationQueries.CREATE_CONGESTION_TABLE);
+        console.log('✅ Congestion 테이블 생성 완료');
+      }
+
+      // Notification 테이블 생성 (User, CCTV, Congestion에 의존)
+      const [notificationTables] = await connection.execute<any[]>(
+        NotificationQueries.CHECK_NOTIFICATION_TABLE_EXISTS,
+        [dbName]
+      );
+      if (notificationTables.length === 0) {
+        console.log('📋 Notification 테이블이 없습니다. 생성 중...');
+        await connection.execute(NotificationQueries.CREATE_NOTIFICATION_TABLE);
+        console.log('✅ Notification 테이블 생성 완료');
+      }
+    } catch (error) {
+      console.error('❌ Notification 테이블 초기화 실패:', error);
+      throw error;
+    }
   }
 
   /**
