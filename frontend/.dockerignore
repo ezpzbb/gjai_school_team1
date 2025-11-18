@@ -1,0 +1,47 @@
+# Node modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 빌드 산출물
+.build/
+dist/
+build/
+
+# 환경 변수 파일 (네이버 클라우드에서 주입)
+.env
+.env.local
+.env.*.local
+
+# Git
+.git/
+.gitignore
+
+# IDE 설정
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS 파일
+.DS_Store
+Thumbs.db
+
+# 테스트 파일
+coverage/
+.nyc_output/
+
+# 문서
+*.md
+docs/
+
+# Vite 캐시
+.vite/
+
+# 기타
+.cache/
+temp/
+tmp/
+

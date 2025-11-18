@@ -1,4 +1,5 @@
 import { NotificationTransaction } from '../models/Notification/NotificationTransactions';
+import { CongestionTransaction } from '../models/Congestion/CongestionTransactions';
 import { AccidentNotificationTarget } from '../models/Notification/NotificationModel';
 import { Server as SocketIOServer } from 'socket.io';
 import db from '../config/db';
@@ -8,12 +9,14 @@ import { calculateDistance } from '../utils/distanceUtils';
 export class AccidentNotificationService {
   private maxDistanceMeters: number;
   private notificationTransaction: NotificationTransaction;
+  private congestionTransaction: CongestionTransaction;
   private io: SocketIOServer | null = null;
 
   constructor() {
     // 최대 거리 설정 (기본값: 200미터)
     this.maxDistanceMeters = Number(process.env.ACCIDENT_NOTIFICATION_MAX_DISTANCE) || 200;
     this.notificationTransaction = new NotificationTransaction(db);
+    this.congestionTransaction = new CongestionTransaction(db);
   }
 
   /**
@@ -111,7 +114,7 @@ export class AccidentNotificationService {
           console.log(`[사고 알림] 가장 가까운 CCTV 선택 - 사용자: ${userId}, CCTV: ${nearestCCTV.cctv.location} (${nearestCCTV.distance}m)`);
 
           // 가장 가까운 CCTV의 최신 혼잡도 조회
-          const latestCongestion = await this.notificationTransaction.getLatestCongestionByCCTV(
+          const latestCongestion = await this.congestionTransaction.getLatestCongestionByCctv(
             nearestCCTV.cctv.cctv_id
           );
 

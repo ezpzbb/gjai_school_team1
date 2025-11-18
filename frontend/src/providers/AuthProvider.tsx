@@ -31,25 +31,33 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     const initializeAuth = async () => {
       console.log('AuthProvider: Starting auth initialization');
-      if (AuthService.isAuthenticated()) {
-        console.log('AuthProvider: Token found, fetching profile');
-        try {
-          const user = await AuthService.getProfile();
-          console.log('AuthProvider: Profile fetched, setting state', { user });
-          setUser(user);
-          setIsLoggedIn(true);
-        } catch (error) {
-          console.error('AuthProvider: Profile fetch failed', error);
-          setIsLoggedIn(false);
-          setUser(null);
-        }
-      } else {
-        console.log('AuthProvider: No token found');
+      
+      // 토큰 유효성 먼저 확인
+      if (!AuthService.isAuthenticated()) {
+        console.log('AuthProvider: No valid token found');
         setIsLoggedIn(false);
         setUser(null);
+        setIsLoading(false);
+        return;
       }
-      console.log('AuthProvider: Auth initialization complete, isLoading=false');
-      setIsLoading(false);
+      
+      // 유효한 토큰이 있으면 프로필 조회
+      console.log('AuthProvider: Valid token found, fetching profile');
+      try {
+        const user = await AuthService.getProfile();
+        console.log('AuthProvider: Profile fetched, setting state', { user });
+        setUser(user);
+        setIsLoggedIn(true);
+      } catch (error: any) {
+        console.error('AuthProvider: Profile fetch failed', error);
+        // 프로필 조회 실패 시 명확하게 로그아웃 처리
+        AuthService.logout();
+        setIsLoggedIn(false);
+        setUser(null);
+      } finally {
+        console.log('AuthProvider: Auth initialization complete, isLoading=false');
+        setIsLoading(false);
+      }
     };
     initializeAuth();
   }, []);

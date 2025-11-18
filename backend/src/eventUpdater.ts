@@ -10,9 +10,13 @@ dotenv.config();
 // 사고 알림 서비스 import (순환 참조 없음: accidentNotificationService는 EventItem만 import)
 import { accidentNotificationService } from './services/accidentNotificationService';
 
-const API_KEY = process.env.CCTV_KEY || process.env.CCTV_API_KEY || '';
-if (!API_KEY) {
-  throw new Error('CCTV_KEY 또는 CCTV_API_KEY가 .env에 설정되지 않았습니다.');
+// API_KEY를 함수 내부에서 가져오도록 변경 (서버 시작 시 필수 체크 제거)
+function getApiKey(): string {
+  const apiKey = process.env.CCTV_KEY || process.env.CCTV_API_KEY || '';
+  if (!apiKey) {
+    throw new Error('CCTV_KEY 또는 CCTV_API_KEY가 .env에 설정되지 않았습니다.');
+  }
+  return apiKey;
 }
 
 const CA_PATH = process.env.NODE_EXTRA_CA_CERTS || process.env.UTIC_CA_PATH;
@@ -219,8 +223,9 @@ function parsePoliceRecord(record: PoliceEventRaw): EventItem | null {
 }
 
 async function fetchPoliceEvents(): Promise<EventItem[]> {
+  const apiKey = getApiKey(); // 함수 호출 시점에 API_KEY 가져오기
   const params = new URLSearchParams();
-  params.append('key', API_KEY);
+  params.append('key', apiKey);
   params.append('dataType', 'xml');
   params.append('serviceID', 'incident');
 

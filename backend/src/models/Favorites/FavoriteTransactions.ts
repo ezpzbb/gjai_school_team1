@@ -1,12 +1,31 @@
 import { Pool, PoolConnection } from 'mysql2/promise';
 import { Favorite, FavoriteData } from './FavoriteModel';
 import { FavoriteQueries } from './FavoriteQueries';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 export class FavoriteTransaction {
     private pool: Pool;
 
     constructor(pool: Pool) {
         this.pool = pool;
+    }
+
+    /**
+     * Favorite 테이블 초기화
+     * @param connection 데이터베이스 연결
+     */
+    async initializeFavoriteTable(connection: PoolConnection): Promise<void> {
+        try {
+            // Favorite 테이블 생성 (IF NOT EXISTS로 안전하게 처리)
+            console.log('📋 Favorite 테이블 초기화 중...');
+            await connection.execute(FavoriteQueries.CREATE_TABLE);
+            console.log('✅ Favorite 테이블 초기화 완료');
+        } catch (error) {
+            console.error('❌ Favorite 테이블 초기화 실패:', error);
+            throw error;
+        }
     }
 
     async createFavorite(favoriteData: FavoriteData): Promise<Favorite> {

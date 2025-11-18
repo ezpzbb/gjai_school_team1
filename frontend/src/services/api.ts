@@ -1,5 +1,12 @@
 import { CCTV } from '../types/cctv';
 import { Favorite } from '../types/Favorite';
+import {
+  AnalyzedTimeRange,
+  CongestionDataPoint,
+  VehicleStatisticsPoint,
+  DetectionStatistics,
+} from '../types/dashboard';
+import { createApiUrl } from '../config/apiConfig';
 
 const cache: { [key: string]: { data: any; timestamp: number } } = {};
 const CACHE_DURATION = 5 * 60 * 1000; // 5분 캐시
@@ -15,7 +22,7 @@ export const fetchCCTVLocations = async (retries = 3, delay = 2000): Promise<{ s
   const attemptFetch = async (attempt: number): Promise<{ success: boolean; data: CCTV[] }> => {
     try {
       console.log('fetchCCTVLocations: Fetching data');
-      const response = await fetch('/api/cctv/locations', {
+      const response = await fetch(createApiUrl('/api/cctv/locations'), {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`,
         },
@@ -55,7 +62,7 @@ export const getUserFavorites = async (retries = 3, delay = 2000): Promise<Favor
 
   const attemptFetch = async (attempt: number): Promise<Favorite[]> => {
     try {
-      const response = await fetch('/api/favorites/user/me', {
+      const response = await fetch(createApiUrl('/api/favorites/user/me'), {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -87,7 +94,7 @@ export const getUserFavorites = async (retries = 3, delay = 2000): Promise<Favor
 export const addFavorite = async (cctv_id: number): Promise<Favorite> => {
   const token = localStorage.getItem('token');
   console.log('addFavorite: Adding favorite for cctv_id:', cctv_id);
-  const response = await fetch('/api/favorites', {
+  const response = await fetch(createApiUrl('/api/favorites'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -110,7 +117,7 @@ export const removeFavorite = async (cctv_id: number): Promise<void> => {
   if (!token) {
     throw new Error('No authentication token found');
   }
-  const response = await fetch(`/api/favorites/me/${cctv_id}`, {
+  const response = await fetch(createApiUrl(`/api/favorites/me/${cctv_id}`), {
     method: 'DELETE',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -138,7 +145,7 @@ export const searchCCTVLocations = async (query: string): Promise<CCTV[]> => {
 
   try {
     console.log('searchCCTVLocations: Searching with query:', query);
-    const response = await fetch(`/api/cctv/search?q=${encodeURIComponent(query)}`, {
+    const response = await fetch(createApiUrl(`/api/cctv/search?q=${encodeURIComponent(query)}`), {
       headers: {
         Authorization: `Bearer ${localStorage.getItem('token')}`,
       },
@@ -157,6 +164,129 @@ export const searchCCTVLocations = async (query: string): Promise<CCTV[]> => {
     return result.data;
   } catch (error: any) {
     console.error('searchCCTVLocations: Error searching:', error);
+    throw error;
+  }
+};
+
+// 대시보드 API 함수들
+
+/**
+ * 분석 완료 시간대 조회
+ */
+export const getAnalyzedTimeRanges = async (cctvId: number): Promise<AnalyzedTimeRange[]> => {
+  const token = localStorage.getItem('token');
+  try {
+    const response = await fetch(createApiUrl(`/api/dashboard/cctv/${cctvId}/analyzed-time-ranges`), {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const result = await response.json();
+    if (!result.success || !result.data?.timeRanges) {
+      throw new Error('Invalid response format');
+    }
+    return result.data.timeRanges;
+  } catch (error: any) {
+    console.error('getAnalyzedTimeRanges: Error fetching data:', error);
+    throw error;
+  }
+};
+
+/**
+ * 혼잡도 데이터 조회
+ */
+export const getCongestionData = async (
+  cctvId: number,
+  startTime: string,
+  endTime: string
+): Promise<CongestionDataPoint[]> => {
+  const token = localStorage.getItem('token');
+  try {
+    const response = await fetch(
+      createApiUrl(`/api/dashboard/cctv/${cctvId}/congestion?startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`),
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const result = await response.json();
+    if (!result.success || !Array.isArray(result.data)) {
+      throw new Error('Invalid response format');
+    }
+    return result.data;
+  } catch (error: any) {
+    console.error('getCongestionData: Error fetching data:', error);
+    throw error;
+  }
+};
+
+/**
+ * 차량 통계 데이터 조회
+ */
+export const getVehicleStatistics = async (
+  cctvId: number,
+  startTime: string,
+  endTime: string
+): Promise<VehicleStatisticsPoint[]> => {
+  const token = localStorage.getItem('token');
+  try {
+    const response = await fetch(
+      createApiUrl(`/api/dashboard/cctv/${cctvId}/vehicles?startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`),
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const result = await response.json();
+    if (!result.success || !Array.isArray(result.data)) {
+      throw new Error('Invalid response format');
+    }
+    return result.data;
+  } catch (error: any) {
+    console.error('getVehicleStatistics: Error fetching data:', error);
+    throw error;
+  }
+};
+
+/**
+ * 객체 유형별 통계 조회
+ */
+export const getDetectionStatistics = async (
+  cctvId: number,
+  startTime: string,
+  endTime: string
+): Promise<DetectionStatistics[]> => {
+  const token = localStorage.getItem('token');
+  try {
+    const response = await fetch(
+      createApiUrl(`/api/dashboard/cctv/${cctvId}/detections?startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`),
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const result = await response.json();
+    if (!result.success || !Array.isArray(result.data)) {
+      throw new Error('Invalid response format');
+    }
+    return result.data;
+  } catch (error: any) {
+    console.error('getDetectionStatistics: Error fetching data:', error);
     throw error;
   }
 };

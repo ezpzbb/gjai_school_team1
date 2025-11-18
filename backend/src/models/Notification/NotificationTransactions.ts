@@ -1,16 +1,36 @@
-import { Pool, RowDataPacket } from 'mysql2/promise';
+import { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { NotificationQueries } from './NotificationQueries';
 import {
   NotificationTarget,
   NotificationHistoryInput,
   AccidentNotificationHistoryInput,
 } from './NotificationModel';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 export class NotificationTransaction {
   private pool: Pool;
 
   constructor(pool: Pool) {
     this.pool = pool;
+  }
+
+  /**
+   * Notification 테이블 초기화
+   * 주의: Frame, Congestion 테이블은 각각의 모델에서 초기화됨
+   * @param connection 데이터베이스 연결
+   */
+  async initializeNotificationTable(connection: PoolConnection): Promise<void> {
+    try {
+      // Notification 테이블 생성 (IF NOT EXISTS로 안전하게 처리)
+      console.log('📋 Notification 테이블 초기화 중...');
+      await connection.execute(NotificationQueries.CREATE_NOTIFICATION_TABLE);
+      console.log('✅ Notification 테이블 초기화 완료');
+    } catch (error) {
+      console.error('❌ Notification 테이블 초기화 실패:', error);
+      throw error;
+    }
   }
 
   /**
@@ -161,33 +181,5 @@ export class NotificationTransaction {
     }
   }
 
-  /**
-   * CCTV의 최신 혼잡도 조회
-   */
-  async getLatestCongestionByCCTV(cctvId: number): Promise<{
-    congestion_id: number;
-    level: number;
-    timestamp: Date;
-  } | null> {
-    try {
-      const [rows] = await this.pool.execute<RowDataPacket[]>(
-        NotificationQueries.GET_LATEST_CONGESTION_BY_CCTV,
-        [cctvId]
-      );
-
-      if (rows.length === 0) {
-        return null;
-      }
-
-      return {
-        congestion_id: rows[0].congestion_id,
-        level: rows[0].level,
-        timestamp: rows[0].timestamp,
-      };
-    } catch (error) {
-      console.error('최신 혼잡도 조회 실패:', error);
-      throw error;
-    }
-  }
 }
 

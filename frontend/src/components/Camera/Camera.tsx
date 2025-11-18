@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Hls from 'hls.js';
+import { createApiUrl } from '../../config/apiConfig';
 
 // 아이콘 컴포넌트들
 const FullscreenIcon: React.FC<{ size?: number; color?: string }> = ({ size = 16, color = 'currentColor' }) => (
@@ -57,6 +58,8 @@ const Camera: React.FC<CameraProps> = ({
   const streamCacheRef = useRef<Record<number, { url: string; expiresAt: number }>>({});
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const retryCountRef = useRef<number>(0);
+  const stallTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const stallStartTimeRef = useRef<number | null>(null);
 
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [isResolving, setIsResolving] = useState(false);
@@ -72,7 +75,7 @@ const Camera: React.FC<CameraProps> = ({
     }
 
     const token = localStorage.getItem('token');
-    const response = await fetch(`/api/cctv/${cctv_id}/stream`, {
+    const response = await fetch(createApiUrl(`/api/cctv/${cctv_id}/stream`), {
       headers: {
         Authorization: token ? `Bearer ${token}` : '',
         'Content-Type': 'application/json',
@@ -107,6 +110,13 @@ const Camera: React.FC<CameraProps> = ({
       clearTimeout(retryTimeoutRef.current);
       retryTimeoutRef.current = null;
     }
+
+    // 멈춤 감지 타이머도 정리
+    if (stallTimerRef.current) {
+      clearTimeout(stallTimerRef.current);
+      stallTimerRef.current = null;
+    }
+    stallStartTimeRef.current = null;
 
     const MAX_RETRIES = 3;
     if (retryCountRef.current >= MAX_RETRIES) {
@@ -171,6 +181,12 @@ const Camera: React.FC<CameraProps> = ({
         clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = null;
       }
+      // 멈춤 감지 타이머도 정리
+      if (stallTimerRef.current) {
+        clearTimeout(stallTimerRef.current);
+        stallTimerRef.current = null;
+      }
+      stallStartTimeRef.current = null;
       return () => {
         cancelled = true;
       };
@@ -249,8 +265,69 @@ const Camera: React.FC<CameraProps> = ({
       retryStreamLoad();
     };
 
+    const STALL_TIMEOUT = 10000; // 10초 이상 멈춰있으면 재시도
+
+    const handleStalled = () => {
+      const videoEl = videoRef.current;
+      if (!videoEl) return;
+
+      // 일시정지 상태가 아니고, 재생 중이어야 함
+      if (videoEl.paused) return;
+
+      if (!stallStartTimeRef.current) {
+        stallStartTimeRef.current = Date.now();
+      }
+
+      // 기존 타이머가 있으면 정리
+      if (stallTimerRef.current) {
+        clearTimeout(stallTimerRef.current);
+      }
+
+      // 10초 후에도 여전히 멈춰있으면 재시도
+      stallTimerRef.current = setTimeout(() => {
+        const currentVideoEl = videoRef.current;
+        if (!currentVideoEl) return;
+
+        // 여전히 멈춰있고, 재생 중이어야 함 (일시정지가 아님)
+        // readyState < 3: HAVE_FUTURE_DATA 미만이면 데이터 부족 상태
+        if (!currentVideoEl.paused && currentVideoEl.readyState < 3) {
+          console.log('Camera: Video stalled for too long, retrying...');
+          setErrorMessage('영상 재생이 멈췄습니다. 자동으로 재시도합니다.');
+          retryStreamLoad();
+        }
+      }, STALL_TIMEOUT);
+    };
+
+    const handleWaiting = () => {
+      // waiting도 stalled와 동일한 로직 적용
+      handleStalled();
+    };
+
+    const handlePlaying = () => {
+      // 재생 재개 시 타이머 정리
+      if (stallTimerRef.current) {
+        clearTimeout(stallTimerRef.current);
+        stallTimerRef.current = null;
+      }
+      stallStartTimeRef.current = null;
+    };
+
+    const handleCanPlay = () => {
+      // 재생 가능 상태면 타이머 정리
+      if (stallTimerRef.current) {
+        clearTimeout(stallTimerRef.current);
+        stallTimerRef.current = null;
+      }
+      stallStartTimeRef.current = null;
+    };
+
     videoElement.addEventListener('loadeddata', handleLoaded);
     videoElement.addEventListener('error', handleError);
+    videoElement.addEventListener('stalled', handleStalled);
+    videoElement.addEventListener('waiting', handleWaiting);
+    videoElement.addEventListener('playing', handlePlaying);
+    videoElement.addEventListener('canplay', handleCanPlay);
+    videoElement.addEventListener('canplaythrough', handleCanPlay);
 
     const isHlsStream = streamUrl.toLowerCase().includes('.m3u8');
 
@@ -278,6 +355,15 @@ const Camera: React.FC<CameraProps> = ({
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         attemptAutoplay();
+      });
+
+      // HLS 프래그먼트 로딩 완료 시 타이머 리셋
+      hls.on(Hls.Events.FRAG_LOADED, () => {
+        if (stallTimerRef.current) {
+          clearTimeout(stallTimerRef.current);
+          stallTimerRef.current = null;
+        }
+        stallStartTimeRef.current = null;
       });
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
@@ -313,6 +399,11 @@ const Camera: React.FC<CameraProps> = ({
       videoElement.pause();
       videoElement.removeEventListener('loadeddata', handleLoaded);
       videoElement.removeEventListener('error', handleError);
+      videoElement.removeEventListener('stalled', handleStalled);
+      videoElement.removeEventListener('waiting', handleWaiting);
+      videoElement.removeEventListener('playing', handlePlaying);
+      videoElement.removeEventListener('canplay', handleCanPlay);
+      videoElement.removeEventListener('canplaythrough', handleCanPlay);
 
       if (hlsInstanceRef.current) {
         hlsInstanceRef.current.destroy();
@@ -324,6 +415,13 @@ const Camera: React.FC<CameraProps> = ({
         clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = null;
       }
+
+      // 멈춤 감지 타이머 정리
+      if (stallTimerRef.current) {
+        clearTimeout(stallTimerRef.current);
+        stallTimerRef.current = null;
+      }
+      stallStartTimeRef.current = null;
     };
   }, [streamUrl, retryStreamLoad]);
 
