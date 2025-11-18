@@ -2,7 +2,7 @@
 
 export const DetectionQueries = {
   CREATE_TABLE: `
-    CREATE TABLE IF NOT EXISTS detection (
+    CREATE TABLE IF NOT EXISTS DETECTION (
       detection_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
       frame_id INT NOT NULL,
       confidence FLOAT NOT NULL CHECK (confidence BETWEEN 0 AND 1),
@@ -14,7 +14,7 @@ export const DetectionQueries = {
       KEY idx_confidence (confidence),
       KEY idx_detected_at (detected_at),
       CONSTRAINT fk_detection_frame
-        FOREIGN KEY (frame_id) REFERENCES frame(frame_id)
+        FOREIGN KEY (frame_id) REFERENCES FRAME(frame_id)
         ON DELETE CASCADE ON UPDATE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   `,

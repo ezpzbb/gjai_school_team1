@@ -28,7 +28,7 @@ export const FavoriteQueries = {
             cctv_id INT NOT NULL,
             added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES User(user_id) ON DELETE CASCADE,
-            FOREIGN KEY (cctv_id) REFERENCES cctv(cctv_id) ON DELETE CASCADE,
+            FOREIGN KEY (cctv_id) REFERENCES CCTV(cctv_id) ON DELETE CASCADE,
             UNIQUE KEY unique_favorite (user_id, cctv_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `,

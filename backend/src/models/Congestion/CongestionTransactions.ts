@@ -19,16 +19,10 @@ export class CongestionTransaction {
    */
   async initializeCongestionTable(connection: PoolConnection): Promise<void> {
     try {
-      const dbName = process.env.DB_NAME || 'new_schema';
-      const [tables] = await connection.execute<RowDataPacket[]>(
-        CongestionQueries.CHECK_TABLE_EXISTS,
-        [dbName]
-      );
-      if (tables.length === 0) {
-        console.log('📋 Congestion 테이블이 없습니다. 생성 중...');
-        await connection.execute(CongestionQueries.CREATE_TABLE);
-        console.log('✅ Congestion 테이블 생성 완료');
-      }
+      // Congestion 테이블 생성 (IF NOT EXISTS로 안전하게 처리)
+      console.log('📋 Congestion 테이블 초기화 중...');
+      await connection.execute(CongestionQueries.CREATE_TABLE);
+      console.log('✅ Congestion 테이블 초기화 완료');
     } catch (error) {
       console.error('❌ Congestion 테이블 초기화 실패:', error);
       throw error;

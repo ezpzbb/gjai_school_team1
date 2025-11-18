@@ -18,18 +18,10 @@ export class FavoriteTransaction {
      */
     async initializeFavoriteTable(connection: PoolConnection): Promise<void> {
         try {
-            // Favorite 테이블 존재 여부 확인
-            const [tables] = await connection.execute<any[]>(
-                FavoriteQueries.CHECK_TABLE_EXISTS,
-                [process.env.DB_NAME || 'new_schema']
-            );
-            
-            // Favorite 테이블이 없으면 생성
-            if (tables.length === 0) {
-                console.log('📋 Favorite 테이블이 없습니다. 생성 중...');
-                await connection.execute(FavoriteQueries.CREATE_TABLE);
-                console.log('✅ Favorite 테이블 생성 완료');
-            }
+            // Favorite 테이블 생성 (IF NOT EXISTS로 안전하게 처리)
+            console.log('📋 Favorite 테이블 초기화 중...');
+            await connection.execute(FavoriteQueries.CREATE_TABLE);
+            console.log('✅ Favorite 테이블 초기화 완료');
         } catch (error) {
             console.error('❌ Favorite 테이블 초기화 실패:', error);
             throw error;

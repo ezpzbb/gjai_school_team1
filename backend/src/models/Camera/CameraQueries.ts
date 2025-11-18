@@ -25,13 +25,13 @@ export const cctvQueries = {
     LIMIT 10
   `,
   CREATE_TABLE: `
-    CREATE TABLE IF NOT EXISTS cctv (
+    CREATE TABLE IF NOT EXISTS CCTV (
       cctv_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
       cctv_code VARCHAR(64) NOT NULL UNIQUE,
       location VARCHAR(125) NOT NULL,
       latitude FLOAT NOT NULL,
       longitude FLOAT NOT NULL,
-      api_endpoint VARCHAR(255) NOT NULL,
+      api_endpoint VARCHAR(512) NOT NULL,
       updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       KEY idx_coords (longitude, latitude),
       KEY idx_location (location)
@@ -41,4 +41,5 @@ export const cctvQueries = {
     SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES 
     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'cctv'
   `,
+  COUNT_CCTV: 'SELECT COUNT(*) as count FROM CCTV',
 };

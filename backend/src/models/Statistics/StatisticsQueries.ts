@@ -2,7 +2,7 @@
 
 export const StatisticsQueries = {
   CREATE_TABLE: `
-    CREATE TABLE IF NOT EXISTS statistics (
+    CREATE TABLE IF NOT EXISTS STATISTICS (
       statistics_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
       detection_id INT NOT NULL,
       object_count INT NOT NULL DEFAULT 0,
@@ -11,7 +11,7 @@ export const StatisticsQueries = {
       KEY idx_object_count (object_count),
       KEY idx_vehicle_total (vehicle_total),
       CONSTRAINT fk_statistics_detection
-        FOREIGN KEY (detection_id) REFERENCES detection(detection_id)
+        FOREIGN KEY (detection_id) REFERENCES DETECTION(detection_id)
         ON DELETE CASCADE ON UPDATE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   `,

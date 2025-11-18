@@ -103,7 +103,7 @@ export const NotificationQueries = {
   `,
 
   CREATE_NOTIFICATION_TABLE: `
-    CREATE TABLE IF NOT EXISTS notification (
+    CREATE TABLE IF NOT EXISTS NOTIFICATION (
       notification_id INT AUTO_INCREMENT PRIMARY KEY,
       notification_type ENUM('congestion', 'accident') NOT NULL DEFAULT 'congestion',
       congestion_id INT NULL,
@@ -120,13 +120,13 @@ export const NotificationQueries = {
       KEY idx_sent_at (sent_at),
       KEY idx_notification_type (notification_type),
       CONSTRAINT fk_notification_congestion
-        FOREIGN KEY (congestion_id) REFERENCES congestion(congestion_id)
+        FOREIGN KEY (congestion_id) REFERENCES CONGESTION(congestion_id)
         ON DELETE CASCADE ON UPDATE CASCADE,
       CONSTRAINT fk_notification_user
         FOREIGN KEY (user_id) REFERENCES User(user_id)
         ON DELETE CASCADE ON UPDATE CASCADE,
       CONSTRAINT fk_notification_cctv
-        FOREIGN KEY (cctv_id) REFERENCES cctv(cctv_id)
+        FOREIGN KEY (cctv_id) REFERENCES CCTV(cctv_id)
         ON DELETE CASCADE ON UPDATE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   `,

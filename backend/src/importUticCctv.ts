@@ -304,11 +304,11 @@ async function saveCctvToDatabase(
     }
     const finalLocation = trimmedLocation.substring(0, 125);
 
-    // api_endpoint: VARCHAR(444) - 최대 444자
-    if (apiEndpoint.length > 444) {
-      console.warn(`⚠️  api_endpoint가 444자를 초과합니다. 잘라냅니다: ${apiEndpoint.substring(0, 444)}...`);
+    // api_endpoint: VARCHAR(512) - 최대 512자
+    if (apiEndpoint.length > 512) {
+      console.warn(`⚠️  api_endpoint가 512자를 초과합니다. 잘라냅니다: ${apiEndpoint.substring(0, 512)}...`);
     }
-    const finalApiEndpoint = apiEndpoint.substring(0, 444);
+    const finalApiEndpoint = apiEndpoint.substring(0, 512);
 
     // cctv_code는 SHA256 해시이므로 정확히 64자리임이 보장됨 (VARCHAR(64)에 맞음)
 
@@ -340,7 +340,13 @@ async function saveCctvToDatabase(
 }
 
 // 메인 실행 함수
-async function main() {
+// @param options - 실행 옵션
+//   - isStandalone: 독립 실행 모드인지 여부 (기본값: false)
+//     true: pool.end() 호출 및 process.exit() 사용
+//     false: pool.end() 호출 안 함, 에러 throw
+async function main(options: { isStandalone?: boolean } = {}) {
+  const { isStandalone = false } = options;
+  
   try {
     console.log('='.repeat(60));
     console.log('UTIC CCTV XLSX 임포트 시작');
@@ -348,9 +354,13 @@ async function main() {
 
     // CCTV_KEY 환경변수 확인
     if (!process.env.CCTV_KEY) {
-      console.error('\n❌ 오류: CCTV_KEY가 .env 파일에 설정되지 않았습니다.');
-      console.log('백엔드 폴더의 .env 파일에 CCTV_KEY를 추가해주세요.');
-      process.exit(1);
+      const errorMsg = 'CCTV_KEY가 .env 파일에 설정되지 않았습니다. 백엔드 폴더의 .env 파일에 CCTV_KEY를 추가해주세요.';
+      console.error(`\n❌ 오류: ${errorMsg}`);
+      if (isStandalone) {
+        process.exit(1);
+      } else {
+        throw new Error(errorMsg);
+      }
     }
     console.log('✅ CCTV_KEY 확인 완료');
 
@@ -362,17 +372,29 @@ async function main() {
     console.log(`파일 존재 여부: ${fs.existsSync(xlsxFilePath) ? '✅ 있음' : '❌ 없음'}`);
     
     if (!fs.existsSync(xlsxFilePath)) {
-      console.error(`\n❌ 오류: XLSX 파일을 찾을 수 없습니다.`);
-      console.log(`파일을 다음 경로에 위치시켜주세요: ${xlsxFilePath}`);
-      process.exit(1);
+      const errorMsg = `XLSX 파일을 찾을 수 없습니다. 파일을 다음 경로에 위치시켜주세요: ${xlsxFilePath}`;
+      console.error(`\n❌ 오류: ${errorMsg}`);
+      if (isStandalone) {
+        process.exit(1);
+      } else {
+        // 라이브러리 모드에서는 파일이 없어도 백엔드 시작을 막지 않음
+        console.warn('⚠️  CCTV 자동 임포트를 건너뜁니다. (백엔드는 정상 시작됩니다)');
+        return;
+      }
     }
 
     // XLSX 파일 읽기
     const rows = readXlsxFile(xlsxFilePath);
 
     if (rows.length === 0) {
-      console.log('❌ XLSX 파일에 데이터가 없습니다.');
-      process.exit(1);
+      const errorMsg = 'XLSX 파일에 데이터가 없습니다.';
+      console.log(`❌ ${errorMsg}`);
+      if (isStandalone) {
+        process.exit(1);
+      } else {
+        console.warn('⚠️  CCTV 자동 임포트를 건너뜁니다. (백엔드는 정상 시작됩니다)');
+        return;
+      }
     }
 
     // 데이터 처리 및 저장
@@ -563,21 +585,36 @@ async function main() {
     console.log(`❌ 오류: ${errors}개`);
     console.log('='.repeat(60));
 
-    // 데이터베이스 연결 풀 종료
-    await pool.end();
-    console.log('\n✅ 데이터베이스 연결 풀 종료');
+    // 데이터베이스 연결 풀 종료 (독립 실행 모드에서만)
+    if (isStandalone) {
+      await pool.end();
+      console.log('\n✅ 데이터베이스 연결 풀 종료');
+    }
 
   } catch (error: any) {
     console.error('\n❌ 오류 발생:', error.message);
     console.error(error.stack);
-    await pool.end();
-    process.exit(1);
+    
+    // 독립 실행 모드에서만 pool 종료 및 프로세스 종료
+    if (isStandalone) {
+      try {
+        await pool.end();
+      } catch (poolError) {
+        // 무시
+      }
+      process.exit(1);
+    } else {
+      // 라이브러리 모드에서는 에러를 throw하여 호출자가 처리하도록 함
+      // 하지만 백엔드 시작을 막지 않기 위해 경고만 출력
+      console.warn('⚠️  CCTV 자동 임포트 실패. 백엔드는 정상 시작됩니다.');
+      throw error;
+    }
   }
 }
 
-// 스크립트 실행
+// 스크립트 실행 (독립 실행 모드)
 if (require.main === module) {
-  main().catch((error) => {
+  main({ isStandalone: true }).catch((error) => {
     console.error('예상치 못한 오류:', error);
     process.exit(1);
   });
