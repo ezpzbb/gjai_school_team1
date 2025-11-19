@@ -4,7 +4,6 @@ import { useAuth } from './providers/AuthProvider';
 import { useNotification } from './providers/NotificationProvider';
 import MainPage from './pages/MainPage';
 import LoginForm from './components/LoginForm';
-import Home from './pages/Home';
 import FavoritePage from './pages/FavoritePage';
 import KakaoMapPage from './pages/KakaoMapPage';
 import DashBoardPage from './pages/DashBoardPage';
@@ -27,23 +26,29 @@ const App: React.FC = () => {
       <Route path="/" element={<MainPage />}>
         <Route
           index
-          element={isLoggedIn ? <Navigate to="/home" /> : <Navigate to="/auth/login" />}
-        />
-        <Route
-          path="/home"
-          element={isLoggedIn ? <Home /> : <Navigate to="/auth/login" />}
+          element={isLoggedIn ? <Navigate to="/dashboard" replace /> : <Navigate to="/auth/login" replace />}
         />
         <Route
           path="/dashboard"
-          element={isLoggedIn ? <DashBoardPage /> : <Navigate to="/auth/login" />}
+          element={isLoggedIn ? <DashBoardPage /> : <Navigate to="/auth/login" replace />}
         />
         <Route
           path="/kakao-map"
-          element={isLoggedIn ? <KakaoMapPage /> : <Navigate to="/auth/login" />}
+          element={isLoggedIn ? <KakaoMapPage /> : <Navigate to="/auth/login" replace />}
         />
         <Route
           path="/favorite"
-          element={isLoggedIn ? <FavoritePage /> : <Navigate to="/auth/login" />}
+          element={isLoggedIn ? <FavoritePage /> : <Navigate to="/auth/login" replace />}
+        />
+        {/* 이전 /home 경로를 대시보드로 리다이렉트 */}
+        <Route
+          path="/home"
+          element={<Navigate to="/dashboard" replace />}
+        />
+        {/* 알 수 없는 경로는 대시보드로 리다이렉트 */}
+        <Route
+          path="*"
+          element={isLoggedIn ? <Navigate to="/dashboard" replace /> : <Navigate to="/auth/login" replace />}
         />
       </Route>
       <Route path="/auth/login" element={<LoginForm />} />

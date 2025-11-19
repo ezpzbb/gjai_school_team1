@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useData } from '../providers/DataProvider';
+import { useLayout } from '../providers/LayoutProvider';
 import {
   getAnalyzedTimeRanges,
   getCongestionData,
@@ -19,6 +20,7 @@ import ObjectTypeChart from '../components/Dashboard/ObjectTypeChart';
 
 const DashBoardPage: React.FC = () => {
   const { favorites, getCctvById } = useData();
+  const { sidebarCollapsed } = useLayout();
 
   // 즐겨찾기 CCTV 목록 (메모이제이션)
   const favoriteCCTVs = useMemo(
@@ -178,8 +180,30 @@ const DashBoardPage: React.FC = () => {
     alert('보고서 출력 기능은 추후 구현 예정입니다.');
   }, []);
 
+  // 레이아웃 계산: 사이드바 상태에 따른 위치/너비 계산
+  // 대시보드 페이지에서는 우측 대시보드 컴포넌트가 없으므로 rightMargin은 0
+  const containerStyle = useMemo(() => {
+    const sidebarWidth = sidebarCollapsed ? 64 : 224; // 4rem = 64px, 14rem = 224px
+    const leftMargin = sidebarWidth + 16; // 사이드바 너비 + 여백 (1rem = 16px)
+    const rightMargin = 16; // 우측 여백만 (0.5rem + 0.5rem = 16px)
+    const topOffset = 80; // 헤더 높이 + 여백 (4rem + 0.5rem + 0.5rem = 80px)
+    
+    return {
+      position: 'fixed' as const,
+      top: `${topOffset}px`,
+      left: `${leftMargin}px`,
+      right: `${rightMargin}px`,
+      height: `calc(100vh - ${topOffset}px - 0.5rem)`,
+      width: `calc(100vw - ${leftMargin}px - ${rightMargin}px)`,
+      zIndex: 10, // 사이드바 버튼(z-50)보다 낮게 설정
+    };
+  }, [sidebarCollapsed]);
+
   return (
-    <div className="h-[calc(100vh-4rem-1rem)] flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
+    <div 
+      className="flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden transition-all duration-300"
+      style={containerStyle}
+    >
       <div className="flex-1 flex flex-col p-3 min-h-0 overflow-hidden">
         {/* 헤더 */}
         <div className="mb-2 flex-shrink-0">
