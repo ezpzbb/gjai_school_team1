@@ -1,11 +1,10 @@
 import { Router, Request, Response } from "express";
-import { Pool } from "mysql2/promise";
 import { VehicleUpdatePayload } from "../services/detectionService";
 
-export const setupDetectionRoutes = (dbPool: Pool): Router => {
+export const setupDetectionRoutes = (): Router => {
   const router = Router();
 
-  router.post("/detection", async (req: Request, res: Response) => {
+  router.post("/detection", (req: Request, res: Response) => {
     try {
       const { cctvId, timestamp, detections, roiPolygon } = req.body as VehicleUpdatePayload;
 
@@ -15,33 +14,7 @@ export const setupDetectionRoutes = (dbPool: Pool): Router => {
 
       const tsSec = typeof timestamp === "number" ? timestamp : Date.now() / 1000;
 
-      const conn = await dbPool.getConnection();
-      try {
-        await conn.beginTransaction();
-
-        // 예: detection 테이블에 cls/conf만 저장 (bbox는 선택)
-        const insertSql = `
-          INSERT INTO detection (frame_id, class_name, confidence, bounding_box, detected_at)
-          VALUES (?, ?, ?, ?, FROM_UNIXTIME(?))
-        `;
-
-        for (const det of detections) {
-          const bboxText = JSON.stringify(det.bbox || []);
-          await conn.query(insertSql, [
-            cctvId, // frame_id 자리: 현재 구조에서는 cctvId를 FK처럼 사용
-            det.cls,
-            det.conf,
-            bboxText,
-            tsSec,
-          ]);
-        }
-
-        await conn.commit();
-      } finally {
-        conn.release();
-      }
-
-      // 실시간 브로드캐스트
+      // DB 저장 없이, 실시간 시각화용 소켓 브로드캐스트만
       if (globalThis.vehicleUpdateCallback) {
         globalThis.vehicleUpdateCallback({
           cctvId,
@@ -51,10 +24,10 @@ export const setupDetectionRoutes = (dbPool: Pool): Router => {
         });
       }
 
-      res.json({ success: true });
+      return res.json({ success: true });
     } catch (err: any) {
       console.error("vehicle/analysis error", err);
-      res.status(500).json({ success: false, message: err.message });
+      return res.status(500).json({ success: false, message: err.message });
     }
   });
 

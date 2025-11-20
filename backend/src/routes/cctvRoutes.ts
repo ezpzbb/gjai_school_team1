@@ -1,26 +1,26 @@
-import { Router, Request, Response } from 'express';
-import { Pool } from 'mysql2/promise';
-import { CCTVService } from '../services/cctvService';
+import { Router, Request, Response } from "express";
+import { Pool } from "mysql2/promise";
+import { CCTVService } from "../services/cctvService";
 
 const router = Router();
 
 export const setupCCTVRoutes = (dbPool: Pool): Router => {
   const cctvService = new CCTVService(dbPool);
 
-  router.get('/cctv/locations', async (req: Request, res: Response) => {
+  router.get("/cctv/locations", async (req: Request, res: Response) => {
     try {
-      console.log('CCTVRoutes: Handling /api/cctv/locations request', {
+      console.log("CCTVRoutes: Handling /api/cctv/locations request", {
         method: req.method,
         url: req.originalUrl,
       });
       const cctvLocations = await cctvService.getCCTVLocations();
-      console.log('CCTVRoutes: CCTV locations fetched:', cctvLocations);
+      console.log("CCTVRoutes: CCTV locations fetched:", cctvLocations);
       res.status(200).json({
         success: true,
         data: cctvLocations,
       });
     } catch (error: any) {
-      console.error('CCTVRoutes: Error in /api/cctv/locations:', {
+      console.error("CCTVRoutes: Error in /api/cctv/locations:", {
         message: error.message,
         stack: error.stack,
       });
@@ -31,16 +31,16 @@ export const setupCCTVRoutes = (dbPool: Pool): Router => {
     }
   });
 
-  router.get('/cctv/search', async (req: Request, res: Response) => {
+  router.get("/cctv/search", async (req: Request, res: Response) => {
     try {
       const query = req.query.q as string;
-      console.log('CCTVRoutes: Handling /api/cctv/search request', {
+      console.log("CCTVRoutes: Handling /api/cctv/search request", {
         method: req.method,
         url: req.originalUrl,
         query: query,
       });
 
-      if (!query || query.trim() === '') {
+      if (!query || query.trim() === "") {
         return res.status(200).json({
           success: true,
           data: [],
@@ -48,13 +48,13 @@ export const setupCCTVRoutes = (dbPool: Pool): Router => {
       }
 
       const cctvLocations = await cctvService.searchCCTVLocations(query);
-      console.log('CCTVRoutes: CCTV search results:', cctvLocations);
+      console.log("CCTVRoutes: CCTV search results:", cctvLocations);
       res.status(200).json({
         success: true,
         data: cctvLocations,
       });
     } catch (error: any) {
-      console.error('CCTVRoutes: Error in /api/cctv/search:', {
+      console.error("CCTVRoutes: Error in /api/cctv/search:", {
         message: error.message,
         stack: error.stack,
       });
@@ -65,17 +65,17 @@ export const setupCCTVRoutes = (dbPool: Pool): Router => {
     }
   });
 
-  router.get('/cctv/:cctvId/stream', async (req: Request, res: Response) => {
+  router.get("/cctv/:cctvId/stream", async (req: Request, res: Response) => {
     const cctvId = Number(req.params.cctvId);
     if (Number.isNaN(cctvId)) {
       return res.status(400).json({
         success: false,
-        message: '유효한 CCTV ID를 입력해주세요.',
+        message: "유효한 CCTV ID를 입력해주세요.",
       });
     }
 
     try {
-      console.log('CCTVRoutes: Handling /api/cctv/:id/stream request', {
+      console.log("CCTVRoutes: Handling /api/cctv/:id/stream request", {
         method: req.method,
         url: req.originalUrl,
         cctvId,
@@ -90,13 +90,13 @@ export const setupCCTVRoutes = (dbPool: Pool): Router => {
         },
       });
     } catch (error: any) {
-      console.error('CCTVRoutes: Error resolving CCTV stream', {
+      console.error("CCTVRoutes: Error resolving CCTV stream", {
         message: error.message,
         stack: error.stack,
       });
       res.status(502).json({
         success: false,
-        message: error.message || 'CCTV 스트림을 불러오지 못했습니다.',
+        message: error.message || "CCTV 스트림을 불러오지 못했습니다.",
       });
     }
   });

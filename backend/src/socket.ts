@@ -36,6 +36,11 @@ export function setupSocketHandlers(io: SocketIOServer): void {
     console.log(`이벤트 업데이트 전송: ${events.length}개`);
   });
 
+  globalThis.vehicleUpdateCallback = (payload: VehicleUpdatePayload) => {
+    const room = `${VEHICLE_ROOM_PREFIX}${payload.cctvId}`;
+    io.to(room).emit("vehicle-update", payload);
+  };
+
   io.on("connection", (socket) => {
     console.log(`클라이언트 연결됨: ${socket.id}`);
 

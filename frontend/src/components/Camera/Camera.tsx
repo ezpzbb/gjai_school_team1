@@ -3,6 +3,7 @@ import Hls from "hls.js";
 import { createApiUrl } from "../../config/apiConfig";
 import { socketService } from "../../services/socket";
 import { VehicleDetectionItem } from "../../types/vehicle";
+import LiveModelViewer from "./LiveModelViewer";
 
 // 아이콘 컴포넌트들
 const FullscreenIcon: React.FC<{ size?: number; color?: string }> = ({ size = 16, color = "currentColor" }) => (
@@ -71,7 +72,7 @@ const Camera: React.FC<CameraProps> = ({
   const streamCacheRef = useRef<Record<number, { url: string; expiresAt: number }>>({});
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const retryCountRef = useRef<number>(0);
-
+  const modelStreamRef = useRef<HTMLImageElement | null>(null); // 모델 MJPEG 스트림용
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [isResolving, setIsResolving] = useState(false);
   const [isVideoReady, setIsVideoReady] = useState(false);
@@ -228,6 +229,18 @@ const Camera: React.FC<CameraProps> = ({
       return;
     }
 
+    if (isAnalyzing) {
+      if (hlsInstanceRef.current) {
+        hlsInstanceRef.current.destroy();
+        hlsInstanceRef.current = null;
+      }
+      videoElement.pause();
+      videoElement.removeAttribute("src");
+      videoElement.load();
+      setIsVideoReady(false);
+      return;
+    }
+
     if (!streamUrl) {
       if (hlsInstanceRef.current) {
         hlsInstanceRef.current.destroy();
@@ -337,7 +350,7 @@ const Camera: React.FC<CameraProps> = ({
         retryTimeoutRef.current = null;
       }
     };
-  }, [streamUrl, retryStreamLoad]);
+  }, [streamUrl, retryStreamLoad, isAnalyzing]);
 
   const videoObjectFit = useMemo(() => {
     if (pageType === "kakao-map") {
@@ -360,7 +373,6 @@ const Camera: React.FC<CameraProps> = ({
 
   // 모델의 바운딩 박스 값으로 오버레이 시각화
   useEffect(() => {
-    // 소켓 연결 및 vehicle-updates 구독
     const unsubscribe = socketService.onVehicleUpdate(cctv_id, (payload) => {
       const canvas = overlayCanvasRef.current;
       const videoEl = videoRef.current;
@@ -369,48 +381,102 @@ const Camera: React.FC<CameraProps> = ({
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
-      // canvas 크기를 video와 동기화
+      // video 크기에 맞게 canvas 맞추기
       canvas.width = videoEl.clientWidth;
       canvas.height = videoEl.clientHeight;
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.strokeStyle = "lime";
-      ctx.lineWidth = 2;
+
+      // 분석 중이 아니면 여기서 리턴
+      if (!isAnalyzing) {
+        return;
+      }
 
       // ROI 폴리곤 그리기
       if (payload.roiPolygon) {
         const scaleX = canvas.width / videoEl.videoWidth;
         const scaleY = canvas.height / videoEl.videoHeight;
         ctx.beginPath();
-        payload.roiPolygon.forEach(([x, y]: [number, number], idx: number) => {
+        payload.roiPolygon.forEach(([x, y], idx) => {
           const sx = x * scaleX;
           const sy = y * scaleY;
           if (idx === 0) ctx.moveTo(sx, sy);
           else ctx.lineTo(sx, sy);
         });
         ctx.closePath();
+        ctx.strokeStyle = "lime";
+        ctx.lineWidth = 2;
         ctx.stroke();
       }
 
-      // bbox 그리기
+      // bbox + cls/conf 라벨
+      ctx.font = "12px sans-serif";
+      ctx.textBaseline = "top";
+
       payload.detections.forEach((det: VehicleDetectionItem) => {
         const [x1, y1, x2, y2] = det.bbox;
         const scaleX = canvas.width / videoEl.videoWidth;
         const scaleY = canvas.height / videoEl.videoHeight;
-        ctx.strokeStyle = "yellow";
-        ctx.strokeRect(x1 * scaleX, y1 * scaleY, (x2 - x1) * scaleX, (y2 - y1) * scaleY);
 
-        ctx.fillStyle = "rgba(0,0,0,0.5)";
-        ctx.fillRect(x1 * scaleX, (y1 - 18) * scaleY, 80, 18);
+        const sx = x1 * scaleX;
+        const sy = y1 * scaleY;
+        const sw = (x2 - x1) * scaleX;
+        const sh = (y2 - y1) * scaleY;
+
+        // 박스
+        ctx.strokeStyle = "yellow";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(sx, sy, sw, sh);
+
+        // 라벨 박스 + 텍스트: "cls conf%"
+        const label = `${det.cls} ${(det.conf * 100).toFixed(1)}%`;
+        const paddingX = 4;
+        const paddingY = 2;
+        const textWidth = ctx.measureText(label).width;
+        const labelHeight = 12 + paddingY * 2; // 폰트 높이(대략 12px) + padding
+
+        const labelTop = sy - labelHeight;
+        const safeLabelTop = labelTop < 0 ? 0 : labelTop;
+
+        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        ctx.fillRect(sx, safeLabelTop, textWidth + paddingX * 2, labelHeight);
+
         ctx.fillStyle = "white";
-        ctx.fillText(`${det.cls} ${(det.conf * 100).toFixed(1)}%`, x1 * scaleX + 4, (y1 - 6) * scaleY);
+        ctx.fillText(label, sx + paddingX, safeLabelTop + paddingY);
       });
     });
 
     return () => {
       unsubscribe();
     };
-  }, [cctv_id]);
+  }, [cctv_id, isAnalyzing]);
+
+  // 분석 모드일 때 모델 서버(MJPEG)를 백그라운드로 호출해 디텍션을 발생시킴
+  useEffect(() => {
+    // 즐겨찾기 분석 모드가 아니면 아무 것도 하지 않음
+    if (!isAnalyzing) {
+      if (modelStreamRef.current) {
+        // 기존 스트림 정리
+        modelStreamRef.current.src = "";
+        modelStreamRef.current = null;
+      }
+      return;
+    }
+
+    // 모델 MJPEG 스트림 시작
+    const img = new Image();
+    // nginx 설정에 따라 /model/ 경로는 FastAPI(model)로 프록시됨
+    img.src = createApiUrl(`/model/view/mjpeg?cctv_id=${cctv_id}`);
+    modelStreamRef.current = img;
+
+    // 언마운트 또는 분석 모드 종료 시 스트림 정리
+    return () => {
+      if (modelStreamRef.current) {
+        modelStreamRef.current.src = "";
+        modelStreamRef.current = null;
+      }
+    };
+  }, [cctv_id, isAnalyzing]);
 
   const isLoading = isResolving || (!!streamUrl && !isVideoReady && !errorMessage);
 
@@ -644,32 +710,37 @@ const Camera: React.FC<CameraProps> = ({
               alignItems: "center",
             }}
           >
-            <video
-              ref={videoRef}
-              autoPlay
-              muted
-              playsInline
-              controls
-              title={`CCTV ${location || cctv_id}`}
-              data-cctv-id={cctv_id}
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: videoObjectFit,
-                backgroundColor: "#000",
-              }}
-            >
-              <canvas
-                ref={overlayCanvasRef}
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  pointerEvents: "none",
-                }}
-              />
-              {streamUrl && resolvedMimeType && <source src={streamUrl} type={resolvedMimeType} />}
-            </video>
-
+            {isAnalyzing ? (
+              <LiveModelViewer cctvId={cctv_id} />
+            ) : (
+              <>
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  muted
+                  playsInline
+                  controls
+                  title={`CCTV ${location || cctv_id}`}
+                  data-cctv-id={cctv_id}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: videoObjectFit,
+                    backgroundColor: "#000",
+                  }}
+                >
+                  {streamUrl && resolvedMimeType && <source src={streamUrl} type={resolvedMimeType} />}
+                </video>
+                <canvas
+                  ref={overlayCanvasRef}
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    pointerEvents: "none",
+                  }}
+                />
+              </>
+            )}
             {isLoading && (
               <div
                 style={{

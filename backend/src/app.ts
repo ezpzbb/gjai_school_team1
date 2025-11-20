@@ -107,7 +107,7 @@ export const initializeApp = async (): Promise<Express> => {
   app.use("/api/users/login", loginLimiter);
   app.use("/api/users", userRoutes);
   app.use("/api", setupCCTVRoutes(dbPool));
-  app.use("/api", setupDetectionRoutes(dbPool)); // 모델 결과 값 라우터 추가
+  app.use("/api", setupDetectionRoutes()); // 모델 결과 값 라우터 추가
   app.use("/api/favorites", favoriteRoutes(dbPool));
   app.use("/api/notifications", notificationRoutes);
   app.use("/api/congestion", congestionRoutes);

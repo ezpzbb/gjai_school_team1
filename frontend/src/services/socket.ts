@@ -31,6 +31,13 @@ class SocketService {
       if (this.eventListeners.has("event-update")) {
         this.socket?.emit("join-events");
       }
+      // vehicle 리스너들에 대해 룸 재입장
+      if (this.socket) {
+        this.vehicleListeners.forEach((_set, cctvId) => {
+          this.socket!.emit("join-vehicle", cctvId);
+        });
+      }
+
       // 연결 시 자동으로 인증 시도
       const token = localStorage.getItem("token");
       if (token) {
@@ -147,6 +154,7 @@ class SocketService {
     }
 
     this.socket?.on("vehicle-update", (payload: VehicleUpdatePayload) => {
+      console.log("[socket] vehicle-update 수신:", payload);
       if (payload.cctvId !== cctvId) return;
       const set = this.vehicleListeners.get(cctvId);
       if (!set) return;
