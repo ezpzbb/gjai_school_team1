@@ -1,89 +1,93 @@
+version: "3.8"
+
 services:
-  # 백엔드 서비스
+  # 정적 웹서버
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    restart: always
+    depends_on:
+      - backend
+      - model
+      - frontend
+    ports:
+      - "8080:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # - ./frontend/dist:/usr/share/nginx/html:ro
+    networks:
+      - app_networks
+
+  # 웹용 백엔드
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: vehicle-monitoring-backend
+    container_name: backend
+    restart: always
+    depends_on:
+      - mysql
+    env_file:
+      - ./backend/.env
+    expose:
+      - "3001"
     ports:
-      - "${BACKEND_PORT:-3002}:3002"
-    environment:
-      # 데이터베이스 설정
-      DB_HOST: ${DB_HOST:-localhost}
-      DB_PORT: ${DB_PORT:-3306}
-      DB_USERNAME: ${DB_USERNAME:-root}
-      DB_PASSWORD: ${DB_PASSWORD}
-      DB_NAME: ${DB_NAME:-your_database}
-      # 서버 설정
-      NODE_ENV: ${NODE_ENV:-production}
-      PORT: ${PORT:-3002}
-      HOST: 0.0.0.0
-      # CORS 설정 (다중 origin 지원)
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
-      CORS_CREDENTIALS: ${CORS_CREDENTIALS:-true}
-      # JWT 설정
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
-      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
-      # 관리자 계정 설정 (필수)
-      ADMIN_USERNAME: ${ADMIN_USERNAME}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      ADMIN_EMAIL: ${ADMIN_EMAIL}
-      # CCTV API 설정 (경찰청 UTIC API)
-      CCTV_KEY: ${CCTV_KEY}
-      CCTV_API_KEY: ${CCTV_API_KEY}
-      NODE_EXTRA_CA_CERTS: ${NODE_EXTRA_CA_CERTS}
-      UTIC_CA_PATH: ${NODE_EXTRA_CA_CERTS}
-      # 알림 설정
-      CONGESTION_THRESHOLD: ${CONGESTION_THRESHOLD:-70}
-      ACCIDENT_NOTIFICATION_MAX_DISTANCE: ${ACCIDENT_NOTIFICATION_MAX_DISTANCE:-200}
-      # 기타 환경 변수
-      DEBUG: ${DEBUG:-false}
-    volumes:
-      # 업로드 파일 영구 저장 (필요한 경우)
-      - ./backend/Uploads:/app/Uploads
-      # 인증서 파일 마운트 (경찰청 UTIC API용)
-      - ./backend/certs:/app/certs:ro
+      - "3001:3001"
     networks:
-      - app-network
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3002/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    restart: unless-stopped
+      - app_networks
 
-  # 프론트엔드 서비스
+  # 모델 학습 및 서빙(fastAPI)
+  model:
+    build:
+      context: ./traffic_model
+      dockerfile: Dockerfile
+    container_name: model
+    restart: always
+    env_file:
+      - ./traffic_model/.env
+      - ./backend/.env # url값을 받기 위해 db 연동 (backend .env 활용)
+    expose:
+      - "8000"
+    networks:
+      - app_networks
+
+  # 프론드엔트
   frontend:
+    container_name: frontend
+    restart: always
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        # 빌드 시 환경 변수 주입 (VITE_ 접두사가 있는 변수들)
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:3002}
-        VITE_SOCKET_URL: ${VITE_SOCKET_URL:-http://localhost:3002}
-        VITE_KAKAO_API_KEY: ${VITE_KAKAO_API_KEY}
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
-        VITE_WS_URL: ${VITE_WS_URL:-ws://localhost:5000}
-        VITE_CAMERA_STREAM_URL: ${VITE_CAMERA_STREAM_URL:-/stream}
-    container_name: vehicle-monitoring-frontend
-    ports:
-      - "${FRONTEND_PORT:-80}:80"
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
+    env_file:
+      - ./frontend/.env
+    expose:
+      - "3000"
     networks:
-      - app-network
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 5s
-    restart: unless-stopped
+      - app_networks
+
+  # 데이터베이스
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    restart: always
+    volumes:
+      - mydata:/var/lib/mysql
+    expose:
+      - "3306"
+    environment:
+      MYSQL_DATABASE: new_schema
+      MYSQL_USER: test
+      MYSQL_ROOT_PASSWORD: root123123
+      MYSQL_PASSWORD: "wlqrkrhtlvek1!"
+    networks:
+      - app_networks
+
+volumes:
+  mydata:
 
 networks:
-  app-network:
+  app_networks:
     driver: bridge
-

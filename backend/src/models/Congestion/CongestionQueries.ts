@@ -2,7 +2,7 @@
 
 export const CongestionQueries = {
   CREATE_TABLE: `
-    CREATE TABLE IF NOT EXISTS CONGESTION (
+    CREATE TABLE IF NOT EXISTS congestion (
       congestion_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
       frame_id INT NOT NULL,
       timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -12,7 +12,7 @@ export const CongestionQueries = {
       KEY idx_timestamp (timestamp),
       KEY idx_level (level),
       CONSTRAINT fk_congestion_frame
-        FOREIGN KEY (frame_id) REFERENCES FRAME(frame_id)
+        FOREIGN KEY (frame_id) REFERENCES frame(frame_id)
         ON DELETE CASCADE ON UPDATE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   `,
@@ -70,4 +70,3 @@ export const CongestionQueries = {
     ORDER BY f.timestamp ASC
   `,
 } as const;
-
