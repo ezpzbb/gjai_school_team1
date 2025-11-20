@@ -2,7 +2,7 @@
 
 export const FrameQueries = {
   CREATE_TABLE: `
-    CREATE TABLE IF NOT EXISTS FRAME (
+    CREATE TABLE IF NOT EXISTS frame (
       frame_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
       cctv_id INT NOT NULL,
       timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -10,7 +10,7 @@ export const FrameQueries = {
       KEY idx_cctv_timestamp (cctv_id, timestamp),
       KEY idx_timestamp (timestamp),
       CONSTRAINT fk_frame_cctv
-        FOREIGN KEY (cctv_id) REFERENCES CCTV(cctv_id)
+        FOREIGN KEY (cctv_id) REFERENCES cctv(cctv_id)
         ON DELETE CASCADE ON UPDATE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   `,
@@ -79,4 +79,3 @@ export const FrameQueries = {
     LIMIT 100
   `,
 } as const;
-

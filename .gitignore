@@ -81,3 +81,5 @@ cctv.ts
 
 # 인증서
 backend/certs/
+
+*.yml

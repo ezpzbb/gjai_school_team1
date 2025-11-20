@@ -1,16 +1,17 @@
-import express, { Express, Request, Response } from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import morgan from 'morgan';
-import rateLimit from 'express-rate-limit';
-import path from 'path';
-import { Pool, createPool } from 'mysql2/promise';
-import { setupCCTVRoutes } from './routes/cctvRoutes';
-import userRoutes from './routes/UserRoutes';
-import favoriteRoutes from './routes/FavoriteRoutes';
-import notificationRoutes from './routes/notificationRoutes';
-import congestionRoutes from './routes/congestionRoutes';
-import { dashboardRoutes } from './routes/dashboardRoutes';
+import express, { Express, Request, Response } from "express";
+import cors from "cors";
+import helmet from "helmet";
+import morgan from "morgan";
+import rateLimit from "express-rate-limit";
+import path from "path";
+import { Pool, createPool } from "mysql2/promise";
+import { setupCCTVRoutes } from "./routes/cctvRoutes";
+import userRoutes from "./routes/UserRoutes";
+import favoriteRoutes from "./routes/FavoriteRoutes";
+import notificationRoutes from "./routes/notificationRoutes";
+import congestionRoutes from "./routes/congestionRoutes";
+import { dashboardRoutes } from "./routes/dashboardRoutes";
+import { setupDetectionRoutes } from "./routes/detectionRoutes";
 // ITS CCTV 업데이트는 제거됨 (경찰청 UTIC API로 전환)
 
 export const initializeApp = async (): Promise<Express> => {
@@ -18,10 +19,10 @@ export const initializeApp = async (): Promise<Express> => {
 
   // 데이터베이스 연결 풀 설정
   const dbConfig = {
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USERNAME || 'your_username',
-    password: process.env.DB_PASSWORD || 'your_password',
-    database: process.env.DB_NAME || 'your_database',
+    host: process.env.DB_HOST || "localhost",
+    user: process.env.DB_USERNAME || "your_username",
+    password: process.env.DB_PASSWORD || "your_password",
+    database: process.env.DB_NAME || "your_database",
     connectionLimit: 10,
   };
   const dbPool: Pool = createPool(dbConfig);
@@ -29,10 +30,8 @@ export const initializeApp = async (): Promise<Express> => {
   // CORS 설정: 다중 origin 지원
   // 환경 변수에서 여러 origin을 쉼표로 구분하여 받을 수 있음
   // 예: CORS_ORIGIN=http://localhost:5173,https://example.com,https://app.example.com
-  const corsOrigins = process.env.CORS_ORIGIN
-    ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim())
-    : ['http://localhost:5173'];
-  
+  const corsOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim()) : ["http://localhost:5173"];
+
   app.use(
     cors({
       origin: (origin, callback) => {
@@ -45,11 +44,11 @@ export const initializeApp = async (): Promise<Express> => {
           return callback(null, true);
         }
         // 개발 환경에서는 모든 origin 허용 (선택사항)
-        if (process.env.NODE_ENV === 'development') {
+        if (process.env.NODE_ENV === "development") {
           return callback(null, true);
         }
         // 그 외의 경우 거부
-        callback(new Error('Not allowed by CORS'));
+        callback(new Error("Not allowed by CORS"));
       },
       credentials: true,
     })
@@ -62,76 +61,77 @@ export const initializeApp = async (): Promise<Express> => {
           defaultSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
           scriptSrc: ["'self'"],
-          imgSrc: ["'self'", 'data:', 'https:'],
+          imgSrc: ["'self'", "data:", "https:"],
         },
       },
     })
   );
-  app.use(morgan(process.env.NODE_ENV === 'development' ? 'dev' : 'combined'));
-  
+  app.use(morgan(process.env.NODE_ENV === "development" ? "dev" : "combined"));
+
   // Rate limiting 설정
   // 로그인 엔드포인트: 보안을 위해 엄격한 제한 (15분에 20회)
   const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15분
     max: 20, // 15분에 20회 로그인 시도 허용
-    message: '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.',
+    message: "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.",
     standardHeaders: true,
     legacyHeaders: false,
   });
-  
+
   // 일반 API: 개발과 프로덕션 모두 고려한 적절한 제한 (15분에 300회)
   app.use(
     rateLimit({
       windowMs: 15 * 60 * 1000, // 15분
       max: 300, // 15분에 300개 요청 허용 (초당 약 0.33개)
-      message: '너무 많은 요청입니다. 잠시 후 다시 시도해주세요.',
+      message: "너무 많은 요청입니다. 잠시 후 다시 시도해주세요.",
       standardHeaders: true,
       legacyHeaders: false,
       skip: (req) => {
         // 로그인 엔드포인트는 별도 처리
-        return req.path === '/api/users/login';
+        return req.path === "/api/users/login";
       },
     })
   );
-  app.use(express.json({ limit: '10mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+  app.use(express.json({ limit: "10mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
   // 정적 파일 제공
-  const uploadsPath = path.resolve(__dirname, '../Uploads');
-  app.use('/api/uploads', express.static(uploadsPath));
+  const uploadsPath = path.resolve(__dirname, "../Uploads");
+  app.use("/api/uploads", express.static(uploadsPath));
 
   // 데이터베이스 풀을 앱에 저장 (라우트에서 사용)
-  app.set('dbPool', dbPool);
+  app.set("dbPool", dbPool);
 
   // API 라우트
   // 로그인 엔드포인트에만 별도 rate limit 적용
-  app.use('/api/users/login', loginLimiter);
-  app.use('/api/users', userRoutes);
-  app.use('/api', setupCCTVRoutes(dbPool));
-  app.use('/api/favorites', favoriteRoutes(dbPool));
-  app.use('/api/notifications', notificationRoutes);
-  app.use('/api/congestion', congestionRoutes);
-  app.use('/api/dashboard', dashboardRoutes(dbPool)); 
+  app.use("/api/users/login", loginLimiter);
+  app.use("/api/users", userRoutes);
+  app.use("/api", setupCCTVRoutes(dbPool));
+  app.use("/api", setupDetectionRoutes(dbPool)); // 모델 결과 값 라우터 추가
+  app.use("/api/favorites", favoriteRoutes(dbPool));
+  app.use("/api/notifications", notificationRoutes);
+  app.use("/api/congestion", congestionRoutes);
+  app.use("/api/dashboard", dashboardRoutes(dbPool));
 
   // 기본 엔드포인트
-  app.get('/', (_req: Request, res: Response) => {
-    res.send('Hello from Express with WebSocket!');
+  app.get("/", (_req: Request, res: Response) => {
+    res.send("Hello from Express with WebSocket!");
   });
 
   // 헬스 체크 엔드포인트 (Docker 헬스 체크용)
-  app.get('/health', async (_req: Request, res: Response) => {
+  app.get("/health", async (_req: Request, res: Response) => {
     try {
       // 데이터베이스 연결 상태 확인
-      const [result] = await dbPool.execute('SELECT 1 as health');
+      const [result] = await dbPool.execute("SELECT 1 as health");
       res.status(200).json({
-        status: 'ok',
-        database: 'connected',
+        status: "ok",
+        database: "connected",
         timestamp: new Date().toISOString(),
       });
     } catch (error: any) {
       res.status(503).json({
-        status: 'error',
-        database: 'disconnected',
+        status: "error",
+        database: "disconnected",
         message: error.message,
         timestamp: new Date().toISOString(),
       });

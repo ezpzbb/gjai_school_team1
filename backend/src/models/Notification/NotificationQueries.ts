@@ -51,7 +51,7 @@ export const NotificationQueries = {
       cctv.location
     FROM congestion c
     INNER JOIN frame fr ON c.frame_id = fr.frame_id
-    INNER JOIN Favorite f ON fr.cctv_id = f.cctv_id
+    INNER JOIN favorite f ON fr.cctv_id = f.cctv_id
     INNER JOIN cctv ON fr.cctv_id = cctv.cctv_id
     LEFT JOIN notification n 
       ON c.congestion_id = n.congestion_id 
@@ -73,7 +73,7 @@ export const NotificationQueries = {
       cctv.location,
       cctv.latitude,
       cctv.longitude
-    FROM Favorite f
+    FROM favorite f
     INNER JOIN cctv ON f.cctv_id = cctv.cctv_id
     WHERE f.user_id = ?
   `,
@@ -103,7 +103,7 @@ export const NotificationQueries = {
   `,
 
   CREATE_NOTIFICATION_TABLE: `
-    CREATE TABLE IF NOT EXISTS NOTIFICATION (
+    CREATE TABLE IF NOT EXISTS notification (
       notification_id INT AUTO_INCREMENT PRIMARY KEY,
       notification_type ENUM('congestion', 'accident') NOT NULL DEFAULT 'congestion',
       congestion_id INT NULL,
@@ -120,13 +120,13 @@ export const NotificationQueries = {
       KEY idx_sent_at (sent_at),
       KEY idx_notification_type (notification_type),
       CONSTRAINT fk_notification_congestion
-        FOREIGN KEY (congestion_id) REFERENCES CONGESTION(congestion_id)
+        FOREIGN KEY (congestion_id) REFERENCES congestion(congestion_id)
         ON DELETE CASCADE ON UPDATE CASCADE,
       CONSTRAINT fk_notification_user
-        FOREIGN KEY (user_id) REFERENCES User(user_id)
+        FOREIGN KEY (user_id) REFERENCES user(user_id)
         ON DELETE CASCADE ON UPDATE CASCADE,
       CONSTRAINT fk_notification_cctv
-        FOREIGN KEY (cctv_id) REFERENCES CCTV(cctv_id)
+        FOREIGN KEY (cctv_id) REFERENCES cctv(cctv_id)
         ON DELETE CASCADE ON UPDATE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   `,
@@ -136,4 +136,3 @@ export const NotificationQueries = {
     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'notification'
   `,
 } as const;
-
