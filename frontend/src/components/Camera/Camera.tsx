@@ -334,6 +334,9 @@ const Camera: React.FC<CameraProps> = ({
 
     videoElement.addEventListener("loadeddata", handleLoaded);
     videoElement.addEventListener("error", handleError);
+    videoElement.addEventListener("waiting", handleWaiting);
+    videoElement.addEventListener("playing", handlePlaying);
+    videoElement.addEventListener("canplay", handleCanPlay);
 
     const isHlsStream = streamUrl.toLowerCase().includes(".m3u8");
 
@@ -405,6 +408,9 @@ const Camera: React.FC<CameraProps> = ({
       videoElement.pause();
       videoElement.removeEventListener("loadeddata", handleLoaded);
       videoElement.removeEventListener("error", handleError);
+      videoElement.removeEventListener("waiting", handleWaiting);
+      videoElement.removeEventListener("playing", handlePlaying);
+      videoElement.removeEventListener("canplay", handleCanPlay);
 
       if (hlsInstanceRef.current) {
         hlsInstanceRef.current.destroy();

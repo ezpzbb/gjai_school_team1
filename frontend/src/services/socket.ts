@@ -15,10 +15,13 @@ class SocketService {
    * Socket 연결
    */
   connect(): void {
+    console.log(`[Socket] connect 호출, 현재 연결 상태: ${this.socket?.connected}, URL: ${SOCKET_URL}`);
     if (this.socket?.connected) {
+      console.log('[Socket] 이미 연결되어 있습니다.');
       return;
     }
 
+    console.log('[Socket] 새로운 Socket 연결 시작...');
     this.socket = io(SOCKET_URL, {
       transports: ["websocket", "polling"],
       reconnection: true,
@@ -27,6 +30,7 @@ class SocketService {
     });
 
     this.socket.on("connect", () => {
+      console.log('[Socket] 연결 성공!', { socketId: this.socket?.id });
       // 이미 리스너가 등록되어 있다면 이벤트 룸에 입장하여 현재 이벤트 수신
       if (this.eventListeners.has("event-update")) {
         this.socket?.emit("join-events");
@@ -34,16 +38,19 @@ class SocketService {
       // 연결 시 자동으로 인증 시도
       const token = localStorage.getItem("token");
       if (token) {
+        console.log('[Socket] 인증 토큰으로 인증 시도...');
         this.authenticate(token);
+      } else {
+        console.warn('[Socket] 인증 토큰이 없습니다.');
       }
     });
 
-    this.socket.on("disconnect", () => {
-      // 연결 해제됨
+    this.socket.on("disconnect", (reason) => {
+      console.log('[Socket] 연결 해제됨:', reason);
     });
 
     this.socket.on("connect_error", (error) => {
-      console.error("Socket connection error:", error);
+      console.error("[Socket] 연결 오류:", error);
     });
 
     // 이벤트 업데이트 수신
@@ -218,6 +225,69 @@ class SocketService {
         console.error("[Socket] 사고 알림 리스너 오류:", error);
       }
     });
+  }
+
+  /**
+   * 분석 시작 요청
+   */
+  startDetection(cctvId: number): void {
+    console.log(`[Socket] startDetection 호출: CCTV ${cctvId}, 연결 상태: ${this.socket?.connected}`);
+    
+    if (!this.socket) {
+      console.log('[Socket] Socket이 없습니다. 연결을 시작합니다...');
+      this.connect();
+      // 연결 후 이벤트 전송을 위해 잠시 대기
+      setTimeout(() => {
+        if (this.socket?.connected) {
+          console.log(`[Socket] 연결 완료, 분석 시작 요청 전송: CCTV ${cctvId}`);
+          this.socket.emit("start-detection", cctvId);
+          console.log(`[Socket] 분석 시작 요청 전송 완료: CCTV ${cctvId}`);
+        } else {
+          // 연결이 완료될 때까지 대기
+          const checkConnection = () => {
+            if (this.socket?.connected) {
+              console.log(`[Socket] 연결 완료, 분석 시작 요청 전송: CCTV ${cctvId}`);
+              this.socket.emit("start-detection", cctvId);
+              console.log(`[Socket] 분석 시작 요청 전송 완료: CCTV ${cctvId}`);
+            } else {
+              setTimeout(checkConnection, 100);
+            }
+          };
+          checkConnection();
+        }
+      }, 100);
+    } else if (!this.socket.connected) {
+      console.log('[Socket] Socket이 연결되지 않았습니다. 연결을 기다립니다...');
+      this.connect();
+      // 연결 후 이벤트 전송
+      const checkConnection = () => {
+        if (this.socket?.connected) {
+          console.log(`[Socket] 연결 완료, 분석 시작 요청 전송: CCTV ${cctvId}`);
+          this.socket.emit("start-detection", cctvId);
+          console.log(`[Socket] 분석 시작 요청 전송 완료: CCTV ${cctvId}`);
+        } else {
+          setTimeout(checkConnection, 100);
+        }
+      };
+      checkConnection();
+    } else {
+      console.log(`[Socket] Socket이 연결되어 있습니다. 분석 시작 요청 전송: CCTV ${cctvId}`);
+      this.socket.emit("start-detection", cctvId);
+      console.log(`[Socket] 분석 시작 요청 전송 완료: CCTV ${cctvId}`);
+    }
+  }
+
+  /**
+   * 분석 중지 요청
+   */
+  stopDetection(cctvId: number): void {
+    console.log(`[Socket] stopDetection 호출: CCTV ${cctvId}, 연결 상태: ${this.socket?.connected}`);
+    if (this.socket?.connected) {
+      this.socket.emit("stop-detection", cctvId);
+      console.log(`[Socket] 분석 중지 요청 전송 완료: CCTV ${cctvId}`);
+    } else {
+      console.warn(`[Socket] Socket이 연결되지 않아 분석 중지 요청을 전송할 수 없습니다: CCTV ${cctvId}`);
+    }
   }
 
   /**

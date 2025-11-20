@@ -79,3 +79,4 @@ export async function closeDatabase(): Promise<void> {
 }
 
 export default pool;
+export { pool };

@@ -9,31 +9,60 @@ import ChartContainer from './ChartContainer';
 
 interface VehicleCountChartProps {
   data: VehicleStatisticsPoint[];
+  vehicleTypeData?: Array<{ label: string; data: number[]; timestamps: string[] }>;
   isLoading?: boolean;
 }
 
-const VehicleCountChart: React.FC<VehicleCountChartProps> = ({ data, isLoading = false }) => {
+const VehicleCountChart: React.FC<VehicleCountChartProps> = ({ data, vehicleTypeData, isLoading = false }) => {
   const chartRef = useRef<ChartJS<'bar'>>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const chartData = useMemo(() => ({
-    labels: data.map((point) => formatTime(point.timestamp)),
-    datasets: [
-      {
-        label: '차량 수',
-        data: data.map((point) => point.vehicle_total),
-        backgroundColor: CHART_COLORS.PRIMARY_ALPHA,
-        borderColor: CHART_COLORS.PRIMARY,
-        borderWidth: 1,
-      },
-      {
-        label: '객체 수',
-        data: data.map((point) => point.object_count),
-        backgroundColor: CHART_COLORS.SECONDARY_ALPHA,
-        borderColor: CHART_COLORS.SECONDARY,
-        borderWidth: 1,
-      },
-    ],
-  }), [data]);
+  
+  const chartData = useMemo(() => {
+    // 차량 유형별 데이터가 있으면 그것을 사용, 없으면 기본 데이터 사용
+    if (vehicleTypeData && vehicleTypeData.length > 0) {
+      const colors = [
+        '#3B82F6', // 파란색 - 승용차
+        '#10B981', // 초록색 - 버스
+        '#F59E0B', // 주황색 - 트럭
+        '#8B5CF6', // 보라색 - 오토바이
+        '#EF4444', // 빨간색
+        '#06B6D4', // 청록색
+        '#F97316', // 주황색
+      ];
+      
+      return {
+        labels: vehicleTypeData[0].timestamps.map((ts) => formatTime(ts)),
+        datasets: vehicleTypeData.map((typeData, index) => ({
+          label: typeData.label,
+          data: typeData.data,
+          backgroundColor: `${colors[index % colors.length]}80`, // 50% 투명도
+          borderColor: colors[index % colors.length],
+          borderWidth: 1,
+        })),
+      };
+    }
+    
+    // 기본 데이터 (차량 수 + 객체 수)
+    return {
+      labels: data.map((point) => formatTime(point.timestamp)),
+      datasets: [
+        {
+          label: '차량 수',
+          data: data.map((point) => point.vehicle_total),
+          backgroundColor: CHART_COLORS.PRIMARY_ALPHA,
+          borderColor: CHART_COLORS.PRIMARY,
+          borderWidth: 1,
+        },
+        {
+          label: '객체 수',
+          data: data.map((point) => point.object_count),
+          backgroundColor: CHART_COLORS.SECONDARY_ALPHA,
+          borderColor: CHART_COLORS.SECONDARY,
+          borderWidth: 1,
+        },
+      ],
+    };
+  }, [data, vehicleTypeData]);
 
   const options = useMemo(() => ({
     responsive: true,

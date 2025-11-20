@@ -3,7 +3,7 @@ import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import dotenv from 'dotenv';
 import { initializeApp } from './app';
-import { initializeDatabase, closeDatabase } from './config/db';
+import { initializeDatabase, closeDatabase, pool } from './config/db';
 // ITS CCTV 스케줄러는 제거됨 (경찰청 UTIC API로 전환)
 // 혼잡도 알림 스케줄러는 제거됨 (DB 삽입 시 즉시 알림으로 전환)
 import { startEventScheduler, stopEventScheduler } from './scheduler';
@@ -51,8 +51,8 @@ async function start() {
       },
     });
 
-    // Socket.IO 이벤트 핸들러 설정
-    setupSocketHandlers(io);
+    // Socket.IO 이벤트 핸들러 설정 (DB 풀 전달)
+    setupSocketHandlers(io, pool);
 
     // 알림 서비스에 Socket.IO 인스턴스 설정
     congestionNotificationService.setSocketIO(io);

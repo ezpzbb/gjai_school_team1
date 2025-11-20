@@ -95,6 +95,10 @@ export const initializeApp = async (): Promise<Express> => {
   app.use(express.json({ limit: "10mb" }));
   app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
+  // 프레임 이미지 정적 파일 서빙
+  const framesPath = path.resolve(__dirname, "../uploads/frames");
+  app.use("/api/uploads/frames", express.static(framesPath));
+
   // 정적 파일 제공
   const uploadsPath = path.resolve(__dirname, "../Uploads");
   app.use("/api/uploads", express.static(uploadsPath));

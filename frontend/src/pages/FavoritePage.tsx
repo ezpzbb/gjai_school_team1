@@ -7,6 +7,8 @@ import Dashboard from '../components/Dashboard/Dashboard';
 import { FavoritePageProvider, useFavoritePage } from '../providers/FavoritePageProvider';
 import { useLayout } from '../providers/LayoutProvider';
 import { useData } from '../providers/DataProvider';
+import { socketService } from '../services/socket';
+import AnalysisArea from '../components/Analysis/AnalysisArea';
 
 const FavoritePageContent: React.FC = () => {
   const { isLoggedIn } = useAuth();
@@ -134,9 +136,10 @@ const FavoritePageContent: React.FC = () => {
       setConfirmModal({ show: false, cctv_id: null, location: null });
     }
   };
-
+    //분석하기 모드
   const enterAnalysisMode = useCallback(
     (targetId: number) => {
+      console.log('[FavoritePage] enterAnalysisMode 호출:', { targetId, analysisMode });
       if (!analysisMode) {
         previousLayoutRef.current = {
           sidebar: sidebarCollapsed,
@@ -151,6 +154,14 @@ const FavoritePageContent: React.FC = () => {
       }
       setAnalysisTargetId(targetId);
       setAnalysisMode(true);
+      
+      // Socket 연결 확인 및 분석 시작 요청
+      console.log('[FavoritePage] Socket 연결 상태:', socketService.isConnected());
+      if (!socketService.isConnected()) {
+        console.log('[FavoritePage] Socket 연결 시도...');
+        socketService.connect();
+      }
+      socketService.startDetection(targetId);
     },
     [
       analysisMode,
@@ -166,15 +177,23 @@ const FavoritePageContent: React.FC = () => {
   const exitAnalysisMode = useCallback(
     (options?: { restoreLayout?: boolean }) => {
       const shouldRestore = options?.restoreLayout ?? true;
+      const currentTargetId = analysisTargetId;
+      
       setAnalysisMode(false);
-       setAnalysisTargetId(null);
+      setAnalysisTargetId(null);
+      
+      // 분석 중지 요청
+      if (currentTargetId) {
+        socketService.stopDetection(currentTargetId);
+      }
+      
       if (shouldRestore && previousLayoutRef.current) {
         setSidebarCollapsed(previousLayoutRef.current.sidebar);
         setDashboardCollapsed(previousLayoutRef.current.dashboard);
       }
       previousLayoutRef.current = null;
     },
-    [setAnalysisMode, setSidebarCollapsed, setDashboardCollapsed],
+    [analysisTargetId, setAnalysisMode, setSidebarCollapsed, setDashboardCollapsed],
   );
 
   useEffect(() => {
@@ -266,17 +285,27 @@ const FavoritePageContent: React.FC = () => {
   };
 
   const handleAnalysisAction = (cctv: CCTV) => {
+    console.log('[FavoritePage] handleAnalysisAction 호출:', { cctv_id: cctv?.cctv_id, analysisMode, analysisTargetId });
     if (!cctv) {
+      console.warn('[FavoritePage] handleAnalysisAction: CCTV가 없습니다.');
       return;
     }
 
     if (analysisMode) {
       if (analysisTargetId === cctv.cctv_id) {
+        console.log('[FavoritePage] 분석 모드 종료');
         exitAnalysisMode();
       } else {
+        // 다른 CCTV로 분석 대상 변경
+        console.log('[FavoritePage] 분석 대상 변경:', { from: analysisTargetId, to: cctv.cctv_id });
+        if (analysisTargetId) {
+          socketService.stopDetection(analysisTargetId);
+        }
         setAnalysisTargetId(cctv.cctv_id);
+        socketService.startDetection(cctv.cctv_id);
       }
     } else {
+      console.log('[FavoritePage] 분석 모드 진입:', cctv.cctv_id);
       enterAnalysisMode(cctv.cctv_id);
     }
   };
@@ -488,12 +517,22 @@ const FavoritePageContent: React.FC = () => {
               <div className="grid grid-cols-4 gap-4 h-[220px]">
                 {Array.from({ length: 4 }, (_, index) => renderCameraCard(selectedCCTVs[index], index, true))}
               </div>
-              <div className="flex-1 min-h-0 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl bg-white/70 dark:bg-gray-800/60 flex items-center justify-center text-gray-500 dark:text-gray-300 text-sm font-medium">
-                {(() => {
+              {analysisTargetId ? (
+                (() => {
                   const target = selectedCCTVs.find((cctv) => cctv && cctv.cctv_id === analysisTargetId);
-                  return target ? `${target.location} 분석 그래프 영역 (추후 구현 예정)` : '분석할 CCTV를 선택하세요.';
-                })()}
-              </div>
+                  return target ? (
+                    <AnalysisArea cctvId={analysisTargetId} cctvLocation={target.location} />
+                  ) : (
+                    <div className="flex-1 min-h-0 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl bg-white/70 dark:bg-gray-800/60 flex items-center justify-center text-gray-500 dark:text-gray-300 text-sm font-medium">
+                      분석할 CCTV를 선택하세요.
+                    </div>
+                  );
+                })()
+              ) : (
+                <div className="flex-1 min-h-0 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl bg-white/70 dark:bg-gray-800/60 flex items-center justify-center text-gray-500 dark:text-gray-300 text-sm font-medium">
+                  분석할 CCTV를 선택하세요.
+                </div>
+              )}
             </>
           ) : (
             <div className="grid grid-cols-2 grid-rows-2 gap-4 h-full">

@@ -83,3 +83,8 @@ cctv.ts
 backend/certs/
 
 *.yml
+
+# 분석 완료 이미지 저장 폴더
+backend/uploads/frames/
+backend/Uploads/frames/
+**/frames/

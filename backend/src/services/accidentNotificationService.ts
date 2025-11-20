@@ -216,7 +216,7 @@ export class AccidentNotificationService {
     try {
       // 모든 사용자 조회 (간단한 방법: 즐겨찾기 테이블에서 DISTINCT user_id 조회)
       const [userRows] = await db.execute<any[]>(
-        'SELECT DISTINCT user_id FROM Favorite'
+        'SELECT DISTINCT user_id FROM favorite'
       );
 
       const userFavoriteCCTVs = new Map<
