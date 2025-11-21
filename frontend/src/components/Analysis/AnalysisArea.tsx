@@ -11,16 +11,22 @@ interface AnalysisAreaProps {
   cctvLocation: string;
 }
 
+// 차트에 표시할 최대 데이터 개수 (FIFO 방식)
+const MAX_CHART_DATA_COUNT = 15;
+
 const AnalysisArea: React.FC<AnalysisAreaProps> = ({ cctvId, cctvLocation }) => {
   // 실시간 데이터 수집
   const [vehicleUpdates, setVehicleUpdates] = useState<VehicleUpdatePayload[]>([]);
   const [isCollecting, setIsCollecting] = useState(false);
 
-  // 차트 데이터 변환
+  // 차트 데이터 변환 (FIFO 방식 - 최신 MAX_CHART_DATA_COUNT개만 유지)
   const congestionData: CongestionDataPoint[] = useMemo(() => {
+    // 최신 MAX_CHART_DATA_COUNT개만 사용 (FIFO)
+    const recentUpdates = vehicleUpdates.slice(-MAX_CHART_DATA_COUNT);
+    
     // 차량 수를 기반으로 혼잡도 계산 (간단한 예시)
     const data: CongestionDataPoint[] = [];
-    vehicleUpdates.forEach((update) => {
+    recentUpdates.forEach((update) => {
       const vehicleCount = update.detections.length;
       // 차량 수에 따라 혼잡도 레벨 계산 (0-100)
       let level = 0;
@@ -38,9 +44,12 @@ const AnalysisArea: React.FC<AnalysisAreaProps> = ({ cctvId, cctvLocation }) => 
     return data;
   }, [vehicleUpdates]);
 
-  // 차량 유형별 시간대별 통계 데이터 생성
+  // 차량 유형별 시간대별 통계 데이터 생성 (FIFO 방식)
   const vehicleData: VehicleStatisticsPoint[] = useMemo(() => {
-    return vehicleUpdates.map((update) => {
+    // 최신 MAX_CHART_DATA_COUNT개만 사용 (FIFO)
+    const recentUpdates = vehicleUpdates.slice(-MAX_CHART_DATA_COUNT);
+    
+    return recentUpdates.map((update) => {
       // 차량 유형 필터링 (한글 및 영어 모두 지원)
       const vehicleTypes = ['car', 'truck', 'bus', '승용차', '트럭', '버스', '오토바이(자전거)'];
       const vehicleCount = update.detections.filter((d) => 
@@ -55,13 +64,16 @@ const AnalysisArea: React.FC<AnalysisAreaProps> = ({ cctvId, cctvLocation }) => 
     });
   }, [vehicleUpdates]);
 
-  // 차량 유형별 시간대별 통계 데이터 (차트용)
+  // 차량 유형별 시간대별 통계 데이터 (차트용, FIFO 방식)
   const vehicleTypeData = useMemo(() => {
+    // 최신 MAX_CHART_DATA_COUNT개만 사용 (FIFO)
+    const recentUpdates = vehicleUpdates.slice(-MAX_CHART_DATA_COUNT);
+    
     // 차량 유형별로 시간대별 집계
     const typeMap: { [key: string]: { [timestamp: string]: number } } = {};
     const vehicleTypes = ['승용차', '버스', '트럭', '오토바이(자전거)', 'car', 'truck', 'bus'];
     
-    vehicleUpdates.forEach((update) => {
+    recentUpdates.forEach((update) => {
       const timestamp = new Date(update.timestamp * 1000).toISOString();
       vehicleTypes.forEach((type) => {
         if (!typeMap[type]) {
@@ -74,7 +86,7 @@ const AnalysisArea: React.FC<AnalysisAreaProps> = ({ cctvId, cctvLocation }) => 
 
     // 모든 타임스탬프 수집
     const allTimestamps = new Set<string>();
-    vehicleUpdates.forEach((update) => {
+    recentUpdates.forEach((update) => {
       allTimestamps.add(new Date(update.timestamp * 1000).toISOString());
     });
     const sortedTimestamps = Array.from(allTimestamps).sort();
@@ -97,8 +109,11 @@ const AnalysisArea: React.FC<AnalysisAreaProps> = ({ cctvId, cctvLocation }) => 
   }, [vehicleUpdates]);
 
   const detectionData: DetectionStatistics[] = useMemo(() => {
+    // 최신 MAX_CHART_DATA_COUNT개만 사용 (FIFO)
+    const recentUpdates = vehicleUpdates.slice(-MAX_CHART_DATA_COUNT);
+    
     const counts: { [key: string]: number } = {};
-    vehicleUpdates.forEach((update) => {
+    recentUpdates.forEach((update) => {
       update.detections.forEach((det) => {
         // 차량 유형만 집계 (한글 및 영어 모두 지원)
         const vehicleTypes = ['car', 'truck', 'bus', '승용차', '트럭', '버스', '오토바이(자전거)'];
@@ -134,12 +149,20 @@ const AnalysisArea: React.FC<AnalysisAreaProps> = ({ cctvId, cctvLocation }) => 
 
     console.log(`[AnalysisArea] CCTV ${cctvId}에 대한 vehicle-update 구독 시작`);
     setIsCollecting(true);
+    
+    // 분석 시작 시 데이터 초기화
+    setVehicleUpdates([]);
+    
     const unsubscribe = socketService.onVehicleUpdate(cctvId, (payload: VehicleUpdatePayload) => {
       console.log(`[AnalysisArea] vehicle-update 수신: CCTV ${payload.cctvId}, 감지 수: ${payload.detections.length}`);
       setVehicleUpdates((prev) => {
-        // 최근 100개만 유지
+        // FIFO 방식: 최신 데이터 추가 후 최대 개수 초과 시 가장 오래된 데이터 제거
         const updated = [...prev, payload];
-        return updated.slice(-100);
+        // MAX_CHART_DATA_COUNT를 초과하면 가장 오래된 데이터부터 제거
+        if (updated.length > MAX_CHART_DATA_COUNT) {
+          return updated.slice(-MAX_CHART_DATA_COUNT);
+        }
+        return updated;
       });
     });
 
@@ -147,6 +170,8 @@ const AnalysisArea: React.FC<AnalysisAreaProps> = ({ cctvId, cctvLocation }) => 
       console.log(`[AnalysisArea] CCTV ${cctvId}에 대한 vehicle-update 구독 해제`);
       unsubscribe();
       setIsCollecting(false);
+      // 구독 해제 시 데이터 초기화
+      setVehicleUpdates([]);
     };
   }, [cctvId]);
 
@@ -166,7 +191,7 @@ const AnalysisArea: React.FC<AnalysisAreaProps> = ({ cctvId, cctvLocation }) => 
           </span>
           {vehicleUpdates.length > 0 && (
             <span className="text-xs text-gray-500 dark:text-gray-500">
-              ({vehicleUpdates.length}개 데이터 수집됨)
+              ({vehicleUpdates.length}/{MAX_CHART_DATA_COUNT}개 데이터 수집됨)
             </span>
           )}
         </div>

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../providers/AuthProvider';
 import { CCTV } from '../types/cctv';
 import Camera from '../components/Camera/Camera';
@@ -14,6 +14,7 @@ const FavoritePageContent: React.FC = () => {
   const { isLoggedIn } = useAuth();
   const favoritePageContext = useFavoritePage();
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
   const {
     sidebarCollapsed,
     dashboardCollapsed,
@@ -206,6 +207,26 @@ const FavoritePageContent: React.FC = () => {
       exitAnalysisMode({ restoreLayout: false });
     }
   }, [analysisMode, sidebarCollapsed, dashboardCollapsed, exitAnalysisMode]);
+
+  // 페이지 이동 감지하여 분석 자동 종료
+  useEffect(() => {
+    // 현재 경로가 /favorite가 아니고 분석 모드가 활성화되어 있으면 종료
+    if (location.pathname !== '/favorite' && analysisMode) {
+      console.log('[FavoritePage] 페이지 이동 감지, 분석 모드 자동 종료');
+      exitAnalysisMode();
+    }
+  }, [location.pathname, analysisMode, exitAnalysisMode]);
+
+  // 컴포넌트 언마운트 시 분석 자동 종료 (cleanup)
+  useEffect(() => {
+    // 컴포넌트 언마운트 시 cleanup 함수 실행
+    return () => {
+      if (analysisMode && analysisTargetId) {
+        console.log('[FavoritePage] 컴포넌트 언마운트, 분석 모드 자동 종료');
+        socketService.stopDetection(analysisTargetId);
+      }
+    };
+  }, [analysisMode, analysisTargetId]);
 
   // 확대 애니메이션 처리 헬퍼 함수
   const expandWithAnimation = useCallback((targetIndex: number | null, delay: number = 0) => {
