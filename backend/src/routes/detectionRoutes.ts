@@ -6,6 +6,7 @@ import { congestionNotificationService } from "../services/congestionNotificatio
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { getSocketIO, VEHICLE_ROOM_PREFIX } from "../socket";
 
 /**
  * 차량 수를 기반으로 혼잡도 레벨 계산 (0-100)
@@ -74,6 +75,26 @@ export const setupDetectionRoutes = (dbPool: Pool): Router => {
         
         await conn.commit();
         console.log(`[Detection] 분석 완료 이미지 저장: Frame ${frameId}, path: ${relativePath}`);
+        
+        // Socket.IO로 분석 완료 이미지 브로드캐스트
+        const io = getSocketIO();
+        if (io) {
+          const room = `${VEHICLE_ROOM_PREFIX}${cctvId}`;
+          const apiUrl = process.env.API_URL || 'http://localhost:3002';
+          const fullImageUrl = `${apiUrl}${relativePath}`;
+          
+          io.to(room).emit("analyzed-image", {
+            cctvId,
+            frameId,
+            imagePath: relativePath,
+            imageUrl: fullImageUrl,
+            timestamp: Date.now(),
+          });
+          console.log(`[Detection] 분석 완료 이미지 브로드캐스트: CCTV ${cctvId}, Frame ${frameId}, URL: ${fullImageUrl}`);
+        } else {
+          console.warn(`[Detection] Socket.IO 인스턴스가 없어 이미지를 브로드캐스트할 수 없습니다.`);
+        }
+        
         res.json({ success: true, image_path: relativePath });
       } catch (err: any) {
         await conn.rollback();

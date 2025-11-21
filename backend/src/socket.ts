@@ -10,7 +10,14 @@ import { Pool } from "mysql2/promise";
 
 // 이벤트 룸 이름
 const EVENT_ROOM = "events";
-const VEHICLE_ROOM_PREFIX = "vehicle-";
+export const VEHICLE_ROOM_PREFIX = "vehicle-";
+
+// 전역 Socket.IO 인스턴스
+let ioInstance: SocketIOServer | null = null;
+
+export function getSocketIO(): SocketIOServer | null {
+  return ioInstance;
+}
 
 export interface VehicleUpdatePayload {
   cctvId: number;
@@ -37,6 +44,7 @@ let frameCaptureService: FrameCaptureService | null = null;
  */
 export function setupSocketHandlers(io: SocketIOServer, dbPool?: Pool): void {
   console.log("Socket.IO 이벤트 핸들러 설정 완료");
+  ioInstance = io; // 전역 인스턴스 저장
 
   // 프레임 캡처 서비스 초기화
   const poolToUse = dbPool || pool;

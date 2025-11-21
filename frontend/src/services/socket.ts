@@ -5,6 +5,14 @@ import { VehicleUpdatePayload } from "../types/vehicle";
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3002";
 
+export interface AnalyzedImagePayload {
+  cctvId: number;
+  frameId: number;
+  imagePath: string;
+  imageUrl: string;
+  timestamp: number;
+}
+
 class SocketService {
   private socket: Socket | null = null;
   private eventListeners: Map<string, Set<(events: EventItem[]) => void>> = new Map();
@@ -67,6 +75,14 @@ class SocketService {
     this.socket.on("accident-alert", (data: AccidentNotificationData) => {
       console.log("[Socket] accident-alert 이벤트 수신:", data);
       this.notifyAccidentListeners(data);
+    });
+
+    // 분석 완료 이미지 수신
+    this.socket.on("analyzed-image", (payload: AnalyzedImagePayload) => {
+      const set = this.analyzedImageListeners.get(payload.cctvId);
+      if (set) {
+        set.forEach((fn) => fn(payload));
+      }
     });
   }
 
@@ -142,6 +158,9 @@ class SocketService {
 
   // HLS와 Canvas 오버레이로 실시간 표시를 위해 추가 -> 영상에 메타 데이터 삽입
   private vehicleListeners: Map<number, Set<(payload: VehicleUpdatePayload) => void>> = new Map();
+  
+  // 분석 완료 이미지 리스너
+  private analyzedImageListeners: Map<number, Set<(payload: AnalyzedImagePayload) => void>> = new Map();
 
   onVehicleUpdate(cctvId: number, callback: (payload: VehicleUpdatePayload) => void): () => void {
     if (!this.socket) this.connect();
@@ -288,6 +307,31 @@ class SocketService {
     } else {
       console.warn(`[Socket] Socket이 연결되지 않아 분석 중지 요청을 전송할 수 없습니다: CCTV ${cctvId}`);
     }
+  }
+
+  /**
+   * 분석 완료 이미지 리스너 등록
+   */
+  onAnalyzedImage(cctvId: number, callback: (payload: AnalyzedImagePayload) => void): () => void {
+    if (!this.socket) this.connect();
+    const listeners = this.analyzedImageListeners.get(cctvId) || new Set();
+    listeners.add(callback);
+    this.analyzedImageListeners.set(cctvId, listeners);
+
+    if (this.socket?.connected) {
+      this.socket.emit("join-vehicle", cctvId);
+    }
+
+    return () => {
+      const set = this.analyzedImageListeners.get(cctvId);
+      if (set) {
+        set.delete(callback);
+        if (set.size === 0) {
+          this.analyzedImageListeners.delete(cctvId);
+          this.socket?.emit("leave-vehicle", cctvId);
+        }
+      }
+    };
   }
 
   /**

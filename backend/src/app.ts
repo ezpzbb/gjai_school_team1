@@ -56,12 +56,13 @@ export const initializeApp = async (): Promise<Express> => {
   app.use(
     helmet({
       crossOriginEmbedderPolicy: false,
+      crossOriginResourcePolicy: { policy: "cross-origin" },
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
           scriptSrc: ["'self'"],
-          imgSrc: ["'self'", "data:", "https:"],
+          imgSrc: ["'self'", "data:", "https:", "http://localhost:3002"],
         },
       },
     })
@@ -95,13 +96,28 @@ export const initializeApp = async (): Promise<Express> => {
   app.use(express.json({ limit: "10mb" }));
   app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-  // 프레임 이미지 정적 파일 서빙
-  const framesPath = path.resolve(__dirname, "../uploads/frames");
-  app.use("/api/uploads/frames", express.static(framesPath));
+  // CORS 헤더를 추가하는 미들웨어 (정적 파일용)
+  const corsHeaders = (req: Request, res: Response, next: Function) => {
+    const origin = req.headers.origin;
+    if (origin && (corsOrigins.includes(origin) || process.env.NODE_ENV === "development")) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+    } else if (!origin || process.env.NODE_ENV === "development") {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+    }
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    next();
+  };
 
-  // 정적 파일 제공
-  const uploadsPath = path.resolve(__dirname, "../Uploads");
-  app.use("/api/uploads", express.static(uploadsPath));
+  // 프레임 이미지 정적 파일 서빙 (CORS 헤더 포함)
+  const framesPath = path.resolve(__dirname, "../uploads/frames");
+  app.use("/api/uploads/frames", corsHeaders, express.static(framesPath));
+
+  // 정적 파일 제공 (CORS 헤더 포함)
+  const uploadsPath = path.resolve(__dirname, "../uploads");
+  app.use("/api/uploads", corsHeaders, express.static(uploadsPath));
 
   // 데이터베이스 풀을 앱에 저장 (라우트에서 사용)
   app.set("dbPool", dbPool);
