@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { Pool } from "mysql2/promise";
 import { VehicleUpdatePayload } from "../services/detectionService";
 import { CongestionTransaction } from "../models/Congestion/CongestionTransactions";
+import { congestionNotificationService } from "../services/congestionNotificationService";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -167,19 +168,41 @@ export const setupDetectionRoutes = (dbPool: Pool): Router => {
         const frameTimestamp = new Date(tsSec * 1000);
         
         // actualFrameId가 확실히 존재하는 경우에만 혼잡도 저장
+        let congestionId: number | null = null;
         if (actualFrameId !== undefined) {
-          await congestionTransaction.createCongestion({
+          const congestion = await congestionTransaction.createCongestion({
             frame_id: actualFrameId,
             level: congestionLevel,
             timestamp: frameTimestamp,
             calculated_at: new Date(),
           });
+          congestionId = congestion.congestion_id;
         }
 
         await conn.commit();
         console.log(
           `[Detection] CCTV ${cctvId}, Frame ${actualFrameId}: ${detections.length}개 객체 감지 저장 완료 (차량: ${vehicleCount}대, 혼잡도: ${congestionLevel}, Statistics: ${detectionIds.length}개 생성)`
         );
+
+        // 혼잡도가 임계값 이상이면 즉시 알림 발송 (트랜잭션 커밋 후 비동기로 처리)
+        const threshold = congestionNotificationService.getThreshold();
+        if (congestionId !== null && congestionLevel >= threshold) {
+          setImmediate(async () => {
+            try {
+              await congestionNotificationService.sendImmediateNotification(
+                congestionId!,
+                cctvId,
+                congestionLevel
+              );
+              console.log(
+                `[Detection] 혼잡도 알림 발송: CCTV ${cctvId}, 혼잡도 ${congestionLevel} (임계값: ${threshold}), Congestion ID ${congestionId}`
+              );
+            } catch (error: any) {
+              console.error('혼잡도 알림 발송 실패:', error);
+              // 알림 실패해도 데이터 저장은 성공한 것으로 처리
+            }
+          });
+        }
       } catch (err: any) {
         await conn.rollback();
         throw err;
