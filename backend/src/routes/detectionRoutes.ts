@@ -9,14 +9,16 @@ import fs from "fs";
 
 /**
  * 차량 수를 기반으로 혼잡도 레벨 계산 (0-100)
+ * 혼잡도 70 이상이 되려면 차량 수가 40대 이상이어야 함
  */
 function calculateCongestionLevel(vehicleCount: number): number {
   if (vehicleCount === 0) return 0;
-  if (vehicleCount <= 5) return 20;
-  if (vehicleCount <= 10) return 40;
-  if (vehicleCount <= 15) return 60;
-  if (vehicleCount <= 20) return 80;
-  return 100; // 21개 이상
+  if (vehicleCount <= 10) return 20;
+  if (vehicleCount <= 20) return 40;
+  if (vehicleCount <= 30) return 60;
+  if (vehicleCount <= 39) return 70;
+  if (vehicleCount <= 50) return 80;
+  return 100; // 51대 이상
 }
 
 export const setupDetectionRoutes = (dbPool: Pool): Router => {

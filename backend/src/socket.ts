@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { JWT_SECRET } from "./utils/jwt";
 import axios from "axios";
 import { FrameCaptureService } from "./services/frameCaptureService";
+import { congestionNotificationService } from "./services/congestionNotificationService";
 import { pool } from "./config/db";
 import { Pool } from "mysql2/promise";
 
@@ -156,7 +157,7 @@ export function setupSocketHandlers(io: SocketIOServer, dbPool?: Pool): void {
     });
 
     // 분석 중지 요청
-    socket.on("stop-detection", (cctvId: number) => {
+    socket.on("stop-detection", async (cctvId: number) => {
       console.log(`[Socket] 클라이언트 ${socket.id}가 CCTV ${cctvId}에 대한 감지 중지 요청`);
       const vehicleRoom = `${VEHICLE_ROOM_PREFIX}${cctvId}`;
       socket.leave(vehicleRoom);
@@ -165,6 +166,15 @@ export function setupSocketHandlers(io: SocketIOServer, dbPool?: Pool): void {
       // 프레임 캡처 중지
       if (frameCaptureService) {
         frameCaptureService.stopCapture(cctvId);
+      }
+      
+      // 분석 종료 시 해당 CCTV의 혼잡도 알림 이력 초기화
+      try {
+        await congestionNotificationService.clearNotificationsForCctv(cctvId);
+        console.log(`[Socket] CCTV ${cctvId} 분석 중지 - 알림 이력 초기화 완료`);
+      } catch (error: any) {
+        console.error(`[Socket] CCTV ${cctvId} 알림 이력 초기화 실패:`, error.message);
+        // 알림 이력 초기화 실패해도 분석 중지는 성공한 것으로 처리
       }
       
       console.log(`[Socket] CCTV ${cctvId} 분석 중지 - vehicle 룸(${vehicleRoom})에서 퇴장 완료`);

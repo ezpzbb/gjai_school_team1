@@ -30,16 +30,20 @@ export const NotificationQueries = {
 
   /**
    * 알림 발송 이력 저장 (혼잡도 알림용)
+   * 시간 기반 초기화를 위해 sent_at도 업데이트
    */
   SAVE_NOTIFICATION_HISTORY: `
     INSERT INTO notification 
       (notification_type, congestion_id, user_id, cctv_id, status)
     VALUES ('congestion', ?, ?, ?, ?)
-    ON DUPLICATE KEY UPDATE status = VALUES(status)
+    ON DUPLICATE KEY UPDATE 
+      status = VALUES(status),
+      sent_at = CURRENT_TIMESTAMP
   `,
 
   /**
    * 특정 혼잡도 데이터에 대한 알림 발송 대상 조회 (즉시 알림용)
+   * CCTV별 시간 기반 초기화: 같은 CCTV에 대해 일정 시간(분 단위)이 지난 알림은 다시 보낼 수 있음
    */
   GET_NOTIFICATION_TARGETS_FOR_CONGESTION: `
     SELECT DISTINCT
@@ -53,14 +57,31 @@ export const NotificationQueries = {
     INNER JOIN frame fr ON c.frame_id = fr.frame_id
     INNER JOIN favorite f ON fr.cctv_id = f.cctv_id
     INNER JOIN cctv ON fr.cctv_id = cctv.cctv_id
-    LEFT JOIN notification n 
-      ON c.congestion_id = n.congestion_id 
+    LEFT JOIN (
+      SELECT 
+        cctv_id,
+        user_id,
+        MAX(sent_at) as last_sent_at
+      FROM notification
+      WHERE notification_type = 'congestion'
+      GROUP BY cctv_id, user_id
+    ) n 
+      ON f.cctv_id = n.cctv_id 
       AND f.user_id = n.user_id
-      AND n.notification_type = 'congestion'
     WHERE c.congestion_id = ?
       AND f.cctv_id = ?
       AND c.level >= ?
-      AND n.notification_id IS NULL
+      AND (n.last_sent_at IS NULL 
+           OR n.last_sent_at < DATE_SUB(NOW(), INTERVAL ? MINUTE))
+  `,
+
+  /**
+   * CCTV별 혼잡도 알림 이력 삭제 (분석 종료 시 초기화용)
+   */
+  DELETE_CONGESTION_NOTIFICATIONS_BY_CCTV: `
+    DELETE FROM notification
+    WHERE notification_type = 'congestion'
+      AND cctv_id = ?
   `,
 
   /**
