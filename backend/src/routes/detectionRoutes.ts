@@ -112,26 +112,54 @@ export const setupDetectionRoutes = (dbPool: Pool): Router => {
           }
         }
 
-        // detection 테이블에 저장
+        // detection 테이블에 저장 및 detection_id 수집
         const insertSql = `
           INSERT INTO detection (frame_id, confidence, bounding_box, detected_at, object_text)
           VALUES (?, ?, ?, FROM_UNIXTIME(?), ?)
         `;
 
+        const detectionIds: number[] = [];
+        const vehicleTypes = ['car', 'truck', 'bus', '승용차', '트럭', '버스'];
+
         for (const det of detections) {
           const bboxText = JSON.stringify(det.bbox || []);
-          await conn.query(insertSql, [
+          const [result] = await conn.query(insertSql, [
             actualFrameId, // 올바른 frame_id 사용
             det.conf,
             bboxText,
             tsSec,
             det.cls, // object_text로 저장
           ]);
+          
+          const insertId = (result as any).insertId;
+          if (insertId) {
+            detectionIds.push(insertId);
+          }
+        }
+
+        // 각 detection에 대해 statistics 생성 (같은 트랜잭션 내에서)
+        const statisticsInsertSql = `
+          INSERT INTO statistics (detection_id, object_count, vehicle_total)
+          VALUES (?, ?, ?)
+        `;
+
+        for (let i = 0; i < detectionIds.length; i++) {
+          const detectionId = detectionIds[i];
+          const det = detections[i];
+          
+          // 차량 여부 확인
+          const isVehicle = vehicleTypes.includes(det.cls);
+          
+          await conn.query(statisticsInsertSql, [
+            detectionId,
+            1, // object_count: 각 detection은 객체 1개
+            isVehicle ? 1 : 0, // vehicle_total: 차량이면 1, 아니면 0
+          ]);
         }
 
         // 차량 수 계산 (car, truck, bus만 차량으로 간주)
         const vehicleCount = detections.filter(
-          (det) => det.cls === "car" || det.cls === "truck" || det.cls === "bus" || det.cls === "승용차" || det.cls === "트럭" || det.cls === "버스"
+          (det) => vehicleTypes.includes(det.cls)
         ).length;
 
         // 혼잡도 계산 및 저장
@@ -150,7 +178,7 @@ export const setupDetectionRoutes = (dbPool: Pool): Router => {
 
         await conn.commit();
         console.log(
-          `[Detection] CCTV ${cctvId}, Frame ${actualFrameId}: ${detections.length}개 객체 감지 저장 완료 (차량: ${vehicleCount}대, 혼잡도: ${congestionLevel})`
+          `[Detection] CCTV ${cctvId}, Frame ${actualFrameId}: ${detections.length}개 객체 감지 저장 완료 (차량: ${vehicleCount}대, 혼잡도: ${congestionLevel}, Statistics: ${detectionIds.length}개 생성)`
         );
       } catch (err: any) {
         await conn.rollback();

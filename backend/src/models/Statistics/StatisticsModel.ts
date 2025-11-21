@@ -19,3 +19,10 @@ export interface VehicleStatisticsPoint {
   object_count: number;
 }
 
+// 차량 유형별 통계 (대시보드용)
+export interface VehicleStatisticsByType {
+  timestamp: string;
+  object_text: string;
+  count: number;
+}
+

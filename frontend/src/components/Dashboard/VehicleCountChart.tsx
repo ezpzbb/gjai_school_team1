@@ -2,23 +2,21 @@ import React, { useMemo, useRef, useEffect } from 'react';
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS } from 'chart.js';
 import '../../utils/chartConfig'; // Chart.js 플러그인 등록
-import { VehicleStatisticsPoint } from '../../types/dashboard';
 import { formatTime } from '../../utils/dateUtils';
-import { CHART_COLORS } from '../../constants/chartColors';
 import ChartContainer from './ChartContainer';
 
 interface VehicleCountChartProps {
-  data: VehicleStatisticsPoint[];
+  data?: unknown[]; // 사용하지 않음 (하위 호환성을 위해 유지)
   vehicleTypeData?: Array<{ label: string; data: number[]; timestamps: string[] }>;
   isLoading?: boolean;
 }
 
-const VehicleCountChart: React.FC<VehicleCountChartProps> = ({ data, vehicleTypeData, isLoading = false }) => {
+const VehicleCountChart: React.FC<VehicleCountChartProps> = ({ vehicleTypeData, isLoading = false }) => {
   const chartRef = useRef<ChartJS<'bar'>>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
   const chartData = useMemo(() => {
-    // 차량 유형별 데이터가 있으면 그것을 사용, 없으면 기본 데이터 사용
+    // 차량 유형별 데이터가 있으면 그것을 사용
     if (vehicleTypeData && vehicleTypeData.length > 0) {
       const colors = [
         '#3B82F6', // 파란색 - 승용차
@@ -42,27 +40,12 @@ const VehicleCountChart: React.FC<VehicleCountChartProps> = ({ data, vehicleType
       };
     }
     
-    // 기본 데이터 (차량 수 + 객체 수)
+    // 데이터가 없으면 빈 차트
     return {
-      labels: data.map((point) => formatTime(point.timestamp)),
-      datasets: [
-        {
-          label: '차량 수',
-          data: data.map((point) => point.vehicle_total),
-          backgroundColor: CHART_COLORS.PRIMARY_ALPHA,
-          borderColor: CHART_COLORS.PRIMARY,
-          borderWidth: 1,
-        },
-        {
-          label: '객체 수',
-          data: data.map((point) => point.object_count),
-          backgroundColor: CHART_COLORS.SECONDARY_ALPHA,
-          borderColor: CHART_COLORS.SECONDARY,
-          borderWidth: 1,
-        },
-      ],
+      labels: [],
+      datasets: [],
     };
-  }, [data, vehicleTypeData]);
+  }, [vehicleTypeData]);
 
   const options = useMemo(() => ({
     responsive: true,
@@ -128,7 +111,7 @@ const VehicleCountChart: React.FC<VehicleCountChartProps> = ({ data, vehicleType
   return (
     <ChartContainer
       isLoading={isLoading}
-      isEmpty={data.length === 0}
+      isEmpty={!vehicleTypeData || vehicleTypeData.length === 0}
       height="100%"
     >
       <div ref={containerRef} className="w-full h-full bg-white dark:bg-gray-800 rounded-lg p-3">
