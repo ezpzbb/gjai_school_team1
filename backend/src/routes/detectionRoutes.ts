@@ -129,21 +129,42 @@ export const setupDetectionRoutes = (dbPool: Pool): Router => {
         await conn.commit();
         console.log(`[Detection] 분석 완료 이미지 저장: Frame ${frameId}, path: ${relativePath}`);
         
-        // Socket.IO로 분석 완료 이미지 브로드캐스트
+        // Socket.IO로 분석 완료 이미지 브로드캐스트 (이미지 데이터 직접 전송)
         const io = getSocketIO();
         if (io) {
-          const room = `${VEHICLE_ROOM_PREFIX}${cctvId}`;
-          const apiUrl = process.env.API_URL || 'http://localhost:3002';
-          const fullImageUrl = `${apiUrl}${relativePath}`;
-          
-          io.to(room).emit("analyzed-image", {
-            cctvId,
-            frameId,
-            imagePath: relativePath,
-            imageUrl: fullImageUrl,
-            timestamp: Date.now(),
-          });
-          console.log(`[Detection] 분석 완료 이미지 브로드캐스트: CCTV ${cctvId}, Frame ${frameId}, URL: ${fullImageUrl}`);
+          try {
+            // 이미지 파일을 읽어서 Base64로 인코딩
+            const imageBuffer = fs.readFileSync(filePath);
+            const imageBase64 = imageBuffer.toString('base64');
+            const imageData = `data:image/jpeg;base64,${imageBase64}`;
+            
+            const room = `${VEHICLE_ROOM_PREFIX}${cctvId}`;
+            
+            io.to(room).emit("analyzed-image", {
+              cctvId,
+              frameId,
+              imagePath: relativePath,
+              imageUrl: `${process.env.API_URL || 'http://localhost:3002'}${relativePath}`, // 하위 호환성 유지
+              imageData, // Base64 인코딩된 이미지 데이터
+              timestamp: Date.now(),
+            });
+            console.log(`[Detection] 분석 완료 이미지 브로드캐스트: CCTV ${cctvId}, Frame ${frameId}, Size: ${imageBuffer.length} bytes`);
+          } catch (error: any) {
+            console.error(`[Detection] 이미지 파일 읽기 실패: ${filePath}`, error.message);
+            // 이미지 읽기 실패 시 URL만 전송 (하위 호환성)
+            const room = `${VEHICLE_ROOM_PREFIX}${cctvId}`;
+            const apiUrl = process.env.API_URL || 'http://localhost:3002';
+            const fullImageUrl = `${apiUrl}${relativePath}`;
+            
+            io.to(room).emit("analyzed-image", {
+              cctvId,
+              frameId,
+              imagePath: relativePath,
+              imageUrl: fullImageUrl,
+              timestamp: Date.now(),
+            });
+            console.log(`[Detection] 분석 완료 이미지 브로드캐스트 (URL만): CCTV ${cctvId}, Frame ${frameId}, URL: ${fullImageUrl}`);
+          }
         } else {
           console.warn(`[Detection] Socket.IO 인스턴스가 없어 이미지를 브로드캐스트할 수 없습니다.`);
         }

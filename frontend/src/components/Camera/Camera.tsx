@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Hls from "hls.js";
 import { createApiUrl } from "../../config/apiConfig";
-import { socketService, AnalyzedImagePayload } from "../../services/socket";
+import { socketService } from "../../services/socket";
 import { VehicleDetectionItem } from "../../types/vehicle";
 
 // 아이콘 컴포넌트들
@@ -80,7 +80,6 @@ const Camera: React.FC<CameraProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
-  const [analyzedImageUrl, setAnalyzedImageUrl] = useState<string | null>(null);
 
   const fetchStreamUrl = useCallback(async (): Promise<string> => {
     const cached = streamCacheRef.current[cctv_id];
@@ -506,52 +505,7 @@ const Camera: React.FC<CameraProps> = ({
     };
   }, [cctv_id]);
 
-  // 분석 완료 이미지 수신 및 표시 (동영상처럼 연속 업데이트)
-  useEffect(() => {
-    if (!isAnalyzing) {
-      setAnalyzedImageUrl(null);
-      return;
-    }
-
-    // 분석 시작 시 비디오 일시정지
-    const videoElement = videoRef.current;
-    if (videoElement) {
-      videoElement.pause();
-    }
-
-    const unsubscribe = socketService.onAnalyzedImage(cctv_id, (data: AnalyzedImagePayload) => {
-      // 이미지 URL에 타임스탬프를 추가하여 브라우저 캐시 무효화 (부드러운 업데이트)
-      const imageUrlWithTimestamp = `${data.imageUrl}?t=${data.timestamp}`;
-      setAnalyzedImageUrl(imageUrlWithTimestamp);
-    });
-
-    return () => {
-      unsubscribe();
-      setAnalyzedImageUrl(null);
-    };
-  }, [cctv_id, isAnalyzing]);
-
-  // 분석 종료 시 비디오 재생
-  useEffect(() => {
-    if (isAnalyzing) {
-      return;
-    }
-
-    const videoElement = videoRef.current;
-    if (!videoElement || !streamUrl) {
-      return;
-    }
-
-    // 비디오 재생 시도
-    const tryPlay = () => {
-      videoElement.play().catch((error) => {
-        console.warn(`[Camera] 비디오 재생 실패 (분석 종료 후):`, error);
-      });
-    };
-
-    // 약간의 지연 후 재생 시도
-    setTimeout(tryPlay, 100);
-  }, [isAnalyzing, streamUrl]);
+  // 분석 중에도 비디오는 계속 재생됨 (일시정지하지 않음)
 
   const isLoading = isResolving || (!!streamUrl && !isVideoReady && !errorMessage);
 
@@ -798,7 +752,7 @@ const Camera: React.FC<CameraProps> = ({
                 height: "100%",
                 objectFit: videoObjectFit,
                 backgroundColor: "#000",
-                display: isAnalyzing ? "none" : "block",
+                display: "block",
               }}
             >
               <canvas
@@ -812,45 +766,6 @@ const Camera: React.FC<CameraProps> = ({
               {streamUrl && resolvedMimeType && <source src={streamUrl} type={resolvedMimeType} />}
             </video>
 
-            {/* 분석 중일 때 분석된 이미지를 동영상처럼 표시 */}
-            {isAnalyzing && (
-              <>
-                {analyzedImageUrl ? (
-                  <img
-                    key={analyzedImageUrl}
-                    src={analyzedImageUrl}
-                    alt="Analyzed frame"
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      width: "100%",
-                      height: "100%",
-                      objectFit: videoObjectFit,
-                      backgroundColor: "#000",
-                      transition: "opacity 0.1s ease-in-out",
-                    }}
-                    onError={() => {
-                      console.error(`[Camera] 분석된 이미지 로드 실패: ${analyzedImageUrl}`);
-                    }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: "#000",
-                      color: "#fff",
-                      fontSize: "14px",
-                    }}
-                  >
-                    분석 중... 첫 프레임을 기다리는 중...
-                  </div>
-                )}
-              </>
-            )}
 
             {isLoading && (
               <div

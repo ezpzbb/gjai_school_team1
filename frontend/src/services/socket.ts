@@ -9,7 +9,8 @@ export interface AnalyzedImagePayload {
   cctvId: number;
   frameId: number;
   imagePath: string;
-  imageUrl: string;
+  imageUrl: string; // 하위 호환성을 위해 유지
+  imageData?: string; // Base64 인코딩된 이미지 데이터 (우선 사용)
   timestamp: number;
 }
 
