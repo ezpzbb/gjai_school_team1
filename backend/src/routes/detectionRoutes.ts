@@ -29,6 +29,9 @@ export const setupDetectionRoutes = (dbPool: Pool): Router => {
   // 분석 완료 이미지 저장 엔드포인트
   const upload = multer({ storage: multer.memoryStorage() });
   
+  // CCTV당 최대 프레임 수 (환경변수 또는 기본값 50)
+  const MAX_FRAMES_PER_CCTV = parseInt(process.env.MAX_FRAMES_PER_CCTV || '50', 10);
+  
   router.post("/detection/image", upload.single('image'), async (req: Request, res: Response) => {
     try {
       const file = (req as any).file;
@@ -72,6 +75,56 @@ export const setupDetectionRoutes = (dbPool: Pool): Router => {
           `UPDATE frame SET image_path = ? WHERE frame_id = ?`,
           [relativePath, frameId]
         );
+        
+        // FIFO 로직: 특정 CCTV의 프레임 수가 MAX_FRAMES_PER_CCTV를 초과하면 가장 오래된 프레임의 이미지 파일만 삭제
+        // 레코드는 유지하여 차트 데이터(detection, congestion, statistics)를 보존
+        // image_path가 NOT NULL이므로 특수 플래그 값 '__DELETED__'를 사용하여 삭제된 이미지를 표시
+        const DELETED_FLAG = '__DELETED__';
+        const [countRows] = await conn.query<any[]>(
+          `SELECT COUNT(*) as count FROM frame 
+           WHERE cctv_id = ? AND image_path IS NOT NULL AND image_path != '' AND image_path != ?`,
+          [cctvId, DELETED_FLAG]
+        );
+        const frameCount = countRows[0].count;
+        
+        if (frameCount > MAX_FRAMES_PER_CCTV) {
+          const excessCount = frameCount - MAX_FRAMES_PER_CCTV;
+          // 가장 오래된 프레임 조회 (실제 이미지가 있는 것만, 삭제 플래그 제외)
+          const [oldestFrames] = await conn.query<any[]>(
+            `SELECT frame_id, image_path FROM frame 
+             WHERE cctv_id = ? AND image_path IS NOT NULL AND image_path != '' AND image_path != ?
+             ORDER BY timestamp ASC LIMIT ?`,
+            [cctvId, DELETED_FLAG, excessCount]
+          );
+          
+          for (const oldFrame of oldestFrames) {
+            if (oldFrame.image_path && oldFrame.image_path !== DELETED_FLAG) {
+              try {
+                // 파일명 추출 (상대 경로에서)
+                const filename = path.basename(oldFrame.image_path);
+                const oldFilePath = path.join(__dirname, '../../uploads/frames', filename);
+                
+                // 파일이 존재하면 삭제
+                if (fs.existsSync(oldFilePath)) {
+                  fs.unlinkSync(oldFilePath);
+                  console.log(`[Detection] 오래된 프레임 파일 삭제: ${oldFilePath}`);
+                }
+              } catch (fileError: any) {
+                console.warn(`[Detection] 프레임 파일 삭제 실패 (무시): ${fileError.message}`);
+              }
+            }
+            
+            // DB 레코드는 유지하되 image_path를 삭제 플래그로 표시
+            // 레코드를 유지하여 detection, congestion, statistics 데이터 보존 (차트 데이터 유지)
+            await conn.query(
+              `UPDATE frame SET image_path = ? WHERE frame_id = ?`,
+              [DELETED_FLAG, oldFrame.frame_id]
+            );
+            console.log(`[Detection] 오래된 프레임 이미지 삭제 표시: Frame ${oldFrame.frame_id} (레코드 유지하여 차트 데이터 보존)`);
+          }
+          
+          console.log(`[Detection] FIFO 정리 완료: CCTV ${cctvId}, ${excessCount}개 프레임 이미지 삭제 (현재 이미지: ${frameCount - excessCount}개, 전체 레코드 유지)`);
+        }
         
         await conn.commit();
         console.log(`[Detection] 분석 완료 이미지 저장: Frame ${frameId}, path: ${relativePath}`);
