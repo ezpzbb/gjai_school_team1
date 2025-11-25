@@ -40,17 +40,17 @@ export const StatisticsQueries = {
     VALUES (?, ?, ?)
   `,
 
-  // 대시보드용: 시간대별 차량 통계 조회 (차량 유형별, 5분 단위)
+  // 대시보드용: 시간대별 차량 통계 조회 (차량 유형별, 1분 단위)
   // 주의: frame.timestamp 기준으로 집계 (프레임 촬영 시간 기준)
   // detection.detected_at은 계산 완료 시간이므로 프레임 촬영 시간과 2-3초 차이 발생
   // 완료된 데이터만 조회 (statistics가 존재하는 경우만)
-  // 5분 단위로 그룹화: FLOOR(MINUTE(f.timestamp) / 5) * 5를 사용하여 5분 단위로 반올림
+  // 1분 단위로 그룹화: FLOOR(MINUTE(f.timestamp) / 1) * 1를 사용하여 1분 단위로 반올림
   GET_VEHICLE_STATISTICS: `
     SELECT 
       DATE_FORMAT(
         DATE_ADD(
           DATE_FORMAT(f.timestamp, '%Y-%m-%d %H:00:00'),
-          INTERVAL FLOOR(MINUTE(f.timestamp) / 5) * 5 MINUTE
+          INTERVAL FLOOR(MINUTE(f.timestamp) / 1) * 1 MINUTE
         ),
         '%Y-%m-%d %H:%i:00'
       ) as timestamp,
@@ -70,7 +70,7 @@ export const StatisticsQueries = {
       DATE_FORMAT(
         DATE_ADD(
           DATE_FORMAT(f.timestamp, '%Y-%m-%d %H:00:00'),
-          INTERVAL FLOOR(MINUTE(f.timestamp) / 5) * 5 MINUTE
+          INTERVAL FLOOR(MINUTE(f.timestamp) / 1) * 1 MINUTE
         ),
         '%Y-%m-%d %H:%i:00'
       ),
