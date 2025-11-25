@@ -2,7 +2,8 @@ import asyncio
 import base64
 import os
 import time
-from typing import List, Optional, Tuple, Dict
+from datetime import datetime, timezone
+from typing import List, Optional, Tuple, Dict, Any
 
 import cv2
 import numpy as np
@@ -14,7 +15,8 @@ from fastapi.responses import StreamingResponse
 from infra.adapters.cctv_stream import FrameStream
 from vision.inference.engines.yolo_ultralytics import YOLOEngine
 from vision.pipelines.preprocess import enhance_frame
-from vision.pipelines.postprocess import summarize_tracks  # 필요 없으면 import 제거 가능
+from vision.pipelines.postprocess import summarize_tracks
+from infra.configs.roi_store import get_roi_polygon
 
 router = APIRouter(prefix="/view", tags=["view"])
 
@@ -22,11 +24,17 @@ router = APIRouter(prefix="/view", tags=["view"])
 _FONT: Optional[ImageFont.FreeTypeFont] = None
 
 # 백엔드 URL
-BACKEND_BASE = os.getenv("BACKEND_BASE", "http://localhost:3001")
+BACKEND_BASE = os.getenv("BACKEND_BASE", "http://backend:3001")
 
 # FPS 제한 (최대 30fps)
 TARGET_FPS: float = 30.0
 _FRAME_INTERVAL: float = 1.0 / TARGET_FPS
+
+# cctv_id -> (url, expires_at)
+_STREAM_URL_CACHE: Dict[int, Tuple[str, float]] = {}
+_CACHE_TTL_SECONDS: float = 60.0  # 또는 backend의 cachedUntil을 사용할 수 있으면 그걸로
+_BACKOFF_SECONDS_ON_429: float = 30.0
+_LAST_429_AT: Dict[int, float] = {}  # cctv_id -> last 429 timestamp
 
 
 def _get_stream_url_from_backend(cctv_id: int) -> str:
@@ -34,11 +42,40 @@ def _get_stream_url_from_backend(cctv_id: int) -> str:
     backend의 CCTV 스트림 API(/api/cctv/:id/stream)를 통해
     cctvStreamResolver가 해석한 실제 스트림 URL(HLS 등)을 조회한다.
     """
+    now = time.time()
+
+    # 1) 429 직후에는 일정 시간 동안 바로 재시도하지 않기 (백오프)
+    last_429 = _LAST_429_AT.get(cctv_id)
+    if last_429 is not None and now - last_429 < _BACKOFF_SECONDS_ON_429:
+        raise HTTPException(
+            status_code=503,
+            detail=f"cctv_id={cctv_id} 스트림 조회가 잠시 제한되었습니다. 잠시 후 다시 시도해주세요.",
+        )
+
+    # 2) 캐시에 유효한 url 있으면 재사용
+    cached = _STREAM_URL_CACHE.get(cctv_id)
+    if cached is not None:
+        url, expires_at = cached
+        if now < expires_at:
+            return url
+        else:
+            # 만료된 캐시는 제거
+            _STREAM_URL_CACHE.pop(cctv_id, None)
+
+    # 3) 백엔드에 요청
     try:
         resp = requests.get(
             f"{BACKEND_BASE}/api/cctv/{cctv_id}/stream", timeout=2.0
         )
         resp.raise_for_status()
+    except requests.exceptions.HTTPError as e:
+        # 429 인 경우 -> 백오프 시간 기록
+        if resp is not None and resp.status_code == 429:
+            _LAST_429_AT[cctv_id] = now
+        raise HTTPException(
+            status_code=502,
+            detail=f"backend CCTV 스트림 API 호출 실패: {e}",
+        ) from e
     except Exception as e:
         raise HTTPException(
             status_code=502,
@@ -61,6 +98,30 @@ def _get_stream_url_from_backend(cctv_id: int) -> str:
             status_code=502,
             detail=f"cctv_id={cctv_id}에 대한 streamUrl이 없습니다.",
         )
+
+    # backend에서 cachedUntil 제공한다면, TTL로 사용
+    cached_until = data.get("cachedUntil")
+    if cached_until is not None:
+        # 숫자(UNIX timestamp)인 경우
+        if isinstance(cached_until, (int, float)):
+            expires_at = float(cached_until)
+        # 문자열(예: "2025-11-23T21:50:20.474Z")인 경우
+        elif isinstance(cached_until, str):
+            try:
+                # 'Z' -> '+00:00' 으로 바꿔서 UTC로 파싱
+                dt = datetime.fromisoformat(
+                    cached_until.replace("Z", "+00:00"))
+                expires_at = dt.replace(tzinfo=timezone.utc).timestamp()
+            except ValueError:
+                # 파싱 실패 시 기본 TTL 사용
+                expires_at = time.time() + _CACHE_TTL_SECONDS
+        else:
+            # 예상치 못한 타입이면 기본 TTL 사용
+            expires_at = time.time() + _CACHE_TTL_SECONDS
+    else:
+        expires_at = time.time() + _CACHE_TTL_SECONDS
+
+    _STREAM_URL_CACHE[cctv_id] = (url, expires_at)
 
     return url
 
@@ -144,95 +205,6 @@ def draw_text_korean(
     return cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
 
 
-def _build_road_roi_from_edges(frame: np.ndarray) -> Optional[np.ndarray]:
-    """
-    Canny + HoughLinesP로 도로 양쪽 에지 선을 찾고,
-    이 두 선을 기반으로 사다리꼴 ROI 폴리곤을 계산한다.
-    """
-    height, width = frame.shape[:2]
-
-    # 1. 도로가 있을 법한 하단 영역만 사용 (예: 하단 60%)
-    roi_y_start_ratio: float = 0.4
-    y_start: int = int(height * roi_y_start_ratio)
-    roi: np.ndarray = frame[y_start:height, :]
-
-    gray: np.ndarray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-    blurred: np.ndarray = cv2.GaussianBlur(gray, (5, 5), 1.4)
-    edges: np.ndarray = cv2.Canny(blurred, 50, 150)
-
-    # 2. HoughLinesP로 선분 후보 찾기
-    lines: Optional[np.ndarray] = cv2.HoughLinesP(
-        edges,
-        rho=1,
-        theta=np.pi / 180.0,
-        threshold=60,
-        minLineLength=40,
-        maxLineGap=30,
-    )
-
-    if lines is None:
-        return None
-
-    left_lines: List[Tuple[float, float]] = []
-    right_lines: List[Tuple[float, float]] = []
-    mid_x: float = width / 2.0
-
-    for line in lines:
-        x1_l, y1_l, x2_l, y2_l = line[0]
-
-        y1 = y1_l + y_start
-        y2 = y2_l + y_start
-        x1 = x1_l
-        x2 = x2_l
-
-        dy = y2 - y1
-        if abs(dy) < 20:
-            continue
-
-        a: float = (x2 - x1) / float(dy)
-        b: float = x1 - a * float(y1)
-
-        cx_line: float = (x1 + x2) / 2.0
-        if cx_line < mid_x:
-            left_lines.append((a, b))
-        else:
-            right_lines.append((a, b))
-
-    if not left_lines or not right_lines:
-        return None
-
-    def _avg_line(lines_ab: List[Tuple[float, float]]) -> Tuple[float, float]:
-        a_vals = np.array([ab[0] for ab in lines_ab], dtype=np.float32)
-        b_vals = np.array([ab[1] for ab in lines_ab], dtype=np.float32)
-        return float(a_vals.mean()), float(b_vals.mean())
-
-    a_left, b_left = _avg_line(left_lines)
-    a_right, b_right = _avg_line(right_lines)
-
-    bottom_y: int = height - 1
-    top_y: int = int(height * 0.5)
-
-    def _x_at_y(a: float, b: float, y_val: int) -> int:
-        x_val: float = a * float(y_val) + b
-        return int(max(0, min(width - 1, x_val)))
-
-    left_bottom_x: int = _x_at_y(a_left, b_left, bottom_y)
-    left_top_x: int = _x_at_y(a_left, b_left, top_y)
-    right_bottom_x: int = _x_at_y(a_right, b_right, bottom_y)
-    right_top_x: int = _x_at_y(a_right, b_right, top_y)
-
-    polygon: np.ndarray = np.array(
-        [
-            [left_bottom_x, bottom_y],
-            [left_top_x, top_y],
-            [right_top_x, top_y],
-            [right_bottom_x, bottom_y],
-        ],
-        dtype=np.int32,
-    )
-    return polygon
-
-
 def _is_inside_polygon(cx: float, cy: float, polygon: np.ndarray) -> bool:
     result: float = cv2.pointPolygonTest(polygon, (cx, cy), False)
     return result >= 0.0
@@ -243,6 +215,7 @@ def _process_frame(
     eng: YOLOEngine,
     font: ImageFont.FreeTypeFont,
     roi_polygon: Optional[np.ndarray],
+    cctv_id: int,
 ) -> Tuple[np.ndarray, Optional[np.ndarray], List[dict]]:
     """
     한 프레임에 대해:
@@ -253,11 +226,12 @@ def _process_frame(
     """
     vis_frame = frame.copy()
 
+    x = enhance_frame(frame)
+    preds = eng.predict(x)
+
     # 1) ROI 갱신
     if roi_polygon is None:
-        cand = _build_road_roi_from_edges(frame)
-        if cand is not None:
-            roi_polygon = cand
+        roi_polygon = get_roi_polygon(cctv_id)
 
     # 2) ROI 시각화
     if roi_polygon is not None:
@@ -266,11 +240,7 @@ def _process_frame(
         vis_frame = cv2.addWeighted(overlay, 0.2, vis_frame, 0.8, 0.0)
         cv2.polylines(vis_frame, [roi_polygon], True, (0, 255, 0), 2)
 
-    # 3) 추론
-    x = enhance_frame(frame)
-    preds = eng.predict(x)
-
-    # 4) ROI 안의 디텍션만 사용 + 박스/라벨 그리기
+    # 5) ROI 안의 디텍션만 사용 + 박스/라벨 그리기
     filtered: List[dict] = []
     for d in preds:
         x1, y1, x2, y2 = map(int, d["bbox"])
@@ -282,12 +252,7 @@ def _process_frame(
 
         filtered.append(d)
 
-        cv2.rectangle(vis_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        label = f'{d["cls"]} {d["conf"]:.2f}'
-        vis_frame = draw_text_korean(vis_frame, label, (x1, y1 - 5), font=font)
-        cv2.circle(vis_frame, (int(cx), int(cy)), 4, (0, 0, 255), -1)
-
-    # 필요하면 요약 정보 로그
+    # 요약 정보 로그
     if filtered:
         report = summarize_tracks(filtered)
         print("[stream_view] 탐지 결과 보고:", report)
@@ -319,7 +284,7 @@ def _mjpeg_gen(url: str, cctv_id: int):
         last_processed_ts = now
 
         vis_frame, roi_polygon, filtered = _process_frame(
-            frame, eng, font, roi_polygon)
+            frame, eng, font, roi_polygon, cctv_id)
 
         if filtered:
             _send_detection_to_backend(cctv_id, filtered, roi_polygon)
@@ -361,7 +326,10 @@ async def view_ws(websocket: WebSocket, cctv_id: int = Query(..., ge=1)):
     await websocket.accept()
     try:
         url = _get_stream_url_from_backend(cctv_id)
+        print(f"[detections_ws] stream url: {url}")
     except HTTPException as e:
+        print(f"[detections_ws] failed to get stream url: {e.detail}")
+        await websocket.send_json({"error": e.detail})
         await websocket.close(code=1011, reason=e.detail)
         return
 
@@ -383,32 +351,83 @@ async def view_ws(websocket: WebSocket, cctv_id: int = Query(..., ge=1)):
                 continue
             last_processed_ts = now
 
-            vis_frame, roi_polygon, filtered = _process_frame(
-                frame, eng, font, roi_polygon)
+            raw_frame, roi_polygon, filtered = _process_frame(
+                frame, eng, font, roi_polygon, cctv_id)
 
             if filtered:
                 _send_detection_to_backend(cctv_id, filtered, roi_polygon)
 
-            ok, jpg = cv2.imencode(".jpg", vis_frame)
+            ok, jpg = cv2.imencode(".jpg", raw_frame)
             if not ok:
                 continue
 
             b64 = base64.b64encode(jpg.tobytes()).decode("ascii")
             roi_payload = roi_polygon.tolist() if roi_polygon is not None else None
 
+            detections_payload = [
+                {
+                    "trackId": d.get("track_id"),
+                    "cls": d["cls"],
+                    "conf": d["conf"],
+                    "bbox": d["bbox"],
+                }
+                for d in filtered
+            ]
+
             await websocket.send_json(
                 {
                     "timestamp": now,
                     "image": f"data:image/jpeg;base64,{b64}",
-                    "detections": filtered,
+                    "detections": detections_payload,
                     "roiPolygon": roi_payload,
                 }
             )
     except WebSocketDisconnect:
         return
     except Exception as e:
-        print("[stream_view] WebSocket view error:", e)
+        detail = str(e.detail)
+        print("[stream_view] WebSocket view error:", detail)
         try:
-            await websocket.close(code=1011, reason=str(e))
+            await websocket.send_json({"error": detail})
         except Exception:
             pass
+
+        try:
+            await websocket.close(code=1011, reason="")
+        except Exception:
+            pass
+
+
+@router.get("/debug/detections")
+def debug_detections(cctv_id: int = Query(..., ge=1)):
+    '''
+    ws 디버깅 용으로 사용 -> 데이터가 잘 전달되고 있는지 확인
+    http://localhost:8080/model/view/debug/detections?cctv_id=149416
+    '''
+    url = _get_stream_url_from_backend(cctv_id)
+    fs = FrameStream(url)
+    eng = YOLOEngine()
+    font = _load_korean_font(20)
+
+    frame = fs.read_one()
+    if frame is None:
+        raise HTTPException(502, "no frame from stream")
+
+    vis_frame, roi_polygon, filtered = _process_frame(
+        frame, eng, font, None, cctv_id)
+    detections = [
+        {
+            "trackId": d.get("track_id"),
+            "cls": d["cls"],
+            "conf": d["conf"],
+            "bbox": d["bbox"],
+        }
+        for d in filtered
+    ]
+    roi_payload = roi_polygon.tolist() if roi_polygon is not None else None
+
+    return {
+        "timestamp": time.time(),
+        "detections": detections,
+        "roiPolygon": roi_payload,
+    }

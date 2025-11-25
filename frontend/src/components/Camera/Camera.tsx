@@ -49,6 +49,7 @@ interface CameraProps {
   pageType?: "kakao-map" | "favorite";
   onAnalyze?: () => void;
   isAnalyzing?: boolean;
+  onOpenRoiEditor?: (cctvId: number, streamUrl: string | null) => void;
 }
 
 const Camera: React.FC<CameraProps> = ({
@@ -65,6 +66,7 @@ const Camera: React.FC<CameraProps> = ({
   pageType,
   onAnalyze,
   isAnalyzing = false,
+  onOpenRoiEditor,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsInstanceRef = useRef<Hls | null>(null);
@@ -392,16 +394,25 @@ const Camera: React.FC<CameraProps> = ({
         return;
       }
 
-      // ROI 폴리곤 그리기
+      // ROI 폴리곤 그리기 (수정: 화면 크기 상관 없이 비율에 맞게 roi 최적화 적용)
       if (payload.roiPolygon) {
-        const scaleX = canvas.width / videoEl.videoWidth;
-        const scaleY = canvas.height / videoEl.videoHeight;
+        const vw = videoEl.videoWidth || canvas.width || 1;
+        const vh = videoEl.videoHeight || canvas.height || 1;
+        const cw = canvas.width;
+        const ch = canvas.height;
+
+        const scale = Math.min(cw / vw, ch / vh);
+        const drawnW = vw * scale;
+        const drawnH = vh * scale;
+        const offsetX = (cw - drawnW) / 2;
+        const offsetY = (ch - drawnH) / 2;
+
         ctx.beginPath();
-        payload.roiPolygon.forEach(([x, y], idx) => {
-          const sx = x * scaleX;
-          const sy = y * scaleY;
-          if (idx === 0) ctx.moveTo(sx, sy);
-          else ctx.lineTo(sx, sy);
+        payload.roiPolygon.forEach(([vx, vy], idx) => {
+          const x = offsetX + vx * scale;
+          const y = offsetY + vy * scale;
+          if (idx === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
         });
         ctx.closePath();
         ctx.strokeStyle = "lime";
@@ -556,6 +567,38 @@ const Camera: React.FC<CameraProps> = ({
       >
         <span>📍 {location || "CCTV 위치"}</span>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          {/* ROI 생성 버튼 */}
+          {onAnalyze && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!streamUrl) {
+                  alert("영상이 준비된 후 ROI를 편집할 수 있습니다.");
+                  return;
+                }
+                if (isAnalyzing) {
+                  alert("분석 모드에서는 ROI 편집이 불가합니다.");
+                  return;
+                }
+                onOpenRoiEditor?.(cctv_id, streamUrl);
+              }}
+              style={{
+                padding: "6px",
+                fontSize: "12px",
+                fontWeight: "600",
+                color: "white",
+                background: "rgba(16, 185, 129, 0.9)",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+                width: "36px",
+                height: "28px",
+              }}
+            >
+              ROI
+            </button>
+          )}
+
           {onAnalyze && (
             <button
               onClick={(e) => {

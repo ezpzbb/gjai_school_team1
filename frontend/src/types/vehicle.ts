@@ -1,4 +1,5 @@
 export interface VehicleDetectionItem {
+  trackId: number | null;
   cls: string;
   conf: number;
   bbox: [number, number, number, number];
