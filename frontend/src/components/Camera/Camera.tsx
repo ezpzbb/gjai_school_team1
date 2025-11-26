@@ -558,12 +558,28 @@ const Camera: React.FC<CameraProps> = ({
             background: "#ff4444",
             color: "white",
             border: "none",
-            fontSize: "16px",
+            fontSize: "18px",
             cursor: "pointer",
             zIndex: 20,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 0,
+            margin: 0,
+            lineHeight: 1,
+            textAlign: "center",
+            verticalAlign: "middle",
           }}
         >
-          ×
+          <span style={{ 
+            display: "inline-block",
+            lineHeight: 1,
+            margin: 0,
+            padding: 0,
+            transform: "translateY(-0.5px)",
+          }}>
+            ×
+          </span>
         </button>
       )}
 

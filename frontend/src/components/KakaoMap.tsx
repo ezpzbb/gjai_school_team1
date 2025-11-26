@@ -157,7 +157,7 @@ const KakaoMap: React.FC = () => {
     return () => {
       // 구독만 해제하고, Socket 연결은 유지 (Dashboard가 사용 중일 수 있음)
       unsubscribe();
-      // socketService.disconnect() 제거 - 다른 컴포넌트가 사용 중일 수 있음
+      
     };
   }, []);
 
