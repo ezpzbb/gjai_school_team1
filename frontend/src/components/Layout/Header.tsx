@@ -44,7 +44,7 @@ const Header: React.FC = () => {
     >
       <div className="flex items-center justify-between text-gray-900 dark:text-gray-100" style={{ minHeight: '48px' }}>
         {/* 좌측: Palantir 로고 */}
-        <Link to="/" className="flex items-center">
+        <Link to="/dashboard" className="flex items-center">
           <span className="text-gray-900 dark:text-gray-100 font-bold text-2xl">
             Palantir
           </span>

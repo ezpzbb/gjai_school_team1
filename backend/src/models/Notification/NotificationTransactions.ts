@@ -81,16 +81,18 @@ export class NotificationTransaction {
 
   /**
    * 특정 혼잡도 데이터에 대한 알림 발송 대상 조회 (즉시 알림용)
+   * CCTV별 시간 기반 초기화: 일정 시간이 지난 알림은 다시 보낼 수 있음
    */
   async getNotificationTargetsForCongestion(
     congestionId: number,
     cctvId: number,
-    threshold: number
+    threshold: number,
+    timeIntervalMinutes: number = 5
   ): Promise<NotificationTarget[]> {
     try {
       const [rows] = await this.pool.execute<RowDataPacket[]>(
         NotificationQueries.GET_NOTIFICATION_TARGETS_FOR_CONGESTION,
-        [congestionId, cctvId, threshold]
+        [congestionId, cctvId, threshold, timeIntervalMinutes]
       );
 
       return rows.map((row) => ({
@@ -177,6 +179,22 @@ export class NotificationTransaction {
       return rows.length > 0;
     } catch (error) {
       console.error('사고 알림 중복 체크 실패:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * CCTV별 혼잡도 알림 이력 삭제 (분석 종료 시 초기화용)
+   */
+  async deleteCongestionNotificationsByCctv(cctvId: number): Promise<void> {
+    try {
+      await this.pool.execute(
+        NotificationQueries.DELETE_CONGESTION_NOTIFICATIONS_BY_CCTV,
+        [cctvId]
+      );
+      console.log(`[Notification] CCTV ${cctvId}의 혼잡도 알림 이력 삭제 완료`);
+    } catch (error) {
+      console.error('혼잡도 알림 이력 삭제 실패:', error);
       throw error;
     }
   }

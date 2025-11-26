@@ -17,6 +17,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3001
 
+# FFmpeg 설치 (TS 파일에서 프레임 추출용)
+RUN apk add --no-cache ffmpeg
+
 # 프로덕션 의존성만 설치
 COPY cctv_data.xlsx /app/cctv_data.xlsx
 COPY package.json package-lock.json ./

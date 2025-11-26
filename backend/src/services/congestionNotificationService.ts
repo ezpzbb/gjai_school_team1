@@ -35,6 +35,7 @@ export class CongestionNotificationService {
 
   /**
    * 특정 혼잡도 데이터에 대한 알림 발송 대상 조회 (즉시 알림용)
+   * CCTV별 시간 기반 초기화: 일정 시간이 지난 알림은 다시 보낼 수 있음
    */
   async getNotificationTargetsForCongestion(
     congestionId: number,
@@ -46,11 +47,26 @@ export class CongestionNotificationService {
       return [];
     }
 
+    const notificationTimeInterval = Number(process.env.NOTIFICATION_TIME_INTERVAL) || 5;
     return await this.notificationTransaction.getNotificationTargetsForCongestion(
       congestionId,
       cctvId,
-      this.threshold
+      this.threshold,
+      notificationTimeInterval
     );
+  }
+
+  /**
+   * CCTV별 혼잡도 알림 이력 초기화 (분석 종료 시 호출)
+   */
+  async clearNotificationsForCctv(cctvId: number): Promise<void> {
+    try {
+      await this.notificationTransaction.deleteCongestionNotificationsByCctv(cctvId);
+      console.log(`[CongestionNotification] CCTV ${cctvId}의 알림 이력 초기화 완료`);
+    } catch (error) {
+      console.error('알림 이력 초기화 실패:', error);
+      throw error;
+    }
   }
 
   /**

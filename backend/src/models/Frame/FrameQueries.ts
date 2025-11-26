@@ -55,7 +55,7 @@ export const FrameQueries = {
 
   // 대시보드용: 분석 완료 시간대 조회
   // 주의: frame.timestamp 기준으로 그룹화 (프레임 촬영 시간 기준)
-  // 모든 분석이 완료된 시간대만 조회 (congestion, detection, statistics 모두 존재)
+  // congestion과 detection이 모두 존재하는 시간대만 조회 (statistics는 선택사항)
   // 모델 처리 지연(2-3초)을 고려하여 완료된 데이터만 표시
   // end_time은 애플리케이션 레벨에서 계산 (start_time + 1시간)
   GET_ANALYZED_TIME_RANGES: `
@@ -68,13 +68,12 @@ export const FrameQueries = {
     FROM frame f
     INNER JOIN congestion c ON f.frame_id = c.frame_id
     INNER JOIN detection d ON f.frame_id = d.frame_id
-    INNER JOIN statistics s ON d.detection_id = s.detection_id
+    LEFT JOIN statistics s ON d.detection_id = s.detection_id
     WHERE f.cctv_id = ?
     GROUP BY DATE_FORMAT(f.timestamp, '%Y-%m-%d %H:00:00')
     HAVING frame_count > 0 
       AND congestion_count > 0 
-      AND detection_count > 0 
-      AND statistics_count > 0
+      AND detection_count > 0
     ORDER BY start_time DESC
     LIMIT 100
   `,

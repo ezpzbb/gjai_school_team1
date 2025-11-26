@@ -74,7 +74,9 @@ const Camera: React.FC<CameraProps> = ({
   const streamCacheRef = useRef<Record<number, { url: string; expiresAt: number }>>({});
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const retryCountRef = useRef<number>(0);
-  const modelStreamRef = useRef<HTMLImageElement | null>(null); // 모델 MJPEG 스트림용
+  const stallTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const stallStartTimeRef = useRef<number | null>(null);
+
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [isResolving, setIsResolving] = useState(false);
   const [isVideoReady, setIsVideoReady] = useState(false);
@@ -122,6 +124,13 @@ const Camera: React.FC<CameraProps> = ({
       clearTimeout(retryTimeoutRef.current);
       retryTimeoutRef.current = null;
     }
+
+    // 멈춤 감지 타이머도 정리
+    if (stallTimerRef.current) {
+      clearTimeout(stallTimerRef.current);
+      stallTimerRef.current = null;
+    }
+    stallStartTimeRef.current = null;
 
     const MAX_RETRIES = 3;
     if (retryCountRef.current >= MAX_RETRIES) {
@@ -186,6 +195,12 @@ const Camera: React.FC<CameraProps> = ({
         clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = null;
       }
+      // 멈춤 감지 타이머도 정리
+      if (stallTimerRef.current) {
+        clearTimeout(stallTimerRef.current);
+        stallTimerRef.current = null;
+      }
+      stallStartTimeRef.current = null;
       return () => {
         cancelled = true;
       };
@@ -276,8 +291,67 @@ const Camera: React.FC<CameraProps> = ({
       retryStreamLoad();
     };
 
+    const STALL_TIMEOUT = 10000; // 10초 이상 멈춰있으면 재시도
+
+    const handleStalled = () => {
+      const videoEl = videoRef.current;
+      if (!videoEl) return;
+
+      // 일시정지 상태가 아니고, 재생 중이어야 함
+      if (videoEl.paused) return;
+
+      if (!stallStartTimeRef.current) {
+        stallStartTimeRef.current = Date.now();
+      }
+
+      // 기존 타이머가 있으면 정리
+      if (stallTimerRef.current) {
+        clearTimeout(stallTimerRef.current);
+      }
+
+      // 10초 후에도 여전히 멈춰있으면 재시도
+      stallTimerRef.current = setTimeout(() => {
+        const currentVideoEl = videoRef.current;
+        if (!currentVideoEl) return;
+
+        // 여전히 멈춰있고, 재생 중이어야 함 (일시정지가 아님)
+        // readyState < 3: HAVE_FUTURE_DATA 미만이면 데이터 부족 상태
+        if (!currentVideoEl.paused && currentVideoEl.readyState < 3) {
+          console.log("Camera: Video stalled for too long, retrying...");
+          setErrorMessage("영상 재생이 멈췄습니다. 자동으로 재시도합니다.");
+          retryStreamLoad();
+        }
+      }, STALL_TIMEOUT);
+    };
+
+    const handleWaiting = () => {
+      // waiting도 stalled와 동일한 로직 적용
+      handleStalled();
+    };
+
+    const handlePlaying = () => {
+      // 재생 재개 시 타이머 정리
+      if (stallTimerRef.current) {
+        clearTimeout(stallTimerRef.current);
+        stallTimerRef.current = null;
+      }
+      stallStartTimeRef.current = null;
+    };
+
+    const handleCanPlay = () => {
+      // 재생 가능 상태면 타이머 정리
+      if (stallTimerRef.current) {
+        clearTimeout(stallTimerRef.current);
+        stallTimerRef.current = null;
+      }
+      stallStartTimeRef.current = null;
+    };
+
     videoElement.addEventListener("loadeddata", handleLoaded);
     videoElement.addEventListener("error", handleError);
+    videoElement.addEventListener("waiting", handleWaiting);
+    videoElement.addEventListener("playing", handlePlaying);
+    videoElement.addEventListener("canplay", handleCanPlay);
 
     const isHlsStream = streamUrl.toLowerCase().includes(".m3u8");
 
@@ -305,6 +379,15 @@ const Camera: React.FC<CameraProps> = ({
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         attemptAutoplay();
+      });
+
+      // HLS 프래그먼트 로딩 완료 시 타이머 리셋
+      hls.on(Hls.Events.FRAG_LOADED, () => {
+        if (stallTimerRef.current) {
+          clearTimeout(stallTimerRef.current);
+          stallTimerRef.current = null;
+        }
+        stallStartTimeRef.current = null;
       });
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
@@ -340,6 +423,9 @@ const Camera: React.FC<CameraProps> = ({
       videoElement.pause();
       videoElement.removeEventListener("loadeddata", handleLoaded);
       videoElement.removeEventListener("error", handleError);
+      videoElement.removeEventListener("waiting", handleWaiting);
+      videoElement.removeEventListener("playing", handlePlaying);
+      videoElement.removeEventListener("canplay", handleCanPlay);
 
       if (hlsInstanceRef.current) {
         hlsInstanceRef.current.destroy();
@@ -351,6 +437,13 @@ const Camera: React.FC<CameraProps> = ({
         clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = null;
       }
+
+      // 멈춤 감지 타이머 정리
+      if (stallTimerRef.current) {
+        clearTimeout(stallTimerRef.current);
+        stallTimerRef.current = null;
+      }
+      stallStartTimeRef.current = null;
     };
   }, [streamUrl, retryStreamLoad, isAnalyzing]);
 
@@ -462,32 +555,7 @@ const Camera: React.FC<CameraProps> = ({
     };
   }, [cctv_id, isAnalyzing]);
 
-  // 분석 모드일 때 모델 서버(MJPEG)를 백그라운드로 호출해 디텍션을 발생시킴
-  useEffect(() => {
-    // 즐겨찾기 분석 모드가 아니면 아무 것도 하지 않음
-    if (!isAnalyzing) {
-      if (modelStreamRef.current) {
-        // 기존 스트림 정리
-        modelStreamRef.current.src = "";
-        modelStreamRef.current = null;
-      }
-      return;
-    }
-
-    // 모델 MJPEG 스트림 시작
-    const img = new Image();
-    // nginx 설정에 따라 /model/ 경로는 FastAPI(model)로 프록시됨
-    img.src = createApiUrl(`/model/view/mjpeg?cctv_id=${cctv_id}`);
-    modelStreamRef.current = img;
-
-    // 언마운트 또는 분석 모드 종료 시 스트림 정리
-    return () => {
-      if (modelStreamRef.current) {
-        modelStreamRef.current.src = "";
-        modelStreamRef.current = null;
-      }
-    };
-  }, [cctv_id, isAnalyzing]);
+  // 분석 중에도 비디오는 계속 재생됨 (일시정지하지 않음)
 
   const isLoading = isResolving || (!!streamUrl && !isVideoReady && !errorMessage);
 
@@ -540,12 +608,30 @@ const Camera: React.FC<CameraProps> = ({
             background: "#ff4444",
             color: "white",
             border: "none",
-            fontSize: "16px",
+            fontSize: "18px",
             cursor: "pointer",
             zIndex: 20,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 0,
+            margin: 0,
+            lineHeight: 1,
+            textAlign: "center",
+            verticalAlign: "middle",
           }}
         >
-          ×
+          <span
+            style={{
+              display: "inline-block",
+              lineHeight: 1,
+              margin: 0,
+              padding: 0,
+              transform: "translateY(-0.5px)",
+            }}
+          >
+            ×
+          </span>
         </button>
       )}
 

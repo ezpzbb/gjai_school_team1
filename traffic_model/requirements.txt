@@ -5,3 +5,5 @@ pillow
 numpy
 ultralytics
 opencv-python
+python-multipart
+requests

@@ -27,26 +27,29 @@ services:
     container_name: backend
     restart: always
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
     env_file:
-      - ./backend/.env
+      - ./.env  # 루트의 통합 환경변수 파일 사용
+    volumes:
+      - ./backend/certs:/app/certs:ro  # 인증서 파일 마운트 (읽기 전용)
+      - ./backend/uploads:/app/uploads  # 프레임 이미지 저장 경로
     expose:
-      - "3001"
+      - "3002"
     ports:
-      - "3001:3001"
+      - "3002:3002"
     networks:
       - app_networks
 
   # 모델 학습 및 서빙(fastAPI)
   model:
     build:
-      context: ./traffic_model
-      dockerfile: Dockerfile
+      context: .  # 프로젝트 루트를 build context로 변경 (models/test.pt 접근용)
+      dockerfile: ./traffic_model/Dockerfile
     container_name: model
     restart: always
     env_file:
-      - ./traffic_model/.env
-      - ./backend/.env # url값을 받기 위해 db 연동 (backend .env 활용)
+      - ./.env  # 루트의 통합 환경변수 파일 사용
     expose:
       - "8000"
     networks:
@@ -59,10 +62,14 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_KAKAO_API_KEY: ${VITE_KAKAO_API_KEY}
+        VITE_API_URL: ${VITE_API_URL}
+        VITE_SOCKET_URL: ${VITE_SOCKET_URL}
     depends_on:
       - backend
     env_file:
-      - ./frontend/.env
+      - ./.env  # 루트의 통합 환경변수 파일 사용
     expose:
       - "3000"
     networks:
@@ -82,6 +89,12 @@ services:
       MYSQL_USER: test
       MYSQL_ROOT_PASSWORD: root123123
       MYSQL_PASSWORD: "wlqrkrhtlvek1!"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "test", "-pwlqrkrhtlvek1!"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
     networks:
       - app_networks
 

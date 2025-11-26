@@ -56,12 +56,13 @@ export const initializeApp = async (): Promise<Express> => {
   app.use(
     helmet({
       crossOriginEmbedderPolicy: false,
+      crossOriginResourcePolicy: { policy: "cross-origin" },
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
           scriptSrc: ["'self'"],
-          imgSrc: ["'self'", "data:", "https:"],
+          imgSrc: ["'self'", "data:", "https:", "http://localhost:3002"],
         },
       },
     })
@@ -78,6 +79,21 @@ export const initializeApp = async (): Promise<Express> => {
     legacyHeaders: false,
   });
 
+  // 분석 엔드포인트: 실시간 분석을 위한 관대한 제한
+  // 최대 4개 CCTV × 초당 1 FPS × 60초 = 1분에 240개 요청
+  // 여유를 두고 1분에 300개로 설정 (초당 약 5개)
+  const detectionLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1분
+    max: 300, // 1분에 300개 요청 허용 (초당 약 5개)
+    message: "분석 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.",
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: (req) => {
+      // detection 엔드포인트가 아니면 이 limiter 적용 안 함
+      return !(req.path === "/api/detection" || req.path === "/api/detection/image");
+    },
+  });
+
   // 일반 API: 개발과 프로덕션 모두 고려한 적절한 제한 (15분에 300회)
   app.use(
     rateLimit({
@@ -88,16 +104,43 @@ export const initializeApp = async (): Promise<Express> => {
       legacyHeaders: false,
       skip: (req) => {
         // 로그인 엔드포인트는 별도 처리
-        return req.path === "/api/users/login";
+        if (req.path === "/api/users/login") return true;
+        // 분석 엔드포인트는 별도 limiter 적용
+        if (req.path === "/api/detection" || req.path === "/api/detection/image") return true;
+        // 정적 파일 (이미지 등)은 rate limit 제외
+        if (req.path.startsWith("/api/uploads/")) return true;
+        return false;
       },
     })
   );
+
+  // 분석 엔드포인트에 별도 limiter 적용
+  app.use(detectionLimiter);
   app.use(express.json({ limit: "10mb" }));
   app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-  // 정적 파일 제공
-  const uploadsPath = path.resolve(__dirname, "../Uploads");
-  app.use("/api/uploads", express.static(uploadsPath));
+  // CORS 헤더를 추가하는 미들웨어 (정적 파일용)
+  const corsHeaders = (req: Request, res: Response, next: Function) => {
+    const origin = req.headers.origin;
+    if (origin && (corsOrigins.includes(origin) || process.env.NODE_ENV === "development")) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+    } else if (!origin || process.env.NODE_ENV === "development") {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+    }
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    next();
+  };
+
+  // 프레임 이미지 정적 파일 서빙 (CORS 헤더 포함)
+  const framesPath = path.resolve(__dirname, "../uploads/frames");
+  app.use("/api/uploads/frames", corsHeaders, express.static(framesPath));
+
+  // 정적 파일 제공 (CORS 헤더 포함)
+  const uploadsPath = path.resolve(__dirname, "../uploads");
+  app.use("/api/uploads", corsHeaders, express.static(uploadsPath));
 
   // 데이터베이스 풀을 앱에 저장 (라우트에서 사용)
   app.set("dbPool", dbPool);

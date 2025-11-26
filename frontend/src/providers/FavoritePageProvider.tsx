@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { CCTV } from '../types/cctv';
+import { socketService } from '../services/socket';
 
 interface FavoritePageContextType {
   selectedCCTVs: CCTV[];
@@ -116,6 +117,16 @@ export const FavoritePageProvider: React.FC<{ children: ReactNode }> = ({ childr
 
     return resultIndex;
   }, []);
+
+  // Provider 언마운트 시 분석 자동 종료 (cleanup)
+  useEffect(() => {
+    return () => {
+      if (analysisMode && analysisTargetId) {
+        console.log('[FavoritePageProvider] Provider 언마운트, 분석 모드 자동 종료');
+        socketService.stopDetection(analysisTargetId);
+      }
+    };
+  }, [analysisMode, analysisTargetId]);
 
   return (
     <FavoritePageContext.Provider value={{ 

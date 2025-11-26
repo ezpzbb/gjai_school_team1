@@ -6,7 +6,7 @@ export const DetectionQueries = {
       detection_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
       frame_id INT NOT NULL,
       confidence FLOAT NOT NULL CHECK (confidence BETWEEN 0 AND 1),
-      bounding_box VARCHAR(50) NOT NULL,
+      bounding_box VARCHAR(255) NOT NULL,
       detected_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       object_text VARCHAR(100) NOT NULL,
       KEY idx_frame_id (frame_id),
