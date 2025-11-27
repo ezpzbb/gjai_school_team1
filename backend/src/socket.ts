@@ -5,7 +5,7 @@ import { JWT_SECRET } from "./utils/jwt";
 import axios from "axios";
 import { FrameCaptureService } from "./services/frameCaptureService";
 import { congestionNotificationService } from "./services/congestionNotificationService";
-import { pool } from "./config/db";
+import pool from "./config/db";
 import { Pool } from "mysql2/promise";
 
 // 이벤트 룸 이름

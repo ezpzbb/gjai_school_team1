@@ -1,9 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Hls from "hls.js";
 import { createApiUrl } from "../../config/apiConfig";
-import { socketService } from "../../services/socket";
-import { VehicleDetectionItem } from "../../types/vehicle";
-import LiveModelViewer from "./LiveModelViewer";
 
 // 아이콘 컴포넌트들
 const FullscreenIcon: React.FC<{ size?: number; color?: string }> = ({ size = 16, color = "currentColor" }) => (
@@ -70,7 +67,6 @@ const Camera: React.FC<CameraProps> = ({
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsInstanceRef = useRef<Hls | null>(null);
-  const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamCacheRef = useRef<Record<number, { url: string; expiresAt: number }>>({});
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const retryCountRef = useRef<number>(0);
@@ -243,18 +239,6 @@ const Camera: React.FC<CameraProps> = ({
     const videoElement = videoRef.current;
 
     if (!videoElement) {
-      return;
-    }
-
-    if (isAnalyzing) {
-      if (hlsInstanceRef.current) {
-        hlsInstanceRef.current.destroy();
-        hlsInstanceRef.current = null;
-      }
-      videoElement.pause();
-      videoElement.removeAttribute("src");
-      videoElement.load();
-      setIsVideoReady(false);
       return;
     }
 
@@ -445,7 +429,7 @@ const Camera: React.FC<CameraProps> = ({
       }
       stallStartTimeRef.current = null;
     };
-  }, [streamUrl, retryStreamLoad, isAnalyzing]);
+  }, [streamUrl, retryStreamLoad]);
 
   const videoObjectFit = useMemo(() => {
     if (pageType === "kakao-map") {
@@ -465,95 +449,6 @@ const Camera: React.FC<CameraProps> = ({
     if (lower.endsWith(".mov")) return "video/quicktime";
     return undefined;
   }, [streamUrl]);
-
-  // 모델의 바운딩 박스 값으로 오버레이 시각화
-  useEffect(() => {
-    const unsubscribe = socketService.onVehicleUpdate(cctv_id, (payload) => {
-      const canvas = overlayCanvasRef.current;
-      const videoEl = videoRef.current;
-      if (!canvas || !videoEl) return;
-
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
-      // video 크기에 맞게 canvas 맞추기
-      canvas.width = videoEl.clientWidth;
-      canvas.height = videoEl.clientHeight;
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // 분석 중이 아니면 여기서 리턴
-      if (!isAnalyzing) {
-        return;
-      }
-
-      // ROI 폴리곤 그리기 (수정: 화면 크기 상관 없이 비율에 맞게 roi 최적화 적용)
-      if (payload.roiPolygon) {
-        const vw = videoEl.videoWidth || canvas.width || 1;
-        const vh = videoEl.videoHeight || canvas.height || 1;
-        const cw = canvas.width;
-        const ch = canvas.height;
-
-        const scale = Math.min(cw / vw, ch / vh);
-        const drawnW = vw * scale;
-        const drawnH = vh * scale;
-        const offsetX = (cw - drawnW) / 2;
-        const offsetY = (ch - drawnH) / 2;
-
-        ctx.beginPath();
-        payload.roiPolygon.forEach(([vx, vy], idx) => {
-          const x = offsetX + vx * scale;
-          const y = offsetY + vy * scale;
-          if (idx === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        });
-        ctx.closePath();
-        ctx.strokeStyle = "lime";
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
-
-      // bbox + cls/conf 라벨
-      ctx.font = "12px sans-serif";
-      ctx.textBaseline = "top";
-
-      payload.detections.forEach((det: VehicleDetectionItem) => {
-        const [x1, y1, x2, y2] = det.bbox;
-        const scaleX = canvas.width / videoEl.videoWidth;
-        const scaleY = canvas.height / videoEl.videoHeight;
-
-        const sx = x1 * scaleX;
-        const sy = y1 * scaleY;
-        const sw = (x2 - x1) * scaleX;
-        const sh = (y2 - y1) * scaleY;
-
-        // 박스
-        ctx.strokeStyle = "yellow";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(sx, sy, sw, sh);
-
-        // 라벨 박스 + 텍스트: "cls conf%"
-        const label = `${det.cls} ${(det.conf * 100).toFixed(1)}%`;
-        const paddingX = 4;
-        const paddingY = 2;
-        const textWidth = ctx.measureText(label).width;
-        const labelHeight = 12 + paddingY * 2; // 폰트 높이(대략 12px) + padding
-
-        const labelTop = sy - labelHeight;
-        const safeLabelTop = labelTop < 0 ? 0 : labelTop;
-
-        ctx.fillStyle = "rgba(0,0,0,0.6)";
-        ctx.fillRect(sx, safeLabelTop, textWidth + paddingX * 2, labelHeight);
-
-        ctx.fillStyle = "white";
-        ctx.fillText(label, sx + paddingX, safeLabelTop + paddingY);
-      });
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [cctv_id, isAnalyzing]);
 
   // 분석 중에도 비디오는 계속 재생됨 (일시정지하지 않음)
 
@@ -652,6 +547,7 @@ const Camera: React.FC<CameraProps> = ({
         }}
       >
         <span>📍 {location || "CCTV 위치"}</span>
+
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           {/* ROI 생성 버튼 */}
           {onAnalyze && (
@@ -839,37 +735,25 @@ const Camera: React.FC<CameraProps> = ({
               alignItems: "center",
             }}
           >
-            {isAnalyzing ? (
-              <LiveModelViewer cctvId={cctv_id} />
-            ) : (
-              <>
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  muted
-                  playsInline
-                  controls
-                  title={`CCTV ${location || cctv_id}`}
-                  data-cctv-id={cctv_id}
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: videoObjectFit,
-                    backgroundColor: "#000",
-                  }}
-                >
-                  {streamUrl && resolvedMimeType && <source src={streamUrl} type={resolvedMimeType} />}
-                </video>
-                <canvas
-                  ref={overlayCanvasRef}
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    pointerEvents: "none",
-                  }}
-                />
-              </>
-            )}
+            <video
+              ref={videoRef}
+              autoPlay
+              muted
+              playsInline
+              controls
+              title={`CCTV ${location || cctv_id}`}
+              data-cctv-id={cctv_id}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: videoObjectFit,
+                backgroundColor: "#000",
+                display: "block",
+              }}
+            >
+              {streamUrl && resolvedMimeType && <source src={streamUrl} type={resolvedMimeType} />}
+            </video>
+
             {isLoading && (
               <div
                 style={{

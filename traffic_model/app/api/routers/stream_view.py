@@ -1,15 +1,20 @@
+# 해당 파일은 gpu 사용할 때 사용할 코드임. 삭제하지 말것!!
+
+
 import asyncio
 import base64
 import os
 import time
 from datetime import datetime, timezone
 from typing import List, Optional, Tuple, Dict, Any
+import torch
 
 import cv2
 import numpy as np
 import requests
 from PIL import ImageFont, ImageDraw, Image
 from fastapi import APIRouter, Query, HTTPException, WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocketDisconnect, WebSocketState
 from fastapi.responses import StreamingResponse
 
 from infra.adapters.cctv_stream import FrameStream
@@ -17,6 +22,9 @@ from vision.inference.engines.yolo_ultralytics import YOLOEngine
 from vision.pipelines.preprocess import enhance_frame
 from vision.pipelines.postprocess import summarize_tracks
 from infra.configs.roi_store import get_roi_polygon
+
+from app.api.services.frame_analysis import analyze_np_frame
+
 
 router = APIRouter(prefix="/view", tags=["view"])
 
@@ -35,6 +43,19 @@ _STREAM_URL_CACHE: Dict[int, Tuple[str, float]] = {}
 _CACHE_TTL_SECONDS: float = 60.0  # 또는 backend의 cachedUntil을 사용할 수 있으면 그걸로
 _BACKOFF_SECONDS_ON_429: float = 30.0
 _LAST_429_AT: Dict[int, float] = {}  # cctv_id -> last 429 timestamp
+
+# gpu 환경인지 cpu 환경인지 판단을 위한 상수
+# GPU 자동 감지: CUDA가 있으면 True, 없으면 False
+try:
+    gpu_available = torch.cuda.is_available()
+except Exception:
+    gpu_available = False  # torch 미설치/에러 시 안전하게 False
+
+raw_env = os.getenv("GPU_ENABLED")  # 사용자가 강제 설정한 값이 있으면 우선
+if raw_env is not None:
+    GPU_ENABLED = raw_env.lower() not in {"false", "0", "no"}
+else:
+    GPU_ENABLED = gpu_available  # 자동 감지값 사용
 
 
 def _get_stream_url_from_backend(cctv_id: int) -> str:
@@ -212,7 +233,6 @@ def _is_inside_polygon(cx: float, cy: float, polygon: np.ndarray) -> bool:
 
 def _process_frame(
     frame: np.ndarray,
-    eng: YOLOEngine,
     font: ImageFont.FreeTypeFont,
     roi_polygon: Optional[np.ndarray],
     cctv_id: int,
@@ -226,8 +246,16 @@ def _process_frame(
     """
     vis_frame = frame.copy()
 
-    x = enhance_frame(frame)
-    preds = eng.predict(x)
+    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    preds, annotated_bytes = analyze_np_frame(rgb)
+
+    annotated_np = cv2.imdecode(
+        np.frombuffer(annotated_bytes, dtype=np.uint8),
+        cv2.IMREAD_COLOR,
+    )
+
+    if annotated_np is not None:
+        vis_frame = annotated_np
 
     # 1) ROI 갱신
     if roi_polygon is None:
@@ -260,174 +288,119 @@ def _process_frame(
     return vis_frame, roi_polygon, filtered
 
 
-def _mjpeg_gen(url: str, cctv_id: int):
-    """
-    디버깅용 MJPEG 제너레이터.
-    브라우저에서 /view/mjpeg?cctv_id=... 로 직접 확인할 때 사용.
-    """
-    eng = YOLOEngine()
-    fs = FrameStream(url)
-    font = _load_korean_font(20)
-
-    roi_polygon: Optional[np.ndarray] = None
-    last_processed_ts: float = 0.0
-
-    while True:
-        frame = fs.read_one()
-        if frame is None:
-            time.sleep(0.02)
-            continue
-
-        now = time.time()
-        if now - last_processed_ts < _FRAME_INTERVAL:
-            continue
-        last_processed_ts = now
-
-        vis_frame, roi_polygon, filtered = _process_frame(
-            frame, eng, font, roi_polygon, cctv_id)
-
-        if filtered:
-            _send_detection_to_backend(cctv_id, filtered, roi_polygon)
-
-        ok, jpg = cv2.imencode(".jpg", vis_frame)
-        if not ok:
-            continue
-
-        yield (
-            b"--frame\r\n"
-            b"Content-Type: image/jpeg\r\n\r\n" + jpg.tobytes() + b"\r\n"
-        )
-
-
-@router.get("/mjpeg")
-def mjpeg_auto(
-    cctv_id: int = Query(..., ge=1),
-):
-    """
-    디버깅용 HTTP MJPEG 스트림:
-    브라우저에서 바로 오버레이된 영상을 보고 싶을 때 사용.\n
-    url 기준 요청: http://localhost:8080/model/view/mjpeg?cctv_id=149416\n
-    cctv_id= 맨 앞: 149416, 맨 뒤: 149539
-    """
-    url = _get_stream_url_from_backend(cctv_id)
-    return StreamingResponse(
-        _mjpeg_gen(url, cctv_id),
-        media_type="multipart/x-mixed-replace; boundary=frame",
-    )
-
-
 @router.websocket("/ws")
-async def view_ws(websocket: WebSocket, cctv_id: int = Query(..., ge=1)):
+async def view_ws(websocket: WebSocket, cctv_id: int = Query(..., ge=1), mode: str | None = Query(None),):
     """
     WebSocket 기반 실사용 스트림:
     - 모델이 처리한 프레임(JPEG) + detections + ROI를 JSON으로 전송.
     - 프론트는 이 데이터를 canvas에 바로 그려 사용.
     """
     await websocket.accept()
-    try:
-        url = _get_stream_url_from_backend(cctv_id)
-        print(f"[detections_ws] stream url: {url}")
-    except HTTPException as e:
-        print(f"[detections_ws] failed to get stream url: {e.detail}")
-        await websocket.send_json({"error": e.detail})
-        await websocket.close(code=1011, reason=e.detail)
-        return
+    effective_mode = mode or ("pull" if GPU_ENABLED else "push")
 
-    fs = FrameStream(url)
-    eng = YOLOEngine()
-    font = _load_korean_font(20)
-    roi_polygon: Optional[np.ndarray] = None
-    last_processed_ts: float = 0.0
+    if effective_mode == "pull":
+        # 기존 동작: CCTV URL -> FrameStream -> _process_frame
+        try:
+            url = _get_stream_url_from_backend(cctv_id)
+            print(f"[detections_ws] stream url: {url}")
 
-    try:
+        except HTTPException as e:
+            print(f"[detections_ws] failed to get stream url: {e.detail}")
+            await websocket.send_json({"error": e.detail})
+            await websocket.close(code=1011, reason=e.detail)
+            return
+
+        fs = FrameStream(url)
+        roi_polygon = None
+        last_ts = 0.0
+        font = _load_korean_font(20)
+
         while True:
             frame = fs.read_one()
             if frame is None:
                 await asyncio.sleep(0.02)
                 continue
-
             now = time.time()
-            if now - last_processed_ts < _FRAME_INTERVAL:
+            if now - last_ts < _FRAME_INTERVAL:
                 continue
-            last_processed_ts = now
+            last_ts = now
 
-            raw_frame, roi_polygon, filtered = _process_frame(
-                frame, eng, font, roi_polygon, cctv_id)
-
+            vis_frame, roi_polygon, filtered = _process_frame(
+                frame, font, roi_polygon, cctv_id)
             if filtered:
                 _send_detection_to_backend(cctv_id, filtered, roi_polygon)
 
-            ok, jpg = cv2.imencode(".jpg", raw_frame)
+            ok, jpg = cv2.imencode(".jpg", vis_frame)
             if not ok:
                 continue
-
             b64 = base64.b64encode(jpg.tobytes()).decode("ascii")
-            roi_payload = roi_polygon.tolist() if roi_polygon is not None else None
+            await websocket.send_json({
+                "timestamp": now,
+                "image": f"data:image/jpeg;base64,{b64}",
+                "detections": [
+                    {"trackId": d.get(
+                        "track_id"), "cls": d["cls"], "conf": d["conf"], "bbox": d["bbox"]}
+                    for d in filtered
+                ],
+                "roiPolygon": roi_polygon.tolist() if roi_polygon is not None else None,
+            })
+    else:
+        # push 모드: 클라이언트(ffmpeg 등)가 JPEG 바이너리를 WS로 전송
+        roi_polygon = None
+        last_ts = 0.0
+        font = _load_korean_font(20)
+        try:
+            while True:
+                try:
+                    msg = await websocket.receive()
+                except WebSocketDisconnect:
+                    break  # 클라이언트 끊김 → 루프 종료
 
-            detections_payload = [
-                {
-                    "trackId": d.get("track_id"),
-                    "cls": d["cls"],
-                    "conf": d["conf"],
-                    "bbox": d["bbox"],
-                }
-                for d in filtered
-            ]
+                frame_bytes = msg.get("bytes")
+                if not frame_bytes:
+                    continue
 
-            await websocket.send_json(
-                {
+                buf = np.frombuffer(frame_bytes, dtype=np.uint8)
+                frame = cv2.imdecode(buf, cv2.IMREAD_COLOR)
+                if frame is None:
+                    continue
+
+                now = time.time()
+                if now - last_ts < _FRAME_INTERVAL:
+                    continue
+                last_ts = now
+
+                vis_frame, roi_polygon, filtered = _process_frame(
+                    frame, font, roi_polygon, cctv_id
+                )
+                if filtered:
+                    _send_detection_to_backend(cctv_id, filtered, roi_polygon)
+
+                ok, jpg = cv2.imencode(".jpg", vis_frame)
+                if not ok:
+                    continue
+                b64 = base64.b64encode(jpg.tobytes()).decode("ascii")
+                await websocket.send_json({
                     "timestamp": now,
                     "image": f"data:image/jpeg;base64,{b64}",
-                    "detections": detections_payload,
-                    "roiPolygon": roi_payload,
-                }
-            )
-    except WebSocketDisconnect:
-        return
-    except Exception as e:
-        detail = str(e.detail)
-        print("[stream_view] WebSocket view error:", detail)
-        try:
-            await websocket.send_json({"error": detail})
-        except Exception:
-            pass
+                    "detections": [
+                        {"trackId": d.get(
+                            "track_id"), "cls": d["cls"], "conf": d["conf"], "bbox": d["bbox"]}
+                        for d in filtered
+                    ],
+                    "roiPolygon": roi_polygon.tolist() if roi_polygon is not None else None,
+                })
 
-        try:
-            await websocket.close(code=1011, reason="")
-        except Exception:
-            pass
-
-
-@router.get("/debug/detections")
-def debug_detections(cctv_id: int = Query(..., ge=1)):
-    '''
-    ws 디버깅 용으로 사용 -> 데이터가 잘 전달되고 있는지 확인
-    http://localhost:8080/model/view/debug/detections?cctv_id=149416
-    '''
-    url = _get_stream_url_from_backend(cctv_id)
-    fs = FrameStream(url)
-    eng = YOLOEngine()
-    font = _load_korean_font(20)
-
-    frame = fs.read_one()
-    if frame is None:
-        raise HTTPException(502, "no frame from stream")
-
-    vis_frame, roi_polygon, filtered = _process_frame(
-        frame, eng, font, None, cctv_id)
-    detections = [
-        {
-            "trackId": d.get("track_id"),
-            "cls": d["cls"],
-            "conf": d["conf"],
-            "bbox": d["bbox"],
-        }
-        for d in filtered
-    ]
-    roi_payload = roi_polygon.tolist() if roi_polygon is not None else None
-
-    return {
-        "timestamp": time.time(),
-        "detections": detections,
-        "roiPolygon": roi_payload,
-    }
+        except Exception as e:
+            detail = getattr(e, "detail", str(e))
+            # 이미 닫혔다면 추가 전송/close 금지
+            if websocket.client_state == WebSocketState.CONNECTED:
+                try:
+                    await websocket.send_json({"error": detail})
+                except Exception:
+                    pass
+                try:
+                    await websocket.close(code=1011, reason=detail[:120])
+                except Exception:
+                    pass
+            return

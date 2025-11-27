@@ -1,3 +1,7 @@
+/* 
+  해당 컨포넌트는 gpu 사용할 때 사용할 코드임. 삭제하지 말것!!
+*/
+
 import React, { useEffect, useRef, useState } from "react";
 import { VehicleDetectionItem } from "../../types/vehicle";
 
@@ -24,7 +28,8 @@ const LiveModelViewer: React.FC<LiveModelViewerProps> = ({ cctvId }) => {
 
   useEffect(() => {
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    const wsUrl = `${protocol}://${window.location.host}/model/view/ws?cctv_id=${cctvId}`;
+    const base = import.meta.env.VITE_MODEL_WS_URL || `${protocol}://${window.location.host}/model/view/ws`;
+    const wsUrl = `${base}?cctv_id=${cctvId}&mode=push`; // GPU면 pull
 
     let isUnmounted = false;
 

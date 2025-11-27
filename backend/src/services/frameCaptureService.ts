@@ -2,16 +2,16 @@
 // HLS 스트림: FFmpeg 직접 연결 방식으로 실시간 프레임 추출
 // MJPEG 스트림: 주기적 프레임 수집
 
-import axios from 'axios';
-import { Pool } from 'mysql2/promise';
-import { CCTVTransaction } from '../models/Camera/CameraTransactions';
-import { FrameTransaction } from '../models/Frame/FrameTransactions';
-import FormData from 'form-data';
-import fs from 'fs';
-import path from 'path';
-import { spawn } from 'child_process';
+import axios from "axios";
+import { Pool } from "mysql2/promise";
+import { CCTVTransaction } from "../models/Camera/CameraTransactions";
+import { FrameTransaction } from "../models/Frame/FrameTransactions";
+import FormData from "form-data";
+import fs from "fs";
+import path from "path";
+import { spawn } from "child_process";
 // @ts-ignore - sharp 타입 정의가 없어도 동작함
-import sharp from 'sharp';
+import sharp from "sharp";
 
 interface CaptureTask {
   cctvId: number;
@@ -51,7 +51,7 @@ export class FrameCaptureService {
 
   // 프레임 큐 시스템
   private frameQueues: Map<number, FrameQueue> = new Map();
-  
+
   // 환경변수 설정
   private readonly MAX_FRAME_QUEUE_SIZE: number;
   private readonly QUEUE_WARNING_THRESHOLD: number;
@@ -63,7 +63,7 @@ export class FrameCaptureService {
   private readonly HLS_RECONNECT_DELAY: number; // 재연결 지연 시간 (ms)
   private readonly HLS_FRAME_RATE: number; // 초당 프레임 추출 목표 (FPS)
   private readonly HLS_TIMEOUT: number; // 스트림 타임아웃 (초)
-  
+
   // 최적화: axios 인스턴스 재사용 (연결 풀링)
   private readonly axiosInstance: ReturnType<typeof axios.create>;
 
@@ -71,33 +71,33 @@ export class FrameCaptureService {
     this.dbPool = dbPool;
     this.cctvTransaction = new CCTVTransaction(dbPool);
     this.frameTransaction = new FrameTransaction(dbPool);
-    this.modelServerUrl = process.env.MODEL_SERVER_URL || 'http://model:8000';
+    this.modelServerUrl = process.env.MODEL_SERVER_URL || "http://model:8000";
     // 이미지 저장 경로 설정 (환경변수 또는 기본값)
-    this.imageStoragePath = process.env.FRAME_STORAGE_PATH || path.resolve(__dirname, '../../uploads/frames');
-    
+    this.imageStoragePath = process.env.FRAME_STORAGE_PATH || path.resolve(__dirname, "../../uploads/frames");
+
     // 큐 시스템 환경변수
-    this.MAX_FRAME_QUEUE_SIZE = parseInt(process.env.MAX_FRAME_QUEUE_SIZE || '5', 10);
-    this.QUEUE_WARNING_THRESHOLD = parseInt(process.env.QUEUE_WARNING_THRESHOLD || '4', 10);
-    this.QUEUE_STOP_THRESHOLD = parseInt(process.env.QUEUE_STOP_THRESHOLD || '5', 10);
-    this.MAX_IMAGE_WIDTH = parseInt(process.env.MAX_IMAGE_WIDTH || '1280', 10);
-    this.MAX_IMAGE_HEIGHT = parseInt(process.env.MAX_IMAGE_HEIGHT || '720', 10);
-    this.JPEG_QUALITY = parseInt(process.env.JPEG_QUALITY || '85', 10);
-    this.USE_HLS_DIRECT_STREAM = process.env.USE_HLS_DIRECT_STREAM !== 'false'; // 기본값: true
-    this.HLS_RECONNECT_DELAY = parseInt(process.env.HLS_RECONNECT_DELAY || '5000', 10);
-    this.HLS_FRAME_RATE = parseInt(process.env.HLS_FRAME_RATE || '1', 10); // 기본 1 FPS
-    this.HLS_TIMEOUT = parseInt(process.env.HLS_TIMEOUT || '30', 10); // 기본 30초
-    
+    this.MAX_FRAME_QUEUE_SIZE = parseInt(process.env.MAX_FRAME_QUEUE_SIZE || "5", 10);
+    this.QUEUE_WARNING_THRESHOLD = parseInt(process.env.QUEUE_WARNING_THRESHOLD || "4", 10);
+    this.QUEUE_STOP_THRESHOLD = parseInt(process.env.QUEUE_STOP_THRESHOLD || "5", 10);
+    this.MAX_IMAGE_WIDTH = parseInt(process.env.MAX_IMAGE_WIDTH || "1280", 10);
+    this.MAX_IMAGE_HEIGHT = parseInt(process.env.MAX_IMAGE_HEIGHT || "720", 10);
+    this.JPEG_QUALITY = parseInt(process.env.JPEG_QUALITY || "85", 10);
+    this.USE_HLS_DIRECT_STREAM = process.env.USE_HLS_DIRECT_STREAM !== "false"; // 기본값: true
+    this.HLS_RECONNECT_DELAY = parseInt(process.env.HLS_RECONNECT_DELAY || "5000", 10);
+    this.HLS_FRAME_RATE = parseInt(process.env.HLS_FRAME_RATE || "1", 10); // 기본 1 FPS
+    this.HLS_TIMEOUT = parseInt(process.env.HLS_TIMEOUT || "30", 10); // 기본 30초
+
     // 최적화: axios 인스턴스 생성 (연결 재사용)
     this.axiosInstance = axios.create({
       timeout: 15000,
       maxRedirects: 3,
-      httpAgent: new (require('http').Agent)({ keepAlive: true, maxSockets: 10 }),
-      httpsAgent: new (require('https').Agent)({ keepAlive: true, maxSockets: 10 }),
+      httpAgent: new (require("http").Agent)({ keepAlive: true, maxSockets: 10 }),
+      httpsAgent: new (require("https").Agent)({ keepAlive: true, maxSockets: 10 }),
     });
-    
+
     // 저장 디렉토리 생성
     this.ensureStorageDirectory();
-    
+
     // 프레임 처리 워커 시작
     this.startFrameProcessingWorker();
   }
@@ -132,9 +132,9 @@ export class FrameCaptureService {
       }
 
       // 실제 스트림 URL 해석 (HLS 등 처리)
-      const { cctvStreamResolver } = await import('./cctvStreamResolver');
+      const { cctvStreamResolver } = await import("./cctvStreamResolver");
       const actualStreamUrl = await cctvStreamResolver.resolve(cctv.api_endpoint);
-      
+
       // 프레임 큐 초기화
       this.frameQueues.set(cctvId, {
         frames: [],
@@ -146,11 +146,11 @@ export class FrameCaptureService {
       });
 
       // HLS 스트림인 경우 직접 연결 방식 사용
-      const isHLS = actualStreamUrl.toLowerCase().includes('.m3u8');
+      const isHLS = actualStreamUrl.toLowerCase().includes(".m3u8");
       if (isHLS && this.USE_HLS_DIRECT_STREAM) {
         console.log(`[FrameCapture] CCTV ${cctvId} HLS 직접 연결 방식 시작`);
         console.log(`[FrameCapture] 설정: FPS=${this.HLS_FRAME_RATE}, 타임아웃=${this.HLS_TIMEOUT}초, 큐=${this.MAX_FRAME_QUEUE_SIZE}개`);
-        
+
         await this.startHLSDirectStream(cctvId, actualStreamUrl);
       } else {
         // MJPEG 스트림인 경우 직접 프레임 수집
@@ -176,7 +176,7 @@ export class FrameCaptureService {
     // FFmpeg 프로세스 종료
     if (task.ffmpegProcess) {
       try {
-        task.ffmpegProcess.kill('SIGTERM');
+        task.ffmpegProcess.kill("SIGTERM");
         console.log(`[FrameCapture] CCTV ${cctvId} FFmpeg 프로세스 종료`);
       } catch (error: any) {
         console.error(`[FrameCapture] FFmpeg 프로세스 종료 실패:`, error.message);
@@ -208,8 +208,8 @@ export class FrameCaptureService {
    * MJPEG 스트림 처리 시작
    */
   private async startMJPEGStream(cctvId: number, streamUrl: string): Promise<void> {
-    const MJPEG_CAPTURE_INTERVAL = parseInt(process.env.MJPEG_CAPTURE_INTERVAL || '1000', 10); // 기본 1초
-    
+    const MJPEG_CAPTURE_INTERVAL = parseInt(process.env.MJPEG_CAPTURE_INTERVAL || "1000", 10); // 기본 1초
+
     // 주기적으로 프레임 수집
     const captureInterval = setInterval(async () => {
       try {
@@ -277,7 +277,7 @@ export class FrameCaptureService {
     }
 
     // 버퍼 크기 검증 (너무 큰 버퍼는 스킵)
-    const MAX_BUFFER_SIZE = parseInt(process.env.MAX_FRAME_BUFFER_SIZE || '5242880', 10); // 기본 5MB
+    const MAX_BUFFER_SIZE = parseInt(process.env.MAX_FRAME_BUFFER_SIZE || "5242880", 10); // 기본 5MB
     if (frameBuffer.length > MAX_BUFFER_SIZE) {
       queue.skippedFrames++;
       console.warn(`[FrameCapture] CCTV ${cctvId}: 프레임 버퍼가 너무 큼 (${frameBuffer.length}bytes > ${MAX_BUFFER_SIZE}bytes), 스킵`);
@@ -302,7 +302,7 @@ export class FrameCaptureService {
     const frame = await this.frameTransaction.createFrame({
       cctv_id: cctvId,
       timestamp: timestamp,
-      image_path: '',
+      image_path: "",
     });
 
     const wasEmpty = queue.frames.length === 0;
@@ -341,19 +341,17 @@ export class FrameCaptureService {
   private async fetchFrameFromStream(streamUrl: string): Promise<Buffer | null> {
     try {
       // HTTPS 인증서 설정 (UTIC 인증서 사용)
-      const https = require('https');
-      const fs = require('fs');
-      const path = require('path');
-      
+      const https = require("https");
+      const fs = require("fs");
+      const path = require("path");
+
       let httpsAgent: any = undefined;
-      const caPath = process.env.NODE_EXTRA_CA_CERTS || process.env.UTIC_CA_PATH || './certs/utic.pem';
+      const caPath = process.env.NODE_EXTRA_CA_CERTS || process.env.UTIC_CA_PATH || "./certs/utic.pem";
       try {
-        const resolvedPath = path.isAbsolute(caPath) 
-          ? caPath 
-          : path.resolve(process.cwd(), caPath);
+        const resolvedPath = path.isAbsolute(caPath) ? caPath : path.resolve(process.cwd(), caPath);
         if (fs.existsSync(resolvedPath)) {
-          const caContent = fs.readFileSync(resolvedPath, 'utf8');
-          httpsAgent = new https.Agent({ 
+          const caContent = fs.readFileSync(resolvedPath, "utf8");
+          httpsAgent = new https.Agent({
             ca: caContent,
             keepAlive: true,
             maxSockets: 10,
@@ -365,12 +363,12 @@ export class FrameCaptureService {
 
       // MJPEG 또는 일반 이미지 스트림 처리 (최적화: axios 인스턴스 재사용)
       const response = await this.axiosInstance.get(streamUrl, {
-        responseType: 'arraybuffer',
+        responseType: "arraybuffer",
         timeout: 10000,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'image/jpeg, image/png, */*',
-          'Connection': 'keep-alive',
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          Accept: "image/jpeg, image/png, */*",
+          Connection: "keep-alive",
         },
         httpsAgent: httpsAgent,
         maxContentLength: 10 * 1024 * 1024,
@@ -378,14 +376,13 @@ export class FrameCaptureService {
       });
 
       const buffer = Buffer.from(response.data);
-      
+
       // JPEG 시작 마커 찾기 (0xFF 0xD8)
       const jpegStart = buffer.indexOf(Buffer.from([0xff, 0xd8]));
-      
+
       if (jpegStart === -1) {
         // 일반 JPEG 이미지인 경우
-        if (response.headers['content-type']?.includes('image/jpeg') || 
-            response.headers['content-type']?.includes('image/png')) {
+        if (response.headers["content-type"]?.includes("image/jpeg") || response.headers["content-type"]?.includes("image/png")) {
           return buffer;
         }
         return null;
@@ -404,21 +401,19 @@ export class FrameCaptureService {
       }
 
       // 일반 JPEG 이미지인 경우
-      if (response.headers['content-type']?.includes('image/jpeg') || 
-          response.headers['content-type']?.includes('image/png')) {
+      if (response.headers["content-type"]?.includes("image/jpeg") || response.headers["content-type"]?.includes("image/png")) {
         return buffer;
       }
 
       return null;
     } catch (error: any) {
       // 에러 로그는 간소화 (너무 자주 발생할 수 있음)
-      if (error.code !== 'ECONNRESET' && error.code !== 'ETIMEDOUT') {
+      if (error.code !== "ECONNRESET" && error.code !== "ETIMEDOUT") {
         console.error(`[FrameCapture] 스트림 프레임 가져오기 실패:`, error.message);
       }
       return null;
     }
   }
-
 
   /**
    * 백엔드 스냅샷 엔드포인트를 통해 프레임 가져오기 (대안)
@@ -437,8 +432,8 @@ export class FrameCaptureService {
    * 워커 간격을 짧게 하여 큐에 남은 프레임을 빠르게 감지
    */
   private startFrameProcessingWorker(): void {
-    const WORKER_INTERVAL = parseInt(process.env.FRAME_WORKER_INTERVAL || '100', 10); // 기본 100ms로 단축
-    
+    const WORKER_INTERVAL = parseInt(process.env.FRAME_WORKER_INTERVAL || "100", 10); // 기본 100ms로 단축
+
     setInterval(() => {
       // 워커는 백업 역할: 이벤트 기반 처리가 놓친 프레임이 있으면 처리
       // 대부분의 처리는 addFrameToQueue와 processNextFrame의 연속 처리에서 이루어짐
@@ -481,11 +476,11 @@ export class FrameCaptureService {
       // 이미지 최적화 (리사이즈, 압축, 메타데이터 제거)
       const optimizedFrameBuffer = await sharp(frameItem.frameBuffer)
         .resize(this.MAX_IMAGE_WIDTH, this.MAX_IMAGE_HEIGHT, {
-          fit: 'inside',
+          fit: "inside",
           withoutEnlargement: true,
         })
-        .jpeg({ 
-          quality: this.JPEG_QUALITY, 
+        .jpeg({
+          quality: this.JPEG_QUALITY,
           mozjpeg: true,
           progressive: true, // Progressive JPEG로 로딩 성능 향상
           optimizeScans: true, // 스캔 최적화
@@ -504,16 +499,15 @@ export class FrameCaptureService {
       queue.lastProcessedTime = Date.now();
 
       // 이동 평균 계산 (성능 최적화)
-      queue.averageProcessingTime =
-        (queue.averageProcessingTime * (queue.totalProcessed - 1) + processingTime) / queue.totalProcessed;
+      queue.averageProcessingTime = (queue.averageProcessingTime * (queue.totalProcessed - 1) + processingTime) / queue.totalProcessed;
 
       // 로그 간소화 (처리 시간이 평균보다 크거나, 특정 간격마다만 로그)
       const shouldLog = processingTime > queue.averageProcessingTime * 1.5 || queue.totalProcessed % 10 === 0;
       if (shouldLog) {
         console.log(
           `[FrameCapture] CCTV ${cctvId}: 프레임 처리 완료 (frame_id: ${frameItem.frameId}, ` +
-          `처리 시간: ${processingTime}ms, 평균: ${Math.round(queue.averageProcessingTime)}ms, ` +
-          `큐 크기: ${queue.frames.length}/${this.MAX_FRAME_QUEUE_SIZE}, 총 처리: ${queue.totalProcessed})`
+            `처리 시간: ${processingTime}ms, 평균: ${Math.round(queue.averageProcessingTime)}ms, ` +
+            `큐 크기: ${queue.frames.length}/${this.MAX_FRAME_QUEUE_SIZE}, 총 처리: ${queue.totalProcessed})`
         );
       }
 
@@ -538,7 +532,7 @@ export class FrameCaptureService {
     } catch (error: any) {
       console.error(`[FrameCapture] 프레임 처리 실패: CCTV ${cctvId}, Frame ${frameItem.frameId}`, error.message);
       queue.processing = false;
-      
+
       // 에러 발생 시에도 큐에 프레임이 있으면 계속 처리 시도
       if (queue.frames.length > 0) {
         setImmediate(() => {
@@ -559,28 +553,28 @@ export class FrameCaptureService {
    * 최적화: 연결 재사용, 타임아웃 조정, 에러 핸들링 개선
    */
   private async sendFrameToModel(cctvId: number, frameId: number, frameBuffer: Buffer): Promise<void> {
-    const MAX_RETRIES = parseInt(process.env.MODEL_SERVER_MAX_RETRIES || '2', 10);
-    const RETRY_DELAY = parseInt(process.env.MODEL_SERVER_RETRY_DELAY || '1000', 10);
-    
+    const MAX_RETRIES = parseInt(process.env.MODEL_SERVER_MAX_RETRIES || "2", 10);
+    const RETRY_DELAY = parseInt(process.env.MODEL_SERVER_RETRY_DELAY || "1000", 10);
+
     let lastError: any = null;
-    
+
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
         // 모델 서버에 이미지 분석 요청
         const formData = new FormData();
-        formData.append('image', frameBuffer, {
+        formData.append("image", frameBuffer, {
           filename: `cctv_${cctvId}_${frameId}.jpg`, // 타임스탬프 제거하여 파일명 간소화
-          contentType: 'image/jpeg',
+          contentType: "image/jpeg",
         });
-        formData.append('cctv_id', cctvId.toString());
-        formData.append('frame_id', frameId.toString());
+        formData.append("cctv_id", cctvId.toString());
+        formData.append("frame_id", frameId.toString());
 
         const response = await this.axiosInstance.post(`${this.modelServerUrl}/analyze/frame`, formData, {
           headers: {
             ...formData.getHeaders(),
-            'Connection': 'keep-alive',
+            Connection: "keep-alive",
           },
-          timeout: parseInt(process.env.MODEL_SERVER_TIMEOUT || '10000', 10),
+          timeout: parseInt(process.env.MODEL_SERVER_TIMEOUT || "10000", 10),
           maxContentLength: Infinity,
           maxBodyLength: Infinity,
         });
@@ -589,7 +583,7 @@ export class FrameCaptureService {
         if (response.data?.ok) {
           const detectionsCount = response.data.detections_count || 0;
           const detections = response.data.detections || [];
-          
+
           // 클래스별 개수 집계 (성능 최적화)
           const classCounts: { [key: string]: number } = {};
           if (Array.isArray(detections)) {
@@ -599,41 +593,41 @@ export class FrameCaptureService {
               }
             });
           }
-          
+
           const classSummary = Object.entries(classCounts)
             .slice(0, 5) // 최대 5개만 표시
             .map(([cls, count]) => `${cls}:${count}`)
-            .join(', ');
-          
+            .join(", ");
+
           // 로그 레벨 조정 (감지가 있을 때만 상세 로그)
           if (detectionsCount > 0) {
             console.log(`[FrameCapture] 모델 분석 완료: CCTV ${cctvId}, Frame ${frameId}, 감지: ${detectionsCount}개 (${classSummary})`);
           }
-          
+
           return; // 성공 시 즉시 반환
         } else {
-          lastError = new Error(response.data?.error || 'Unknown error');
+          lastError = new Error(response.data?.error || "Unknown error");
         }
       } catch (error: any) {
         lastError = error;
-        
+
         // 404 에러는 재시도하지 않음
         if (error.response?.status === 404) {
           console.warn(`[FrameCapture] 모델 서버 엔드포인트가 아직 구현되지 않았습니다: /analyze/frame`);
           return; // 재시도하지 않고 종료
         }
-        
+
         // 마지막 시도가 아니면 재시도
         if (attempt < MAX_RETRIES) {
-          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (attempt + 1))); // 지수 백오프
+          await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY * (attempt + 1))); // 지수 백오프
           continue;
         }
       }
     }
-    
+
     // 모든 재시도 실패
-    console.error(`[FrameCapture] 모델 서버 전송 실패 (${MAX_RETRIES + 1}회 시도): CCTV ${cctvId}, Frame ${frameId}`, lastError?.message || 'Unknown error');
-    throw lastError || new Error('모델 서버 전송 실패');
+    console.error(`[FrameCapture] 모델 서버 전송 실패 (${MAX_RETRIES + 1}회 시도): CCTV ${cctvId}, Frame ${frameId}`, lastError?.message || "Unknown error");
+    throw lastError || new Error("모델 서버 전송 실패");
   }
 
   /**
@@ -648,19 +642,17 @@ export class FrameCaptureService {
     }
 
     // HTTPS 인증서 설정 (UTIC 인증서 사용)
-    const https = require('https');
-    const fs = require('fs');
-    const path = require('path');
-    
+    const https = require("https");
+    const fs = require("fs");
+    const path = require("path");
+
     let httpsAgent: any = undefined;
-    const caPath = process.env.NODE_EXTRA_CA_CERTS || process.env.UTIC_CA_PATH || './certs/utic.pem';
+    const caPath = process.env.NODE_EXTRA_CA_CERTS || process.env.UTIC_CA_PATH || "./certs/utic.pem";
     try {
-      const resolvedPath = path.isAbsolute(caPath) 
-        ? caPath 
-        : path.resolve(process.cwd(), caPath);
+      const resolvedPath = path.isAbsolute(caPath) ? caPath : path.resolve(process.cwd(), caPath);
       if (fs.existsSync(resolvedPath)) {
-        const caContent = fs.readFileSync(resolvedPath, 'utf8');
-        httpsAgent = new https.Agent({ 
+        const caContent = fs.readFileSync(resolvedPath, "utf8");
+        httpsAgent = new https.Agent({
           ca: caContent,
           keepAlive: true,
           maxSockets: 10,
@@ -681,24 +673,35 @@ export class FrameCaptureService {
     // -reconnect 관련: 자동 재연결 설정
     const frameInterval = Math.max(1, Math.floor(30 / this.HLS_FRAME_RATE)); // 30fps 기준 샘플링 간격
     const ffmpegArgs = [
-      '-i', m3u8Url,
-      '-vf', `select='not(mod(n,${frameInterval}))'`,
-      '-vsync', '0',
-      '-f', 'image2pipe',
-      '-vcodec', 'mjpeg',
-      '-q:v', '2',
-      '-timeout', `${this.HLS_TIMEOUT * 1000000}`, // 마이크로초 단위
-      '-reconnect', '1',
-      '-reconnect_at_eof', '1',
-      '-reconnect_streamed', '1',
-      '-reconnect_delay_max', '5',
-      'pipe:1'
+      "-i",
+      m3u8Url,
+      "-vf",
+      `select='not(mod(n,${frameInterval}))'`,
+      "-vsync",
+      "0",
+      "-f",
+      "image2pipe",
+      "-vcodec",
+      "mjpeg",
+      "-q:v",
+      "2",
+      "-timeout",
+      `${this.HLS_TIMEOUT * 1000000}`, // 마이크로초 단위
+      "-reconnect",
+      "1",
+      "-reconnect_at_eof",
+      "1",
+      "-reconnect_streamed",
+      "1",
+      "-reconnect_delay_max",
+      "5",
+      "pipe:1",
     ];
 
     console.log(`[FrameCapture] CCTV ${cctvId} FFmpeg 프로세스 시작: ${m3u8Url.substring(0, 100)}...`);
 
-    const ffmpegProcess = spawn('ffmpeg', ffmpegArgs, {
-      stdio: ['ignore', 'pipe', 'pipe'],
+    const ffmpegProcess = spawn("ffmpeg", ffmpegArgs, {
+      stdio: ["ignore", "pipe", "pipe"],
       env: {
         ...process.env,
         ...(httpsAgent ? { NODE_EXTRA_CA_CERTS: caPath } : {}),
@@ -712,7 +715,7 @@ export class FrameCaptureService {
     const MAX_CONSECUTIVE_ERRORS = 5;
 
     // 프레임 데이터 수신 처리
-    ffmpegProcess.stdout.on('data', async (chunk: Buffer) => {
+    ffmpegProcess.stdout.on("data", async (chunk: Buffer) => {
       try {
         frameBuffer = Buffer.concat([frameBuffer, chunk]);
 
@@ -724,7 +727,7 @@ export class FrameCaptureService {
 
           if (endIndex !== -1) {
             const jpegFrame = frameBuffer.slice(startIndex, endIndex + 2);
-            
+
             // 큐 크기 확인
             const queue = this.frameQueues.get(cctvId);
             const task = this.activeTasks.get(cctvId);
@@ -753,14 +756,15 @@ export class FrameCaptureService {
         }
 
         // 버퍼가 너무 커지면 경고 (메모리 누수 방지)
-        if (frameBuffer.length > 10 * 1024 * 1024) { // 10MB
+        if (frameBuffer.length > 10 * 1024 * 1024) {
+          // 10MB
           console.warn(`[FrameCapture] CCTV ${cctvId}: 프레임 버퍼가 너무 큼 (${frameBuffer.length}bytes), 초기화`);
           frameBuffer = Buffer.alloc(0);
         }
       } catch (error: any) {
         errorCount++;
         console.error(`[FrameCapture] CCTV ${cctvId} 프레임 처리 오류:`, error.message);
-        
+
         if (errorCount >= MAX_CONSECUTIVE_ERRORS) {
           console.error(`[FrameCapture] CCTV ${cctvId}: 연속 에러 ${errorCount}회 발생, 재연결 시도`);
           this.scheduleHLSReconnect(cctvId, m3u8Url);
@@ -770,16 +774,14 @@ export class FrameCaptureService {
     });
 
     // FFmpeg stderr 처리 (로그 및 에러 감지)
-    ffmpegProcess.stderr.on('data', (data: Buffer) => {
+    ffmpegProcess.stderr.on("data", (data: Buffer) => {
       const stderrText = data.toString();
-      
+
       // 에러 메시지 감지
-      if (stderrText.toLowerCase().includes('error') || 
-          stderrText.toLowerCase().includes('failed') ||
-          stderrText.toLowerCase().includes('timeout')) {
+      if (stderrText.toLowerCase().includes("error") || stderrText.toLowerCase().includes("failed") || stderrText.toLowerCase().includes("timeout")) {
         errorCount++;
         console.warn(`[FrameCapture] CCTV ${cctvId} FFmpeg 경고:`, stderrText.substring(0, 200));
-        
+
         if (errorCount >= MAX_CONSECUTIVE_ERRORS) {
           console.error(`[FrameCapture] CCTV ${cctvId}: FFmpeg 연속 에러 ${errorCount}회 발생, 재연결 시도`);
           this.scheduleHLSReconnect(cctvId, m3u8Url);
@@ -788,7 +790,7 @@ export class FrameCaptureService {
     });
 
     // 프로세스 종료 처리
-    ffmpegProcess.on('close', (code, signal) => {
+    ffmpegProcess.on("close", (code, signal) => {
       const task = this.activeTasks.get(cctvId);
       if (!task || !task.isDirectStream) {
         // 이미 중지된 경우
@@ -802,7 +804,7 @@ export class FrameCaptureService {
       }
 
       console.log(`[FrameCapture] CCTV ${cctvId} FFmpeg 프로세스 종료 (code: ${code}, signal: ${signal})`);
-      
+
       // 정상 종료가 아닌 경우 재연결 시도
       if (code !== 0 && code !== null) {
         console.warn(`[FrameCapture] CCTV ${cctvId}: 비정상 종료 감지, 재연결 시도`);
@@ -811,7 +813,7 @@ export class FrameCaptureService {
     });
 
     // 프로세스 에러 처리
-    ffmpegProcess.on('error', (error) => {
+    ffmpegProcess.on("error", (error) => {
       console.error(`[FrameCapture] CCTV ${cctvId} FFmpeg 프로세스 실행 실패:`, error.message);
       this.scheduleHLSReconnect(cctvId, m3u8Url);
     });
@@ -832,7 +834,7 @@ export class FrameCaptureService {
         clearInterval(healthCheckInterval);
         task.healthCheckInterval = undefined;
         if (task.ffmpegProcess) {
-          task.ffmpegProcess.kill('SIGTERM');
+          task.ffmpegProcess.kill("SIGTERM");
         }
         this.scheduleHLSReconnect(cctvId, m3u8Url);
       }
@@ -886,7 +888,7 @@ export class FrameCaptureService {
       // 기존 프로세스 정리
       if (currentTask.ffmpegProcess) {
         try {
-          currentTask.ffmpegProcess.kill('SIGTERM');
+          currentTask.ffmpegProcess.kill("SIGTERM");
         } catch (error: any) {
           // 무시
         }
@@ -923,7 +925,7 @@ export class FrameCaptureService {
       }
       if (task.ffmpegProcess) {
         try {
-          task.ffmpegProcess.kill('SIGTERM');
+          task.ffmpegProcess.kill("SIGTERM");
         } catch (error: any) {
           // 무시
         }
@@ -939,4 +941,3 @@ export class FrameCaptureService {
     this.activeTasks.clear();
   }
 }
-

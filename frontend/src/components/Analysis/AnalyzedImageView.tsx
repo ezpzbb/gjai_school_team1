@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { socketService, AnalyzedImagePayload } from '../../services/socket';
+import React, { useState, useEffect } from "react";
+import { socketService, AnalyzedImagePayload } from "../../services/socket";
 
 interface AnalyzedImageViewProps {
   cctvId: number;
@@ -43,11 +43,7 @@ const AnalyzedImageView: React.FC<AnalyzedImageViewProps> = ({ cctvId }) => {
       {/* 헤더 */}
       <div className="flex-shrink-0 px-4 py-2 bg-gray-800 flex items-center justify-between">
         <h4 className="text-sm font-semibold text-white">분석 완료 이미지</h4>
-        {analyzedImageUrl && (
-          <span className="text-xs text-gray-400">
-            실시간 업데이트 중...
-          </span>
-        )}
+        {analyzedImageUrl && <span className="text-xs text-gray-400">실시간 업데이트 중...</span>}
       </div>
 
       {/* 이미지 영역 - 항상 영역 유지, 우측과 같은 높이 */}
@@ -59,16 +55,16 @@ const AnalyzedImageView: React.FC<AnalyzedImageViewProps> = ({ cctvId }) => {
             alt="Analyzed frame"
             className="max-w-full max-h-full object-contain"
             style={{
-              transition: 'opacity 0.1s ease-in-out',
+              transition: "opacity 0.1s ease-in-out",
             }}
             onLoad={() => {
               setIsLoading(false);
             }}
             onError={(e) => {
-              console.error('[AnalyzedImageView] 이미지 로드 실패:', analyzedImageUrl);
+              console.error("[AnalyzedImageView] 이미지 로드 실패:", analyzedImageUrl);
               setIsLoading(false);
               // 에러 발생 시 placeholder 표시
-              e.currentTarget.style.display = 'none';
+              e.currentTarget.style.display = "none";
             }}
           />
         ) : (
@@ -92,4 +88,3 @@ const AnalyzedImageView: React.FC<AnalyzedImageViewProps> = ({ cctvId }) => {
 };
 
 export default AnalyzedImageView;
-
