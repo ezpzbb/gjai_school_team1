@@ -135,7 +135,7 @@ export const setupDetectionRoutes = (dbPool: Pool): Router => {
               cctvId,
               frameId,
               imagePath: relativePath,
-              imageUrl: `${process.env.API_URL || "http://localhost:3002"}${relativePath}`, // 하위 호환성 유지
+              imageUrl: `${process.env.API_URL || "http://localhost:3001"}${relativePath}`, // 하위 호환성 유지
               imageData, // Base64 인코딩된 이미지 데이터
               timestamp: Date.now(),
             });
@@ -144,7 +144,7 @@ export const setupDetectionRoutes = (dbPool: Pool): Router => {
             console.error(`[Detection] 이미지 파일 읽기 실패: ${filePath}`, error.message);
             // 이미지 읽기 실패 시 URL만 전송 (하위 호환성)
             const room = `${VEHICLE_ROOM_PREFIX}${cctvId}`;
-            const apiUrl = process.env.API_URL || "http://localhost:3002";
+            const apiUrl = process.env.API_URL || "http://localhost:3001";
             const fullImageUrl = `${apiUrl}${relativePath}`;
 
             io.to(room).emit("analyzed-image", {
@@ -205,7 +205,7 @@ export const setupDetectionRoutes = (dbPool: Pool): Router => {
         `;
 
         const detectionIds: number[] = [];
-        const vehicleTypes = ["car", "truck", "bus", "승용차", "트럭", "버스"];
+        const vehicleTypes = ["승용차", "버스", "트럭", "오토바이(자전거)"];
 
         for (const det of detections) {
           const bboxText = JSON.stringify(det.bbox || []);

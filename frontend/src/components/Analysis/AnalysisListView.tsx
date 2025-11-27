@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { socketService } from '../../services/socket';
-import { VehicleUpdatePayload } from '../../types/vehicle';
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import { socketService } from "../../services/socket";
+import { VehicleUpdatePayload } from "../../types/vehicle";
 
 interface AnalysisListViewProps {
   cctvId: number;
@@ -26,19 +26,19 @@ interface SavedAnalysisSection {
 const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
   // 실시간 데이터 (최신 1개만 표시)
   const [realtimeData, setRealtimeData] = useState<VehicleUpdatePayload | null>(null);
-  
+
   // 현재 1분간 수집 중인 데이터
   const [currentMinuteData, setCurrentMinuteData] = useState<VehicleUpdatePayload[]>([]);
-  
+
   // 저장된 섹션 (최대 10개, FIFO)
   const [savedSections, setSavedSections] = useState<SavedAnalysisSection[]>([]);
-  
+
   // 마지막 저장 시간
   const [lastSaveTime, setLastSaveTime] = useState<number | null>(null);
-  
+
   // 섹션 접기/펼치기 상태
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
-  
+
   // 자동 스크롤
   const [autoScroll, setAutoScroll] = useState(true);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -56,20 +56,47 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
   };
 
   // 차량 유형별 breakdown 생성
-  const getVehicleTypeBreakdown = (detections: VehicleUpdatePayload['detections']) => {
+  const getVehicleTypeBreakdown = (detections: VehicleUpdatePayload["detections"]) => {
     const breakdown: { [type: string]: number } = {};
-    const vehicleTypes = ['car', 'truck', 'bus', '승용차', '트럭', '버스', '오토바이(자전거)'];
-    
+    const vehicleTypes = ["승용차", "버스", "트럭", "오토바이(자전거)"];
+
+    const seen = new Set<number | string>();
+
+    // 11/27 수정: 차량 유형 breakdown(반환) 트래킹 기준으로 중복 제거
     detections.forEach((det) => {
-      if (vehicleTypes.includes(det.cls)) {
-        const normalizedType = det.cls === 'car' ? '승용차' : 
-                               det.cls === 'truck' ? '트럭' : 
-                               det.cls === 'bus' ? '버스' : det.cls;
-        breakdown[normalizedType] = (breakdown[normalizedType] || 0) + 1;
+      if (!vehicleTypes.includes(det.cls)) return;
+
+      const key = det.trackId != null ? `id:${det.trackId}` : `bbox:${det.bbox.join(",")}`; // trackId 없을 때 최소한 프레임 내 중복 방지용
+
+      if (seen.has(key)) return;
+      seen.add(key);
+
+      const normalizedType = det.cls;
+      breakdown[normalizedType] = (breakdown[normalizedType] || 0) + 1;
+    });
+
+    return breakdown;
+  };
+  /**
+   *
+   * 함수 설명: 트래킹 ID 기준 유니크 차량 수 헬퍼 추가
+   *
+   * */
+  // 한 프레임 안에서 trackId 기준으로 중복 제거된 차량 수
+  const countUniqueTrackedVehicles = (detections: VehicleUpdatePayload["detections"]) => {
+    const ids = new Set<number>();
+    let anonymousCount = 0;
+
+    detections.forEach((det) => {
+      if (det.trackId != null) {
+        ids.add(det.trackId);
+      } else {
+        // trackId가 없으면 0대 증감연산
+        anonymousCount += 0;
       }
     });
-    
-    return breakdown;
+
+    return ids.size + anonymousCount;
   };
 
   // vehicle-update 이벤트 구독
@@ -103,7 +130,7 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
 
     const interval = setInterval(() => {
       const now = Math.floor(Date.now() / 1000);
-      
+
       // 마지막 저장 시간이 없으면 현재 시간으로 설정
       if (lastSaveTime === null) {
         setLastSaveTime(now);
@@ -116,13 +143,15 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
         const sortedData = [...currentMinuteData].sort((a, b) => a.timestamp - b.timestamp);
         const startTimestamp = sortedData[0].timestamp;
         const endTimestamp = sortedData[sortedData.length - 1].timestamp;
-        
+
         const startDate = new Date(startTimestamp * 1000);
-        const minuteKey = `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`;
+        const minuteKey = `${startDate.getHours().toString().padStart(2, "0")}:${startDate.getMinutes().toString().padStart(2, "0")}`;
 
         // 평균 차량 수 계산
-        const totalVehicleCount = sortedData.reduce((sum, update) => sum + update.detections.length, 0);
-        const avgVehicleCount = Math.round(totalVehicleCount / sortedData.length);
+        const totalVehicleCount = sortedData.reduce((sum, update) => {
+          return sum + countUniqueTrackedVehicles(update.detections);
+        }, 0); // 11/27: 트래킹 아이디 카운터 유니크 기준으로 적용
+        const avgVehicleCount = Math.round(totalVehicleCount / sortedData.length); // 11/27: "프레임당 유니크 차량 수"의 평균 산출
 
         // 차량 유형별 평균 계산
         const typeCountsSum: Record<string, number> = {};
@@ -189,7 +218,7 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
   // 자동 스크롤
   useEffect(() => {
     if (autoScroll && latestSectionRef.current && scrollContainerRef.current) {
-      latestSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      latestSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [savedSections, autoScroll]);
 
@@ -210,13 +239,15 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
     if (!realtimeData) return null;
 
     const date = new Date(realtimeData.timestamp * 1000);
-    const formattedTime = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`;
+    const formattedTime = `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}:${date.getSeconds().toString().padStart(2, "0")}`;
+
+    const uniqueRealtimeCount = countUniqueTrackedVehicles(realtimeData.detections); // 11/27: 트래킹 유니크 카운터 변수
 
     return {
       timestamp: realtimeData.timestamp,
       formattedTime,
-      congestionLevel: calculateCongestionLevel(realtimeData.detections.length),
-      vehicleCount: realtimeData.detections.length,
+      congestionLevel: calculateCongestionLevel(uniqueRealtimeCount), // 11/27: 트래킹 유니크 카운터 변수
+      vehicleCount: uniqueRealtimeCount, // 11/27: 트래킹 유니크 카운터 변수 적용
       vehicleTypeBreakdown: getVehicleTypeBreakdown(realtimeData.detections),
     };
   }, [realtimeData]);
@@ -224,14 +255,11 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
   const renderVehicleTypeBreakdown = (breakdown: { [type: string]: number }) => {
     const entries = Object.entries(breakdown);
     if (entries.length === 0) return <span className="text-gray-400 dark:text-gray-500">-</span>;
-    
+
     return (
       <div className="flex flex-wrap gap-1">
         {entries.map(([type, count]) => (
-          <span
-            key={type}
-            className="px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded"
-          >
+          <span key={type} className="px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded">
             {type}: {count}
           </span>
         ))}
@@ -240,10 +268,10 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
   };
 
   const getCongestionColor = (level: number) => {
-    if (level >= 80) return 'text-red-600 dark:text-red-400';
-    if (level >= 60) return 'text-orange-600 dark:text-orange-400';
-    if (level >= 40) return 'text-yellow-600 dark:text-yellow-400';
-    return 'text-green-600 dark:text-green-400';
+    if (level >= 80) return "text-red-600 dark:text-red-400";
+    if (level >= 60) return "text-orange-600 dark:text-orange-400";
+    if (level >= 40) return "text-yellow-600 dark:text-yellow-400";
+    return "text-green-600 dark:text-green-400";
   };
 
   return (
@@ -255,12 +283,10 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
           <button
             onClick={() => setAutoScroll(!autoScroll)}
             className={`px-2 py-1 text-xs rounded transition-colors ${
-              autoScroll
-                ? 'bg-green-600 text-white hover:bg-green-700'
-                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+              autoScroll ? "bg-green-600 text-white hover:bg-green-700" : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
             }`}
           >
-            {autoScroll ? '자동 스크롤: ON' : '자동 스크롤: OFF'}
+            {autoScroll ? "자동 스크롤: ON" : "자동 스크롤: OFF"}
           </button>
         </div>
       </div>
@@ -270,9 +296,7 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
         {/* 실시간 데이터 (상단 - 고정) */}
         {realtimeListItem && (
           <div className="flex-shrink-0 p-2 border-b-2 border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20">
-            <div className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2">
-              실시간 데이터
-            </div>
+            <div className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2">실시간 데이터</div>
             <table className="w-full text-xs">
               <thead className="bg-blue-100 dark:bg-blue-900/40">
                 <tr>
@@ -285,9 +309,7 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
               <tbody>
                 <tr className="hover:bg-blue-100 dark:hover:bg-blue-900/40">
                   <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{realtimeListItem.formattedTime}</td>
-                  <td className={`px-2 py-1 font-medium ${getCongestionColor(realtimeListItem.congestionLevel)}`}>
-                    {realtimeListItem.congestionLevel}%
-                  </td>
+                  <td className={`px-2 py-1 font-medium ${getCongestionColor(realtimeListItem.congestionLevel)}`}>{realtimeListItem.congestionLevel}%</td>
                   <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{realtimeListItem.vehicleCount}대</td>
                   <td className="px-2 py-1">{renderVehicleTypeBreakdown(realtimeListItem.vehicleTypeBreakdown)}</td>
                 </tr>
@@ -301,86 +323,71 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
           <div className="p-2">
             {savedSections.length === 0 ? (
               <div className="flex items-center justify-center h-32 text-gray-500 dark:text-gray-400 text-sm">
-                {realtimeListItem ? '저장된 데이터가 없습니다. (1분 간격으로 저장됩니다)' : '데이터가 없습니다.'}
+                {realtimeListItem ? "저장된 데이터가 없습니다. (1분 간격으로 저장됩니다)" : "데이터가 없습니다."}
               </div>
             ) : (
               <div className="space-y-2">
-                <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  저장된 데이터 ({savedSections.length}/10)
-                </div>
+                <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">저장된 데이터 ({savedSections.length}/10)</div>
                 {savedSections.map((section, index) => {
-                const isExpanded = expandedSections.has(section.id);
-                const isLatest = index === savedSections.length - 1;
+                  const isExpanded = expandedSections.has(section.id);
+                  const isLatest = index === savedSections.length - 1;
 
-                return (
-                  <div
-                    key={section.id}
-                    ref={isLatest ? latestSectionRef : null}
-                    className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-800"
-                  >
-                    <button
-                      onClick={() => toggleSection(section.id)}
-                      className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  return (
+                    <div
+                      key={section.id}
+                      ref={isLatest ? latestSectionRef : null}
+                      className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-800"
                     >
-                      <div className="flex items-center gap-2">
-                        <svg
-                          className={`w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform ${
-                            isExpanded ? 'rotate-90' : ''
-                          }`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                          {section.minuteKey} ({section.items.length}개)
-                        </span>
-                        {isLatest && (
-                          <span className="px-2 py-0.5 text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded">
-                            최신
+                      <button
+                        onClick={() => toggleSection(section.id)}
+                        className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <svg
+                            className={`w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {section.minuteKey} ({section.items.length}개)
                           </span>
-                        )}
-                      </div>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {isExpanded ? '접기' : '펼치기'}
-                      </span>
-                    </button>
-
-                    {isExpanded && (
-                      <div className="border-t border-gray-200 dark:border-gray-700">
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-xs">
-                            <thead className="bg-gray-50 dark:bg-gray-900">
-                              <tr>
-                                <th className="px-2 py-1 text-left text-gray-700 dark:text-gray-300">시간</th>
-                                <th className="px-2 py-1 text-left text-gray-700 dark:text-gray-300">혼잡도</th>
-                                <th className="px-2 py-1 text-left text-gray-700 dark:text-gray-300">차량 수</th>
-                                <th className="px-2 py-1 text-left text-gray-700 dark:text-gray-300">차량 유형</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                              {section.items.map((item, idx) => (
-                                <tr
-                                  key={`${item.timestamp}-${idx}`}
-                                  className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                                >
-                                  <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{item.formattedTime}</td>
-                                  <td className={`px-2 py-1 font-medium ${getCongestionColor(item.congestionLevel)}`}>
-                                    {item.congestionLevel}%
-                                  </td>
-                                  <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{item.vehicleCount}대</td>
-                                  <td className="px-2 py-1">{renderVehicleTypeBreakdown(item.vehicleTypeBreakdown)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                          {isLatest && <span className="px-2 py-0.5 text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded">최신</span>}
                         </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                        <span className="text-xs text-gray-500 dark:text-gray-400">{isExpanded ? "접기" : "펼치기"}</span>
+                      </button>
+
+                      {isExpanded && (
+                        <div className="border-t border-gray-200 dark:border-gray-700">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-xs">
+                              <thead className="bg-gray-50 dark:bg-gray-900">
+                                <tr>
+                                  <th className="px-2 py-1 text-left text-gray-700 dark:text-gray-300">시간</th>
+                                  <th className="px-2 py-1 text-left text-gray-700 dark:text-gray-300">혼잡도</th>
+                                  <th className="px-2 py-1 text-left text-gray-700 dark:text-gray-300">차량 수</th>
+                                  <th className="px-2 py-1 text-left text-gray-700 dark:text-gray-300">차량 유형</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                {section.items.map((item, idx) => (
+                                  <tr key={`${item.timestamp}-${idx}`} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                                    <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{item.formattedTime}</td>
+                                    <td className={`px-2 py-1 font-medium ${getCongestionColor(item.congestionLevel)}`}>{item.congestionLevel}%</td>
+                                    <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{item.vehicleCount}대</td>
+                                    <td className="px-2 py-1">{renderVehicleTypeBreakdown(item.vehicleTypeBreakdown)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -391,4 +398,3 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
 };
 
 export default AnalysisListView;
-

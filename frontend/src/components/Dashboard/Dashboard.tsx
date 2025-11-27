@@ -141,7 +141,7 @@ const Dashboard: React.FC = () => {
 
   return (
     <div
-      className={`fixed top-[calc(0.5rem+4rem+0.5rem)] right-2 h-[calc(100vh-0.5rem-4rem-0.5rem-0.5rem)] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 p-4 z-40 rounded-lg shadow-lg flex flex-col transition-all duration-300 ${
+      className={`fixed top-[calc(0.5rem+4rem+0.5rem)] right-2 h-[calc(100vh-0.5rem-4rem-0.5rem-0.5rem)] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 p-4 rounded-lg shadow-lg flex flex-col transition-all duration-300 ${
         dashboardCollapsed ? "w-16" : "w-72"
       }`}
     >
