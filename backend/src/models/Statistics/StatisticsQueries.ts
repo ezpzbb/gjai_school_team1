@@ -2,7 +2,7 @@
 
 export const StatisticsQueries = {
   CREATE_TABLE: `
-    CREATE TABLE IF NOT EXISTS STATISTICS (
+    CREATE TABLE IF NOT EXISTS statistics (
       statistics_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
       detection_id INT NOT NULL,
       object_count INT NOT NULL DEFAULT 0,
@@ -11,7 +11,7 @@ export const StatisticsQueries = {
       KEY idx_object_count (object_count),
       KEY idx_vehicle_total (vehicle_total),
       CONSTRAINT fk_statistics_detection
-        FOREIGN KEY (detection_id) REFERENCES DETECTION(detection_id)
+        FOREIGN KEY (detection_id) REFERENCES detection(detection_id)
         ON DELETE CASCADE ON UPDATE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   `,
@@ -40,23 +40,41 @@ export const StatisticsQueries = {
     VALUES (?, ?, ?)
   `,
 
-  // 대시보드용: 시간대별 차량 통계 조회
+  // 대시보드용: 시간대별 차량 통계 조회 (차량 유형별, 1분 단위)
   // 주의: frame.timestamp 기준으로 집계 (프레임 촬영 시간 기준)
   // detection.detected_at은 계산 완료 시간이므로 프레임 촬영 시간과 2-3초 차이 발생
   // 완료된 데이터만 조회 (statistics가 존재하는 경우만)
+  // 1분 단위로 그룹화: FLOOR(MINUTE(f.timestamp) / 1) * 1를 사용하여 1분 단위로 반올림
   GET_VEHICLE_STATISTICS: `
     SELECT 
-      DATE_FORMAT(f.timestamp, '%Y-%m-%d %H:%i:00') as timestamp,
-      COALESCE(SUM(s.vehicle_total), 0) as vehicle_total,
-      COALESCE(SUM(s.object_count), 0) as object_count
+      DATE_FORMAT(
+        DATE_ADD(
+          DATE_FORMAT(f.timestamp, '%Y-%m-%d %H:00:00'),
+          INTERVAL FLOOR(MINUTE(f.timestamp) / 1) * 1 MINUTE
+        ),
+        '%Y-%m-%d %H:%i:00'
+      ) as timestamp,
+      d.object_text,
+      COUNT(*) as count
     FROM frame f
     INNER JOIN detection d ON f.frame_id = d.frame_id
     INNER JOIN statistics s ON d.detection_id = s.detection_id
     WHERE f.cctv_id = ?
       AND f.timestamp >= ?
       AND f.timestamp <= ?
-    GROUP BY DATE_FORMAT(f.timestamp, '%Y-%m-%d %H:%i:00')
-    ORDER BY timestamp ASC
+      AND s.vehicle_total > 0
+      AND (d.object_text = 'car' OR d.object_text = 'truck' OR d.object_text = 'bus' 
+           OR d.object_text = '승용차' OR d.object_text = '트럭' OR d.object_text = '버스' 
+           OR d.object_text = '오토바이(자전거)')
+    GROUP BY 
+      DATE_FORMAT(
+        DATE_ADD(
+          DATE_FORMAT(f.timestamp, '%Y-%m-%d %H:00:00'),
+          INTERVAL FLOOR(MINUTE(f.timestamp) / 1) * 1 MINUTE
+        ),
+        '%Y-%m-%d %H:%i:00'
+      ),
+      d.object_text
+    ORDER BY timestamp ASC, d.object_text ASC
   `,
 } as const;
-

@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import { Line } from 'react-chartjs-2';
+import { Chart as ChartJS } from 'chart.js';
 import '../../utils/chartConfig'; // Chart.js 플러그인 등록
 import { CongestionDataPoint } from '../../types/dashboard';
 import { formatTime } from '../../utils/dateUtils';
@@ -12,6 +13,8 @@ interface CongestionChartProps {
 }
 
 const CongestionChart: React.FC<CongestionChartProps> = ({ data, isLoading = false }) => {
+  const chartRef = useRef<ChartJS<'line'>>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const chartData = useMemo(() => ({
     labels: data.map((point) => formatTime(point.timestamp)),
     datasets: [
@@ -31,6 +34,7 @@ const CongestionChart: React.FC<CongestionChartProps> = ({ data, isLoading = fal
   const options = useMemo(() => ({
     responsive: true,
     maintainAspectRatio: false,
+    resizeDelay: 0,
     plugins: {
       legend: {
         display: true,
@@ -66,14 +70,41 @@ const CongestionChart: React.FC<CongestionChartProps> = ({ data, isLoading = fal
     },
   }), []);
 
+  // 리사이즈 감지 및 차트 업데이트
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (chartRef.current) {
+        chartRef.current.resize();
+      }
+    });
+
+    resizeObserver.observe(container);
+
+    // window resize 이벤트도 감지 (추가 보완)
+    const handleWindowResize = () => {
+      if (chartRef.current) {
+        chartRef.current.resize();
+      }
+    };
+    window.addEventListener('resize', handleWindowResize);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', handleWindowResize);
+    };
+  }, []);
+
   return (
     <ChartContainer
       isLoading={isLoading}
       isEmpty={data.length === 0}
       height="100%"
     >
-      <div className="w-full h-full bg-white dark:bg-gray-800 rounded-lg p-3">
-        <Line data={chartData} options={options} />
+      <div ref={containerRef} className="w-full h-full bg-white dark:bg-gray-800 rounded-lg p-3">
+        <Line ref={chartRef} data={chartData} options={options} />
       </div>
     </ChartContainer>
   );

@@ -141,17 +141,23 @@ const KakaoMap: React.FC = () => {
     loadData();
   }, [loadData]);
 
-  // Socket 연결 및 이벤트 구독
+  // Socket 이벤트 구독 (연결은 Dashboard에서 관리)
   useEffect(() => {
-    socketService.connect();
+    // Dashboard에서 이미 Socket을 연결했으므로, 여기서는 구독만 수행
+    // connect()는 이미 연결되어 있으면 중복 연결하지 않으므로 안전함
+    if (!socketService.isConnected()) {
+      socketService.connect();
+    }
+    
     const unsubscribe = socketService.onEventUpdate((updatedEvents) => {
       console.log('KakaoMap: Events updated:', updatedEvents.length);
       setEvents(updatedEvents);
     });
 
     return () => {
+      // 구독만 해제하고, Socket 연결은 유지 (Dashboard가 사용 중일 수 있음)
       unsubscribe();
-      socketService.disconnect();
+      
     };
   }, []);
 

@@ -14,7 +14,7 @@ import {
   DetectionStatistics,
 } from '../models/Detection/DetectionModel';
 import {
-  VehicleStatisticsPoint,
+  VehicleStatisticsByType,
 } from '../models/Statistics/StatisticsModel';
 
 export class DashboardService {
@@ -63,13 +63,13 @@ export class DashboardService {
   }
 
   /**
-   * 차량 통계 데이터 조회
+   * 차량 통계 데이터 조회 (차량 유형별)
    */
   async getVehicleStatistics(
     cctvId: number,
     startTime: Date,
     endTime: Date
-  ): Promise<VehicleStatisticsPoint[]> {
+  ): Promise<VehicleStatisticsByType[]> {
     try {
       return await this.statisticsTransaction.getVehicleStatistics(
         cctvId,

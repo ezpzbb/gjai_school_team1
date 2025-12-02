@@ -1,6 +1,6 @@
 import { Pool, PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { StatisticsQueries } from './StatisticsQueries';
-import { Statistics, StatisticsInput, VehicleStatisticsPoint } from './StatisticsModel';
+import { Statistics, StatisticsInput, VehicleStatisticsPoint, VehicleStatisticsByType } from './StatisticsModel';
 import { convertToISO8601, convertToMySQLDateTime } from '../../utils/dateConverter';
 import { logger } from '../../utils/logger';
 import dotenv from 'dotenv';
@@ -89,13 +89,13 @@ export class StatisticsTransaction {
   }
 
   /**
-   * 차량 통계 데이터 조회 (대시보드용)
+   * 차량 통계 데이터 조회 (대시보드용, 차량 유형별)
    */
   async getVehicleStatistics(
     cctvId: number,
     startTime: Date,
     endTime: Date
-  ): Promise<VehicleStatisticsPoint[]> {
+  ): Promise<VehicleStatisticsByType[]> {
     try {
       // MySQL이 이해할 수 있는 형식으로 변환 (YYYY-MM-DD HH:MM:SS)
       const startTimeStr = convertToMySQLDateTime(startTime);
@@ -125,10 +125,16 @@ export class StatisticsTransaction {
       return rows.map((row) => {
         try {
           const timestamp = convertToISO8601(row.timestamp);
+          // object_text를 한글로 변환 (car -> 승용차, truck -> 트럭, bus -> 버스)
+          let objectText = String(row.object_text || '');
+          if (objectText === 'car') objectText = '승용차';
+          else if (objectText === 'truck') objectText = '트럭';
+          else if (objectText === 'bus') objectText = '버스';
+          
           return {
             timestamp,
-            vehicle_total: Number(row.vehicle_total) || 0,
-            object_count: Number(row.object_count) || 0,
+            object_text: objectText,
+            count: Number(row.count) || 0,
           };
         } catch (error) {
           logger.error('차량 통계 타임스탬프 변환 오류:', error, { timestamp: row.timestamp });

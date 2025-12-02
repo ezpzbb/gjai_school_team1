@@ -4,8 +4,6 @@ import { useAuth } from "../../providers/AuthProvider";
 import { useTheme } from "../../providers/ThemeProvider";
 import NotificationBell from "../Notification/NotificationBell";
 
-
-
 const Header: React.FC = () => {
   const location = useLocation();
   const { isLoggedIn, user, logout } = useAuth();
@@ -39,31 +37,26 @@ const Header: React.FC = () => {
   };
 
   return (
-    <header 
-      className="fixed top-2 left-2 right-2 z-50 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 px-6 py-2 shadow-lg rounded-lg"
-    >
-      <div className="flex items-center justify-between text-gray-900 dark:text-gray-100" style={{ minHeight: '48px' }}>
+    <header className="fixed top-2 left-2 right-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 px-6 py-2 shadow-lg rounded-lg">
+      <div className="flex items-center justify-between text-gray-900 dark:text-gray-100" style={{ minHeight: "48px" }}>
         {/* 좌측: Palantir 로고 */}
-        <Link to="/" className="flex items-center">
-          <span className="text-gray-900 dark:text-gray-100 font-bold text-2xl">
-            Palantir
-          </span>
+        <Link to="/dashboard" className="flex items-center">
+          <span className="text-gray-900 dark:text-gray-100 font-bold text-2xl">Palantir</span>
         </Link>
 
         {/* 중앙: 네비게이션 (대시보드, 지도, CCTV) */}
         <div className="hidden lg:flex absolute left-1/2 transform -translate-x-1/2">
           <div className="flex items-center space-x-4">
             {navItems.map((item) => {
-              const isActive =
-                pathname === item.path || pathname.startsWith(item.path);
+              const isActive = pathname === item.path || pathname.startsWith(item.path);
 
               return (
                 <Link
                   key={item.key}
                   to={item.path}
                   className={`px-4 py-1 whitespace-nowrap rounded-full transition ${
-                    isActive 
-                      ? "text-blue-600 dark:text-blue-400 font-semibold" 
+                    isActive
+                      ? "text-blue-600 dark:text-blue-400 font-semibold"
                       : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100"
                   }`}
                 >
@@ -84,15 +77,20 @@ const Header: React.FC = () => {
           <button
             onClick={toggleTheme}
             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition"
-            aria-label={theme === 'light' ? '다크모드로 전환' : '라이트모드로 전환'}
+            aria-label={theme === "light" ? "다크모드로 전환" : "라이트모드로 전환"}
           >
-            {theme === 'light' ? (
+            {theme === "light" ? (
               <svg className="w-6 h-6 text-gray-700 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
               </svg>
             ) : (
               <svg className="w-6 h-6 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
+                />
               </svg>
             )}
           </button>
@@ -100,22 +98,13 @@ const Header: React.FC = () => {
             <>
               {/* 프로필/유저 메뉴 */}
               <div className="relative" ref={menuRef}>
-                <button
-                  onClick={handleMenuClick}
-                  className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition flex items-center space-x-2"
-                >
+                <button onClick={handleMenuClick} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition flex items-center space-x-2">
                   <span className="text-gray-700 dark:text-gray-300 font-medium">{user?.username || "사용자"}</span>
                 </button>
                 {menuOpen && (
                   <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden z-50">
-                    <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 font-semibold truncate bg-gray-50 dark:bg-gray-900">
-                      {user?.username || "사용자"}
-                    </div>
-                    <Link
-                      to="/settings"
-                      className="block w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-                      onClick={() => setMenuOpen(false)}
-                    >
+                    <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 font-semibold truncate bg-gray-50 dark:bg-gray-900">{user?.username || "사용자"}</div>
+                    <Link to="/settings" className="block w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition" onClick={() => setMenuOpen(false)}>
                       계정관리
                     </Link>
                     <button

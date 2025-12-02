@@ -23,7 +23,7 @@ const Sidebar: React.FC = () => {
       {/* 축소 버튼 */}
       <button
         onClick={toggleSidebar}
-        className="fixed w-6 h-6 bg-blue-600 dark:bg-blue-700 text-white rounded-full flex items-center justify-center hover:bg-blue-700 dark:hover:bg-blue-800 transition-all duration-300 z-50 shadow-lg"
+        className="fixed w-6 h-6 bg-blue-600 dark:bg-blue-700 text-white rounded-full flex items-center justify-center hover:bg-blue-700 dark:hover:bg-blue-800 transition-all duration-300 z-[100] shadow-lg"
         style={{ 
           left: `calc(0.5rem + ${sidebarCollapsed ? '4rem' : '14rem'} - 0.75rem)`,
           top: '50vh', 

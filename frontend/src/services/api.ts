@@ -3,7 +3,7 @@ import { Favorite } from '../types/Favorite';
 import {
   AnalyzedTimeRange,
   CongestionDataPoint,
-  VehicleStatisticsPoint,
+  VehicleStatisticsByType,
   DetectionStatistics,
 } from '../types/dashboard';
 import { createApiUrl } from '../config/apiConfig';
@@ -234,7 +234,7 @@ export const getVehicleStatistics = async (
   cctvId: number,
   startTime: string,
   endTime: string
-): Promise<VehicleStatisticsPoint[]> => {
+): Promise<VehicleStatisticsByType[]> => {
   const token = localStorage.getItem('token');
   try {
     const response = await fetch(

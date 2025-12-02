@@ -73,4 +73,4 @@ MIT License
 
 ## 데이터 제공
 
-경찰청(UTIC)
+경찰청

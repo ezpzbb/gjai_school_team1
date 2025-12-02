@@ -31,7 +31,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   };
 
   return (
-    <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+    <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end justify-between">
       <div className="flex flex-col sm:flex-row gap-3 flex-1 w-full">
         {/* CCTV 선택 */}
         <div className="flex-1 min-w-[180px]">
@@ -88,12 +88,22 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
       {/* 보고서 출력 버튼 */}
       {onReportExport && (
-        <button
-          onClick={onReportExport}
-          className="px-4 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition rounded-lg shadow flex-shrink-0"
-        >
-          보고서 출력
-        </button>
+        <div className="flex flex-col">
+          <div className="h-4 sm:h-0"></div>
+          <button
+            onClick={onReportExport}
+            className="px-4 text-sm border rounded-lg shadow flex-shrink-0 font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition border-transparent"
+            style={{
+              paddingTop: '0.375rem',
+              paddingBottom: '0.375rem',
+              lineHeight: '1.5',
+              height: 'calc(0.875rem * 1.5 + 0.375rem * 2 + 2px)',
+              boxSizing: 'border-box',
+            }}
+          >
+            보고서 출력
+          </button>
+        </div>
       )}
     </div>
   );

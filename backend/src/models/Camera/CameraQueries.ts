@@ -3,17 +3,17 @@
 export const cctvQueries = {
   getAllCCTVLocations: `
     SELECT cctv_id, location, latitude, longitude, api_endpoint
-    FROM CCTV
+    FROM cctv
   `,
   getCCTVById: `
     SELECT cctv_id, location, latitude, longitude, api_endpoint
-    FROM CCTV
+    FROM cctv
     WHERE cctv_id = ?
     LIMIT 1
   `,
   searchCCTVLocations: (keyword: string): string => `
     SELECT cctv_id, location, latitude, longitude, api_endpoint
-    FROM CCTV
+    FROM cctv
     WHERE location LIKE ?
     ORDER BY 
       CASE 
@@ -25,7 +25,7 @@ export const cctvQueries = {
     LIMIT 10
   `,
   CREATE_TABLE: `
-    CREATE TABLE IF NOT EXISTS CCTV (
+    CREATE TABLE IF NOT EXISTS cctv (
       cctv_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
       cctv_code VARCHAR(64) NOT NULL UNIQUE,
       location VARCHAR(125) NOT NULL,
@@ -41,5 +41,5 @@ export const cctvQueries = {
     SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES 
     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'cctv'
   `,
-  COUNT_CCTV: 'SELECT COUNT(*) as count FROM CCTV',
+  COUNT_CCTV: "SELECT COUNT(*) as count FROM cctv",
 };

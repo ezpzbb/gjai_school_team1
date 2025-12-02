@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useData } from '../providers/DataProvider';
+import { useLayout } from '../providers/LayoutProvider';
 import {
   getAnalyzedTimeRanges,
   getCongestionData,
@@ -9,7 +10,7 @@ import {
 import {
   AnalyzedTimeRange,
   CongestionDataPoint,
-  VehicleStatisticsPoint,
+  VehicleStatisticsByType,
   DetectionStatistics,
 } from '../types/dashboard';
 import DashboardHeader from '../components/Dashboard/DashboardHeader';
@@ -19,6 +20,7 @@ import ObjectTypeChart from '../components/Dashboard/ObjectTypeChart';
 
 const DashBoardPage: React.FC = () => {
   const { favorites, getCctvById } = useData();
+  const { sidebarCollapsed } = useLayout();
 
   // 즐겨찾기 CCTV 목록 (메모이제이션)
   const favoriteCCTVs = useMemo(
@@ -36,7 +38,7 @@ const DashBoardPage: React.FC = () => {
 
   // 차트 데이터 상태
   const [congestionData, setCongestionData] = useState<CongestionDataPoint[]>([]);
-  const [vehicleData, setVehicleData] = useState<VehicleStatisticsPoint[]>([]);
+  const [vehicleData, setVehicleData] = useState<VehicleStatisticsByType[]>([]);
   const [detectionData, setDetectionData] = useState<DetectionStatistics[]>([]);
 
   // 개별 로딩 상태
@@ -178,8 +180,83 @@ const DashBoardPage: React.FC = () => {
     alert('보고서 출력 기능은 추후 구현 예정입니다.');
   }, []);
 
+  // 차량 유형별 데이터 변환 및 FIFO 적용 (최대 5개)
+  const vehicleTypeData = useMemo(() => {
+    if (!vehicleData || vehicleData.length === 0) {
+      return [];
+    }
+
+    // 타임스탬프별로 그룹화
+    const groupedByTimestamp: { [key: string]: VehicleStatisticsByType[] } = {};
+    vehicleData.forEach((item) => {
+      if (!groupedByTimestamp[item.timestamp]) {
+        groupedByTimestamp[item.timestamp] = [];
+      }
+      groupedByTimestamp[item.timestamp].push(item);
+    });
+
+    // 타임스탬프 정렬
+    const sortedTimestamps = Object.keys(groupedByTimestamp).sort();
+    
+    // FIFO 적용: 최대 5개만 유지
+    const limitedTimestamps = sortedTimestamps.slice(-5);
+
+    // 차량 유형별로 데이터 구성
+    const vehicleTypes = ['승용차', '버스', '트럭', '오토바이(자전거)'];
+    const result: Array<{ label: string; data: number[]; timestamps: string[] }> = [];
+
+    vehicleTypes.forEach((type) => {
+      const data: number[] = [];
+      const timestamps: string[] = [];
+
+      limitedTimestamps.forEach((timestamp) => {
+        const items = groupedByTimestamp[timestamp];
+        const typeItem = items.find((item) => item.object_text === type);
+        data.push(typeItem ? typeItem.count : 0);
+        timestamps.push(timestamp);
+      });
+
+      // 해당 유형의 데이터가 하나라도 있으면 추가
+      if (data.some((count) => count > 0)) {
+        result.push({ label: type, data, timestamps });
+      }
+    });
+
+    return result;
+  }, [vehicleData]);
+
+  // 혼잡도 데이터 FIFO 적용 (최대 20개)
+  const limitedCongestionData = useMemo(() => {
+    if (!congestionData || congestionData.length === 0) {
+      return [];
+    }
+    return congestionData.slice(-20);
+  }, [congestionData]);
+
+  // 레이아웃 계산: 사이드바 상태에 따른 위치/너비 계산
+  // 대시보드 페이지에서는 우측 대시보드 컴포넌트가 없으므로 rightMargin은 0
+  const containerStyle = useMemo(() => {
+    const sidebarWidth = sidebarCollapsed ? 64 : 224; // 4rem = 64px, 14rem = 224px
+    const leftMargin = sidebarWidth + 16; // 사이드바 너비 + 여백 (1rem = 16px)
+    const rightMargin = 16; // 우측 여백만 (0.5rem + 0.5rem = 16px)
+    const topOffset = 80; // 헤더 높이 + 여백 (4rem + 0.5rem + 0.5rem = 80px)
+    
+    return {
+      position: 'fixed' as const,
+      top: `${topOffset}px`,
+      left: `${leftMargin}px`,
+      right: `${rightMargin}px`,
+      height: `calc(100vh - ${topOffset}px - 0.5rem)`,
+      width: `calc(100vw - ${leftMargin}px - ${rightMargin}px)`,
+      zIndex: 10, // 사이드바 버튼(z-50)보다 낮게 설정
+    };
+  }, [sidebarCollapsed]);
+
   return (
-    <div className="h-[calc(100vh-4rem-1rem)] flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
+    <div 
+      className="flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden transition-all duration-300"
+      style={containerStyle}
+    >
       <div className="flex-1 flex flex-col p-3 min-h-0 overflow-hidden">
         {/* 헤더 */}
         <div className="mb-2 flex-shrink-0">
@@ -251,7 +328,7 @@ const DashBoardPage: React.FC = () => {
                 </div>
               )}
               <div className="flex-1 min-h-0">
-                <CongestionChart data={congestionData} isLoading={loadingStates.congestion} />
+                <CongestionChart data={limitedCongestionData} isLoading={loadingStates.congestion} />
               </div>
             </div>
 
@@ -287,7 +364,7 @@ const DashBoardPage: React.FC = () => {
                   </div>
                 )}
                 <div className="flex-1 min-h-0">
-                  <VehicleCountChart data={vehicleData} isLoading={loadingStates.vehicles} />
+                  <VehicleCountChart data={[]} vehicleTypeData={vehicleTypeData} isLoading={loadingStates.vehicles} />
                 </div>
               </div>
               <div className="flex-1 min-w-0 flex flex-col">

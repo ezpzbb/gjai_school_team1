@@ -2,11 +2,11 @@
   "name": "vehicle-monitoring-backend",
   "version": "1.0.0",
   "description": "CCTV 차량 모니터링 시스템 백엔드",
-  "main": "src/server.ts",
+  "main": "dist/server.ts",
   "scripts": {
     "dev": "nodemon src/server.ts",
-    "build": "echo 'Build disabled - dist folder will not be created'",
-    "start": "ts-node src/server.ts",
+    "build": "tsc",
+    "start": "ts-node dist/server.ts",
     "test": "jest"
   },
   "dependencies": {
@@ -19,6 +19,7 @@
     "dotenv": "^16.0.0",
     "express": "^4.18.0",
     "express-rate-limit": "^6.7.0",
+    "form-data": "^4.0.0",
     "helmet": "^6.0.0",
     "jsonwebtoken": "^9.0.0",
     "morgan": "^1.10.0",

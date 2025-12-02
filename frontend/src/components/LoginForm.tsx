@@ -35,12 +35,12 @@ const LoginForm: React.FC = () => {
         console.log('Submitting login:', { identifier });
         await login(identifier, password);
         console.log('Login successful');
-        navigate('/home');
+        navigate('/dashboard');
       } else {
         console.log('Submitting register:', { username, email });
         await register(username, password, email);
         console.log('Register successful');
-        navigate('/home');
+        navigate('/dashboard');
       }
     } catch (err: any) {
       console.error('Submit error:', err.message);

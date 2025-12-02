@@ -2,7 +2,7 @@
 
 export const CongestionQueries = {
   CREATE_TABLE: `
-    CREATE TABLE IF NOT EXISTS CONGESTION (
+    CREATE TABLE IF NOT EXISTS congestion (
       congestion_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
       frame_id INT NOT NULL,
       timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -12,7 +12,7 @@ export const CongestionQueries = {
       KEY idx_timestamp (timestamp),
       KEY idx_level (level),
       CONSTRAINT fk_congestion_frame
-        FOREIGN KEY (frame_id) REFERENCES FRAME(frame_id)
+        FOREIGN KEY (frame_id) REFERENCES frame(frame_id)
         ON DELETE CASCADE ON UPDATE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   `,
@@ -55,19 +55,33 @@ export const CongestionQueries = {
     VALUES (?, ?, ?, ?)
   `,
 
-  // 대시보드용: 시간대별 혼잡도 데이터 조회
+  // 대시보드용: 시간대별 혼잡도 데이터 조회 (1분 단위 집계)
   // 주의: frame.timestamp 기준으로 조회 (프레임 촬영 시간 기준)
   // congestion.timestamp는 계산 완료 시간이므로 프레임 촬영 시간과 2-3초 차이 발생
+  // 1분 단위로 그룹화하여 평균 혼잡도 계산
   GET_CONGESTION_DATA: `
     SELECT 
-      f.timestamp,
-      c.level
+      DATE_FORMAT(
+        DATE_ADD(
+          DATE_FORMAT(f.timestamp, '%Y-%m-%d %H:00:00'),
+          INTERVAL FLOOR(MINUTE(f.timestamp) / 1) * 1 MINUTE
+        ),
+        '%Y-%m-%d %H:%i:00'
+      ) as timestamp,
+      AVG(c.level) as level
     FROM congestion c
     INNER JOIN frame f ON c.frame_id = f.frame_id
     WHERE f.cctv_id = ?
       AND f.timestamp >= ?
       AND f.timestamp <= ?
-    ORDER BY f.timestamp ASC
+    GROUP BY 
+      DATE_FORMAT(
+        DATE_ADD(
+          DATE_FORMAT(f.timestamp, '%Y-%m-%d %H:00:00'),
+          INTERVAL FLOOR(MINUTE(f.timestamp) / 1) * 1 MINUTE
+        ),
+        '%Y-%m-%d %H:%i:00'
+      )
+    ORDER BY timestamp ASC
   `,
 } as const;
-

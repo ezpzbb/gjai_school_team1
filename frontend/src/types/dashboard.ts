@@ -19,6 +19,13 @@ export interface VehicleStatisticsPoint {
   object_count: number;
 }
 
+// 차량 유형별 통계 (백엔드에서 반환)
+export interface VehicleStatisticsByType {
+  timestamp: string;
+  object_text: string;
+  count: number;
+}
+
 export interface DetectionStatistics {
   object_text: string;
   count: number;
