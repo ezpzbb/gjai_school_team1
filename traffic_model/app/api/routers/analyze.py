@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Form
 from vision.pipelines.preprocess import enhance_frame
-from infra.configs.roi_store import get_roi_polygon
+from infra.configs.roi_store import get_roi_polygon, get_directional_roi
 from vision.inference.engines.yolo_ultralytics import YOLOEngine
 import numpy as np
 from PIL import Image
@@ -51,19 +51,25 @@ def _is_inside_polygon(cx: float, cy: float, polygon: np.ndarray) -> bool:
     return cv2.pointPolygonTest(polygon, (cx, cy), False) >= 0.0
 
 
-def _draw_live_style(img_rgb: np.ndarray, detections, roi_polygon=None) -> np.ndarray:
+def _draw_live_style(img_rgb: np.ndarray, detections, roi_dir=None) -> np.ndarray:
     """
     디텍팅한 결과 시각화 스타일 -> 이미지에 입혀서 전송
     """
     vis = img_rgb.copy()
 
-    # ROI는 cv2로 먼저 반투명 영역 처리
-    if roi_polygon is not None and len(roi_polygon) >= 3:
-        pts = np.array(roi_polygon, dtype=np.int32)
-        cv2.polylines(vis, [pts], True, (0, 255, 0), 2)
+    # 방향별 ROI 오버레이
+    def _overlay_roi(vis, pts, color):
+        cv2.polylines(vis, [pts], True, color, 2)
         overlay = vis.copy()
-        cv2.fillPoly(overlay, [pts], (0, 255, 0))
-        vis = cv2.addWeighted(overlay, 0.2, vis, 0.8, 0.0)
+        cv2.fillPoly(overlay, [pts], color)
+        return cv2.addWeighted(overlay, 0.2, vis, 0.8, 0.0)
+
+    if roi_dir:
+        if roi_dir.get("upstream") is not None:
+            vis = _overlay_roi(vis, roi_dir["upstream"], (16, 185, 129))  # 녹색톤
+        if roi_dir.get("downstream") is not None:
+            vis = _overlay_roi(
+                vis, roi_dir["downstream"], (59, 130, 246))  # 파랑톤
 
     # PIL로 bbox/텍스트/중심점 처리
     base_img = Image.fromarray(vis).convert("RGBA")
@@ -165,6 +171,7 @@ async def analyze_frame(
     """
     백엔드에서 전송한 프레임 이미지를 분석하고 결과를 백엔드로 전송
     """
+
     try:
         image_bytes = await image.read()
 
@@ -201,25 +208,44 @@ async def analyze_frame(
         if img_array.shape[2] == 4:
             img_array = img_array[:, :, :3]
 
+        # {"upstream": np.ndarray|None, "downstream": np.ndarray|None}
+        roi_dir = get_directional_roi(cctv_id)
+        seen_dir = {"upstream": set(), "downstream": set()}
+
+        def _direction_for_bbox(bbox, roi_dir):
+            cx = (bbox[0] + bbox[2]) / 2.0
+            cy = (bbox[1] + bbox[3]) / 2.0
+            if roi_dir["upstream"] is not None and _is_inside_polygon(cx, cy, roi_dir["upstream"]):
+                return "up"
+            if roi_dir["downstream"] is not None and _is_inside_polygon(cx, cy, roi_dir["downstream"]):
+                return "down"
+            return None
+
         # 프레임 전처리 + 추론
         x = enhance_frame(img_array)
         engine._ensure()
         preds = engine.predict(x)  # track_id 포함
 
         # ROI 필터링
-        roi_polygon = get_roi_polygon(cctv_id)
-        if roi_polygon is not None:
-            filtered = []
-            for d in preds:
-                x1, y1, x2, y2 = map(int, d["bbox"])
-                cx = (x1 + x2) / 2.0
-                cy = (y1 + y2) / 2.0
-                if _is_inside_polygon(cx, cy, roi_polygon):
-                    filtered.append(d)
-            preds = filtered
+        filtered = []
+        for d in preds:
+            direction = _direction_for_bbox(d["bbox"], roi_dir)
+            # ROI가 정의되어 있으면 밖은 제외
+            if (roi_dir["upstream"] is not None or roi_dir["downstream"] is not None) and direction is None:
+                continue
+
+            # track_id 중복 방지 (방향별)
+            if direction in ("up", "down") and d.get("track_id") is not None:
+                key = "upstream" if direction == "up" else "downstream"
+                if d["track_id"] in seen_dir[key]:
+                    continue
+                seen_dir[key].add(d["track_id"])
+
+            filtered.append({**d, "direction": direction})
+        preds = filtered
 
         # LiveModelViewer 스타일로 annotated 이미지 생성
-        annotated_np = _draw_live_style(img_array, preds, roi_polygon)
+        annotated_np = _draw_live_style(img_array, preds, roi_dir)
         annotated_img_pil = Image.fromarray(annotated_np)
 
         img_byte_arr = io.BytesIO()
@@ -231,14 +257,11 @@ async def analyze_frame(
             "frameId": frame_id,
             "timestamp": time.time(),
             "detections": [
-                {
-                    "cls": d["cls"],
-                    "conf": float(d["conf"]),
-                    "bbox": d["bbox"].tolist() if hasattr(d["bbox"], "tolist") else d["bbox"],
-                }
+                {"trackId": d.get("track_id"), "cls": d["cls"], "conf": float(d["conf"]), "bbox": d["bbox"].tolist() if hasattr(
+                    d["bbox"], "tolist") else d["bbox"], "direction": d.get("direction")}
                 for d in preds
             ],
-            "roiPolygon": roi_polygon.tolist() if roi_polygon is not None else None,
+            "roiPolygon": None,
         }
 
         try:

@@ -1,35 +1,19 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useData } from '../providers/DataProvider';
-import { useLayout } from '../providers/LayoutProvider';
-import {
-  getAnalyzedTimeRanges,
-  getCongestionData,
-  getVehicleStatistics,
-  getDetectionStatistics,
-} from '../services/api';
-import {
-  AnalyzedTimeRange,
-  CongestionDataPoint,
-  VehicleStatisticsByType,
-  DetectionStatistics,
-} from '../types/dashboard';
-import DashboardHeader from '../components/Dashboard/DashboardHeader';
-import CongestionChart from '../components/Dashboard/CongestionChart';
-import VehicleCountChart from '../components/Dashboard/VehicleCountChart';
-import ObjectTypeChart from '../components/Dashboard/ObjectTypeChart';
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useData } from "../providers/DataProvider";
+import { useLayout } from "../providers/LayoutProvider";
+import { getAnalyzedTimeRanges, getCongestionData, getVehicleStatistics, getDetectionStatistics } from "../services/api";
+import { AnalyzedTimeRange, CongestionDataPoint, VehicleStatisticsByType, DetectionStatistics } from "../types/dashboard";
+import DashboardHeader from "../components/Dashboard/DashboardHeader";
+import CongestionChart from "../components/Dashboard/CongestionChart";
+import VehicleCountChart from "../components/Dashboard/VehicleCountChart";
+import ObjectTypeChart from "../components/Dashboard/ObjectTypeChart";
 
 const DashBoardPage: React.FC = () => {
   const { favorites, getCctvById } = useData();
   const { sidebarCollapsed } = useLayout();
 
   // 즐겨찾기 CCTV 목록 (메모이제이션)
-  const favoriteCCTVs = useMemo(
-    () =>
-      favorites
-        .map((fav) => getCctvById(fav.cctv_id))
-        .filter((cctv): cctv is NonNullable<typeof cctv> => Boolean(cctv)),
-    [favorites, getCctvById]
-  );
+  const favoriteCCTVs = useMemo(() => favorites.map((fav) => getCctvById(fav.cctv_id)).filter((cctv): cctv is NonNullable<typeof cctv> => Boolean(cctv)), [favorites, getCctvById]);
 
   // 상태 관리
   const [selectedCctvId, setSelectedCctvId] = useState<number | null>(null);
@@ -73,15 +57,15 @@ const DashBoardPage: React.FC = () => {
         setAvailableTimeRanges(timeRanges || []);
         // 시간대 선택 초기화
         setSelectedTimeRange(null);
-        
+
         // 데이터가 없을 때는 에러가 아닌 정보 메시지
         if (!timeRanges || timeRanges.length === 0) {
-          console.log('분석 완료된 시간대가 없습니다.');
+          console.log("분석 완료된 시간대가 없습니다.");
         }
       } catch (err: any) {
-        console.error('시간대 목록 조회 실패:', err);
+        console.error("시간대 목록 조회 실패:", err);
         // 500 에러인 경우 서버 오류로 표시
-        if (err.message?.includes('500')) {
+        if (err.message?.includes("500")) {
           setError(`서버 오류가 발생했습니다. 분석된 데이터가 없을 수 있습니다.`);
         } else {
           setError(`시간대 목록을 불러오지 못했습니다: ${err.message}`);
@@ -119,7 +103,7 @@ const DashBoardPage: React.FC = () => {
           setCongestionData(data);
           setChartErrors((prev) => ({ ...prev, congestion: null }));
         } catch (err: any) {
-          console.error('혼잡도 데이터 조회 실패:', err);
+          console.error("혼잡도 데이터 조회 실패:", err);
           setChartErrors((prev) => ({
             ...prev,
             congestion: `혼잡도 데이터를 불러오지 못했습니다: ${err.message}`,
@@ -138,7 +122,7 @@ const DashBoardPage: React.FC = () => {
           setVehicleData(data);
           setChartErrors((prev) => ({ ...prev, vehicles: null }));
         } catch (err: any) {
-          console.error('차량 통계 데이터 조회 실패:', err);
+          console.error("차량 통계 데이터 조회 실패:", err);
           setChartErrors((prev) => ({
             ...prev,
             vehicles: `차량 통계 데이터를 불러오지 못했습니다: ${err.message}`,
@@ -157,7 +141,7 @@ const DashBoardPage: React.FC = () => {
           setDetectionData(data);
           setChartErrors((prev) => ({ ...prev, detections: null }));
         } catch (err: any) {
-          console.error('객체 유형 통계 데이터 조회 실패:', err);
+          console.error("객체 유형 통계 데이터 조회 실패:", err);
           setChartErrors((prev) => ({
             ...prev,
             detections: `객체 유형 통계 데이터를 불러오지 못했습니다: ${err.message}`,
@@ -177,7 +161,7 @@ const DashBoardPage: React.FC = () => {
 
   const handleReportExport = useCallback(() => {
     // TODO: 보고서 출력 기능 구현
-    alert('보고서 출력 기능은 추후 구현 예정입니다.');
+    alert("보고서 출력 기능은 추후 구현 예정입니다.");
   }, []);
 
   // 차량 유형별 데이터 변환 및 FIFO 적용 (최대 5개)
@@ -197,12 +181,12 @@ const DashBoardPage: React.FC = () => {
 
     // 타임스탬프 정렬
     const sortedTimestamps = Object.keys(groupedByTimestamp).sort();
-    
+
     // FIFO 적용: 최대 5개만 유지
     const limitedTimestamps = sortedTimestamps.slice(-5);
 
     // 차량 유형별로 데이터 구성
-    const vehicleTypes = ['승용차', '버스', '트럭', '오토바이(자전거)'];
+    const vehicleTypes = ["승용차", "버스", "트럭", "오토바이(자전거)"];
     const result: Array<{ label: string; data: number[]; timestamps: string[] }> = [];
 
     vehicleTypes.forEach((type) => {
@@ -240,9 +224,9 @@ const DashBoardPage: React.FC = () => {
     const leftMargin = sidebarWidth + 16; // 사이드바 너비 + 여백 (1rem = 16px)
     const rightMargin = 16; // 우측 여백만 (0.5rem + 0.5rem = 16px)
     const topOffset = 80; // 헤더 높이 + 여백 (4rem + 0.5rem + 0.5rem = 80px)
-    
+
     return {
-      position: 'fixed' as const,
+      position: "fixed" as const,
       top: `${topOffset}px`,
       left: `${leftMargin}px`,
       right: `${rightMargin}px`,
@@ -253,10 +237,7 @@ const DashBoardPage: React.FC = () => {
   }, [sidebarCollapsed]);
 
   return (
-    <div 
-      className="flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden transition-all duration-300"
-      style={containerStyle}
-    >
+    <div className="flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden transition-all duration-300" style={containerStyle}>
       <div className="flex-1 flex flex-col p-3 min-h-0 overflow-hidden">
         {/* 헤더 */}
         <div className="mb-2 flex-shrink-0">
@@ -288,9 +269,7 @@ const DashBoardPage: React.FC = () => {
 
         {selectedCctvId && !selectedTimeRange && !isLoadingTimeRanges && (
           <div className="flex-1 flex items-center justify-center rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-white/60 dark:bg-gray-800/60 text-gray-500 dark:text-gray-300 min-h-0">
-            {availableTimeRanges.length === 0
-              ? '선택한 CCTV에 분석 완료된 시간대가 없습니다.'
-              : '분석 완료 시간대를 선택해주세요.'}
+            {availableTimeRanges.length === 0 ? "선택한 CCTV에 분석 완료된 시간대가 없습니다." : "분석 완료 시간대를 선택해주세요."}
           </div>
         )}
 

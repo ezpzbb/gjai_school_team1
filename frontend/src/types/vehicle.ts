@@ -3,6 +3,7 @@ export interface VehicleDetectionItem {
   cls: string;
   conf: number;
   bbox: [number, number, number, number];
+  direction?: "up" | "down" | null;
 }
 
 export interface VehicleUpdatePayload {

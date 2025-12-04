@@ -28,6 +28,25 @@ def load_roi_config() -> Dict[str, Any]:
     return _ROI_CACHE
 
 
+def get_directional_roi(cctv_id: int):
+    cfg = load_roi_config().get(str(cctv_id)) or {}
+    # 하위 호환: roiPolygon 키가 있으면 상행으로 사용
+    upstream = cfg.get("upstream") or cfg.get("roiPolygon")
+    downstream = cfg.get("downstream")
+    return {
+        "upstream": np.array(upstream, dtype=np.int32) if upstream else None,
+        "downstream": np.array(downstream, dtype=np.int32) if downstream else None,
+    }
+
+
+def set_directional_roi(cctv_id: int, upstream: List[List[float]] | None, downstream: List[List[float]] | None) -> None:
+    cfg = load_roi_config()
+    cfg[str(cctv_id)] = {"upstream": upstream, "downstream": downstream}
+    save_roi_config(cfg)
+    print(
+        f"[roi_store] ROI updated for cctv_id={cctv_id}: up={len(upstream or [])}, down={len(downstream or [])}")
+
+
 def save_roi_config(cfg: Dict[str, Any]) -> None:
     global _ROI_CACHE
     ROI_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
