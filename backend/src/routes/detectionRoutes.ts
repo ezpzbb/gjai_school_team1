@@ -243,7 +243,7 @@ export const setupDetectionRoutes = (dbPool: Pool): Router => {
           ]);
         }
 
-        // 차량 수 계산 (car, truck, bus만 차량으로 간주)
+        // 차량 수 계산
         const vehicleCount = detections.filter((det) => vehicleTypes.includes(det.cls)).length;
 
         // 혼잡도 계산 및 저장

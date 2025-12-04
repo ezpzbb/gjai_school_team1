@@ -8,13 +8,35 @@ interface RoiEditorModalProps {
   onClose: () => void;
 }
 
+type DirectionKey = "upstream" | "downstream";
+const DIR_LABEL: Record<DirectionKey, string> = { downstream: "하행", upstream: "상행" };
+const DIR_COLOR: Record<DirectionKey, { stroke: string; fill: string; point: string }> = {
+  downstream: { stroke: "#3b82f6", fill: "rgba(59,130,246,0.25)", point: "#2563eb" }, // blue
+  upstream: { stroke: "#22c55e", fill: "rgba(34,197,94,0.2)", point: "#16a34a" }, // green
+};
+
 const RoiEditorModal: React.FC<RoiEditorModalProps> = ({ cctvId, streamUrl, onClose }) => {
   const hlsRef = useRef<Hls | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [roiPoints, setRoiPoints] = useState<[number, number][]>([]);
+  const [activeDir, setActiveDir] = useState<DirectionKey>("upstream");
+  const [upPoints, setUpPoints] = useState<[number, number][]>([]);
+  const [downPoints, setDownPoints] = useState<[number, number][]>([]);
+
   const [isSaving, setIsSaving] = useState(false);
   const [savingProgress, setSavingProgress] = useState(0);
+
+  // ESC로 닫기
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
 
   // hls 초기화를 통해 모달창에서 비디오 재생 안정화
   useEffect(() => {
@@ -144,32 +166,37 @@ const RoiEditorModal: React.FC<RoiEditorModalProps> = ({ cctvId, streamUrl, onCl
 
     ctx.clearRect(0, 0, cw, ch);
 
-    if (roiPoints.length === 0) return;
-
-    ctx.save();
-    ctx.strokeStyle = "cyan";
-    ctx.fillStyle = "rgba(0, 255, 255, 0.2)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    roiPoints.forEach(([vx, vy], idx) => {
-      const { x, y } = videoToCanvas(vx, vy, vw, vh, cw, ch);
-      if (idx === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    if (roiPoints.length >= 3) ctx.closePath();
-    ctx.stroke();
-    if (roiPoints.length >= 3) ctx.fill();
-    ctx.restore();
-
-    // 포인트 표시(폴리콘 좌표 찍을 때 점)
-    ctx.fillStyle = "red";
-    roiPoints.forEach(([vx, vy]) => {
-      const { x, y } = videoToCanvas(vx, vy, vw, vh, cw, ch);
+    // 11/28: 상행 및 하행 구분하여 표현
+    const drawPoly = (points: [number, number][], dir: DirectionKey) => {
+      if (points.length === 0) return;
+      const color = DIR_COLOR[dir];
+      ctx.save();
+      ctx.strokeStyle = color.stroke;
+      ctx.fillStyle = color.fill;
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(x, y, 4, 0, Math.PI * 2);
-      ctx.fill();
-    });
-  }, [roiPoints]);
+      points.forEach(([vx, vy], idx) => {
+        const { x, y } = videoToCanvas(vx, vy, vw, vh, cw, ch);
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      if (points.length >= 3) ctx.closePath();
+      ctx.stroke();
+      if (points.length >= 3) ctx.fill();
+      ctx.restore();
+
+      ctx.fillStyle = color.point;
+      points.forEach(([vx, vy]) => {
+        const { x, y } = videoToCanvas(vx, vy, vw, vh, cw, ch);
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    };
+
+    drawPoly(upPoints, "upstream");
+    drawPoly(downPoints, "downstream");
+  }, [upPoints, downPoints]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -187,24 +214,34 @@ const RoiEditorModal: React.FC<RoiEditorModalProps> = ({ cctvId, streamUrl, onCl
 
     const { x: vx, y: vy } = canvasToVideo(px, py, vw, vh, cw, ch);
 
-    setRoiPoints((prev) => [...prev, [Math.round(vx), Math.round(vy)]]);
+    // 11/28: 상행 및 하행 포인트
+    const point: [number, number] = [Math.round(vx), Math.round(vy)];
+
+    if (activeDir === "upstream") setUpPoints((prev) => [...prev, point]);
+    else setDownPoints((prev) => [...prev, point]);
   };
 
-  const handleClear = () => setRoiPoints([]);
+  // 11/28: 상행 및 하행 코드 추가
+  const clearCurrent = () => {
+    if (activeDir === "upstream") setUpPoints([]);
+    else setDownPoints([]);
+  };
+  const clearAll = () => {
+    setUpPoints([]);
+    setDownPoints([]);
+  };
 
+  // 11/28: 상행 및 하행 handleSave 코드 수정 및 개선
   const handleSave = async () => {
-    if (roiPoints.length < 3) {
-      alert("최소 3개 이상의 포인트가 필요합니다.");
+    if (upPoints.length < 3 && downPoints.length < 3) {
+      alert("상행 또는 하행 중 하나 이상 3포인트 이상 지정해야 합니다.");
       return;
     }
     setSavingProgress(0);
     setIsSaving(true);
-
-    // 애니메이션용 타이머 (1초 동안 0 -> 100%)
     const start = Date.now();
     const timer = window.setInterval(() => {
-      const elapsed = Date.now() - start;
-      const pct = Math.min(100, (elapsed / 1000) * 100);
+      const pct = Math.min(100, ((Date.now() - start) / 1000) * 100);
       setSavingProgress(pct);
       if (pct >= 100) window.clearInterval(timer);
     }, 100);
@@ -213,14 +250,14 @@ const RoiEditorModal: React.FC<RoiEditorModalProps> = ({ cctvId, streamUrl, onCl
       const res = await fetch(`/model/view/roi?cctv_id=${cctvId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roiPolygon: roiPoints }),
+        body: JSON.stringify({ upstream: upPoints, downstream: downPoints }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       alert("ROI가 저장되었습니다.");
       onClose();
     } catch (e) {
       console.error("Failed to save ROI:", e);
-      alert("ROI 저장에 실패했습니다. 콘솔 로그를 확인하세요.");
+      alert("ROI 저장에 실패했습니다.");
     } finally {
       setIsSaving(false);
       setSavingProgress(100);
@@ -315,78 +352,88 @@ const RoiEditorModal: React.FC<RoiEditorModalProps> = ({ cctvId, streamUrl, onCl
           >
             📍 cctvId: {cctvId} ROI 편집
           </span>
+          <div style={{ display: "flex", gap: 6 }}>
+            {(["upstream", "downstream"] as DirectionKey[]).map((dir) => (
+              <button
+                key={dir}
+                onClick={() => setActiveDir(dir)}
+                style={{
+                  padding: "6px 10px",
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  color: activeDir === dir ? "#fff" : "#111",
+                  background: activeDir === dir ? DIR_COLOR[dir].stroke : "#e5e7eb",
+                  border: "none",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  minWidth: 68,
+                }}
+              >
+                {DIR_LABEL[dir]} 그리기
+              </button>
+            ))}
+          </div>
+
           <button
-            onClick={handleClear}
+            onClick={clearCurrent}
             style={{
-              padding: "6px",
+              padding: "6px 10px",
               fontSize: "12px",
-              fontWeight: "600",
-              color: "white",
-              background: "#ff4444",
+              fontWeight: 600,
+              color: "#fff",
+              background: "#ef4444",
               border: "none",
-              borderRadius: "6px",
+              borderRadius: 6,
               cursor: "pointer",
-              width: "50px",
-              height: "28px",
             }}
           >
-            초기화
+            현재모드 초기화
+          </button>
+          <button
+            onClick={clearAll}
+            style={{
+              padding: "6px 10px",
+              fontSize: "12px",
+              fontWeight: 600,
+              color: "#fff",
+              background: "#9ca3af",
+              border: "none",
+              borderRadius: 6,
+              cursor: "pointer",
+            }}
+          >
+            전체 초기화
           </button>
           <button
             onClick={handleSave}
             disabled={isSaving}
             style={{
-              padding: "6px",
+              padding: "6px 10px",
               fontSize: "12px",
-              fontWeight: "600",
-              color: "white",
+              fontWeight: 700,
+              color: "#fff",
               background: "rgba(16, 185, 129, 0.9)",
               border: "none",
-              borderRadius: "6px",
+              borderRadius: 6,
               cursor: "pointer",
-              width: "auto",
-              height: "28px",
+              minWidth: 72,
             }}
           >
             {isSaving ? "저장 중..." : "저장"}
           </button>
-          <button
-            onClick={onClose}
-            style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#ff4444", color: "white", border: "none", fontSize: "16px", cursor: "pointer" }}
-          >
+          <button onClick={onClose} style={{ marginLeft: "auto", color: "#666", border: "none", fontSize: 24, cursor: "pointer" }} aria-label="Close ROI Editor">
             ×
           </button>
         </div>
-        <div
-          style={{
-            flex: 1,
-            position: "relative",
-            backgroundColor: "#000",
-            overflow: "hidden",
-          }}
-        >
-          <video
-            ref={videoRef}
-            autoPlay
-            muted
-            playsInline
-            controls
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "contain",
-              backgroundColor: "#000",
-            }}
-          />
-          <canvas
-            ref={canvasRef}
-            onClick={handleCanvasClick}
-            style={{
-              position: "absolute",
-              inset: 0,
-              cursor: "crosshair",
-            }}
-          />
+
+        <div style={{ marginBottom: 6, fontSize: 12, color: "#374151", display: "flex", gap: 12 }}>
+          <span>• 상행(녹색)과 하행(파랑)을 각각 선택 후 캔버스를 클릭해 다각형을 만듭니다.</span>
+          <span>• ESC 키를 눌러 모달을 닫을 수 있습니다.</span>
+        </div>
+
+        <div style={{ flex: 1, position: "relative", backgroundColor: "#000", overflow: "hidden" }}>
+          <video ref={videoRef} autoPlay muted playsInline controls style={{ width: "100%", height: "100%", objectFit: "contain", backgroundColor: "#000" }} />
+          <canvas ref={canvasRef} onClick={handleCanvasClick} style={{ position: "absolute", inset: 0, cursor: "crosshair" }} />
         </div>
       </div>
     </div>

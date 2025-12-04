@@ -2,6 +2,8 @@ export interface VehicleDetectionItem {
   cls: string;
   conf: number;
   bbox: [number, number, number, number];
+  trackId?: number | null;
+  direction?: "up" | "down" | null; // 11/27: 추가
 }
 
 export interface VehicleUpdatePayload {

@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { socketService } from "../../services/socket";
 import { VehicleUpdatePayload } from "../../types/vehicle";
 
+const PIXEL_TO_METER = 0.05; // 실측 m/px로 교체하세요
+
 interface AnalysisListViewProps {
   cctvId: number;
 }
@@ -14,6 +16,13 @@ interface AnalysisListItem {
   vehicleTypeBreakdown: { [type: string]: number };
 }
 
+interface DirectionalBreakdown {
+  total: number;
+  byType: Record<string, number>;
+  avgSpeed?: number;
+  avgDwell?: number;
+}
+
 interface SavedAnalysisSection {
   id: string;
   minuteKey: string;
@@ -21,30 +30,20 @@ interface SavedAnalysisSection {
   endTimestamp: number;
   items: AnalysisListItem[];
   savedAt: number;
+  dirBreakdown?: { up: DirectionalBreakdown; down: DirectionalBreakdown };
 }
 
 const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
-  // 실시간 데이터 (최신 1개만 표시)
   const [realtimeData, setRealtimeData] = useState<VehicleUpdatePayload | null>(null);
-
-  // 현재 1분간 수집 중인 데이터
   const [currentMinuteData, setCurrentMinuteData] = useState<VehicleUpdatePayload[]>([]);
-
-  // 저장된 섹션 (최대 10개, FIFO)
   const [savedSections, setSavedSections] = useState<SavedAnalysisSection[]>([]);
-
-  // 마지막 저장 시간
   const [lastSaveTime, setLastSaveTime] = useState<number | null>(null);
-
-  // 섹션 접기/펼치기 상태
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
-
-  // 자동 스크롤
   const [autoScroll, setAutoScroll] = useState(true);
+  const [sectionBuffer, setSectionBuffer] = useState<VehicleUpdatePayload[]>([]);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const latestSectionRef = useRef<HTMLDivElement>(null);
 
-  // 혼잡도 계산 함수 (백엔드와 동일)
   const calculateCongestionLevel = (vehicleCount: number): number => {
     if (vehicleCount === 0) return 0;
     if (vehicleCount <= 10) return 20;
@@ -55,51 +54,28 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
     return 100;
   };
 
-  // 차량 유형별 breakdown 생성
   const getVehicleTypeBreakdown = (detections: VehicleUpdatePayload["detections"]) => {
     const breakdown: { [type: string]: number } = {};
     const vehicleTypes = ["승용차", "버스", "트럭", "오토바이(자전거)"];
-
-    const seen = new Set<number | string>();
-
-    // 11/27 수정: 차량 유형 breakdown(반환) 트래킹 기준으로 중복 제거
+    const seen = new Set<number>();
     detections.forEach((det) => {
+      if (det.trackId == null) return;
       if (!vehicleTypes.includes(det.cls)) return;
-
-      const key = det.trackId != null ? `id:${det.trackId}` : `bbox:${det.bbox.join(",")}`; // trackId 없을 때 최소한 프레임 내 중복 방지용
-
-      if (seen.has(key)) return;
-      seen.add(key);
-
-      const normalizedType = det.cls;
-      breakdown[normalizedType] = (breakdown[normalizedType] || 0) + 1;
+      if (seen.has(det.trackId)) return;
+      seen.add(det.trackId);
+      breakdown[det.cls] = (breakdown[det.cls] || 0) + 1;
     });
-
     return breakdown;
   };
-  /**
-   *
-   * 함수 설명: 트래킹 ID 기준 유니크 차량 수 헬퍼 추가
-   *
-   * */
-  // 한 프레임 안에서 trackId 기준으로 중복 제거된 차량 수
+
   const countUniqueTrackedVehicles = (detections: VehicleUpdatePayload["detections"]) => {
     const ids = new Set<number>();
-    let anonymousCount = 0;
-
     detections.forEach((det) => {
-      if (det.trackId != null) {
-        ids.add(det.trackId);
-      } else {
-        // trackId가 없으면 0대 증감연산
-        anonymousCount += 0;
-      }
+      if (det.trackId != null) ids.add(det.trackId);
     });
-
-    return ids.size + anonymousCount;
+    return ids.size;
   };
 
-  // vehicle-update 이벤트 구독
   useEffect(() => {
     if (!cctvId) {
       setRealtimeData(null);
@@ -107,15 +83,11 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
       setLastSaveTime(null);
       return;
     }
-
     const unsubscribe = socketService.onVehicleUpdate(cctvId, (payload: VehicleUpdatePayload) => {
-      // 실시간 데이터 업데이트 (최신 1개만)
       setRealtimeData(payload);
-
-      // 현재 분 데이터에 추가
-      setCurrentMinuteData((prev) => [...prev, payload]);
+      setCurrentMinuteData((prev) => [...prev, payload]); // 실시간 누적용(계속 유지)
+      setSectionBuffer((prev) => [...prev, payload]); // 1분 섹션용
     });
-
     return () => {
       unsubscribe();
       setRealtimeData(null);
@@ -124,36 +96,129 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
     };
   }, [cctvId]);
 
-  // 1분 간격 저장 로직
-  useEffect(() => {
-    if (!cctvId || currentMinuteData.length === 0) return;
+  // 방향별 메트릭: trackKey 단위 1회 누적, 방향 전환 시 이전 방향에서 제거
+  const dirMetrics = useMemo(() => {
+    const init = {
+      up: { total: 0, byType: {} as Record<string, number>, speedSum: 0, speedSamples: 0, dwell: new Map<string, { first: number; last: number }>(), seen: new Set<string>() },
+      down: { total: 0, byType: {} as Record<string, number>, speedSum: 0, speedSamples: 0, dwell: new Map<string, { first: number; last: number }>(), seen: new Set<string>() },
+    };
+    const lastPos = new Map<string, { t: number; cx: number; cy: number; dir: "up" | "down" }>();
+    const trackDir = new Map<string, "up" | "down">();
+    const makeKey = (det: VehicleUpdatePayload["detections"][number]) => (det.trackId != null ? `id:${det.trackId}` : `bbox:${det.bbox.join(",")}`);
 
+    currentMinuteData.forEach(({ timestamp, detections }) => {
+      detections.forEach((det) => {
+        if (!det.direction || det.trackId == null) return;
+        const dir: "up" | "down" = det.direction === "up" ? "up" : "down";
+        const key = makeKey(det);
+        const cx = (det.bbox[0] + det.bbox[2]) / 2;
+        const cy = (det.bbox[1] + det.bbox[3]) / 2;
+
+        const prevDir = trackDir.get(key);
+        if (prevDir && prevDir !== dir && init[prevDir].seen.has(key)) {
+          init[prevDir].seen.delete(key);
+          init[prevDir].total = Math.max(0, init[prevDir].total - 1);
+          const prevTypeCount = init[prevDir].byType[det.cls] ?? 0;
+          if (prevTypeCount > 0) init[prevDir].byType[det.cls] = prevTypeCount - 1;
+        }
+
+        if (!init[dir].seen.has(key)) {
+          init[dir].seen.add(key);
+          init[dir].total += 1;
+          init[dir].byType[det.cls] = (init[dir].byType[det.cls] ?? 0) + 1;
+        }
+        trackDir.set(key, dir);
+
+        const prev = lastPos.get(key);
+        if (prev && prev.dir === dir && timestamp > prev.t) {
+          const dt = timestamp - prev.t;
+          if (dt > 0) {
+            const distPx = Math.hypot(cx - prev.cx, cy - prev.cy);
+            const speedKmh = ((distPx * PIXEL_TO_METER) / dt) * 3.6;
+            init[dir].speedSum += speedKmh;
+            init[dir].speedSamples += 1;
+          }
+          const dwell = init[dir].dwell.get(key) ?? { first: prev.t, last: prev.t };
+          dwell.last = timestamp;
+          init[dir].dwell.set(key, dwell);
+        } else {
+          init[dir].dwell.set(key, { first: timestamp, last: timestamp });
+        }
+        lastPos.set(key, { t: timestamp, cx, cy, dir });
+      });
+    });
+
+    const finalize = (dir: "up" | "down") => {
+      const dwellValues = Array.from(init[dir].dwell.values()).map((d) => Math.max(0, d.last - d.first));
+      const avgDwell = dwellValues.length ? dwellValues.reduce((a, b) => a + b, 0) / dwellValues.length : 0;
+      return {
+        total: init[dir].total,
+        byType: init[dir].byType,
+        avgSpeed: init[dir].speedSamples ? init[dir].speedSum / init[dir].speedSamples : 0,
+        avgDwell,
+      };
+    };
+
+    return { up: finalize("up"), down: finalize("down") };
+  }, [currentMinuteData]);
+
+  // const dirBreakdown = useMemo(
+  //   () => ({
+  //     up: { total: dirMetrics.up.total, byType: dirMetrics.up.byType },
+  //     down: { total: dirMetrics.down.total, byType: dirMetrics.down.byType },
+  //   }),
+  //   [dirMetrics]
+  // );
+
+  // 섹션 저장용 방향 집계 (총계/차종)
+  const buildDirectionalBreakdown = (frames: VehicleUpdatePayload[]): { up: DirectionalBreakdown; down: DirectionalBreakdown } => {
+    const init = {
+      up: { total: 0, byType: {} as Record<string, number> },
+      down: { total: 0, byType: {} as Record<string, number> },
+    };
+    const countedDir = new Map<string, "up" | "down">();
+    const makeKey = (det: VehicleUpdatePayload["detections"][number]) => (det.trackId != null ? `id:${det.trackId}` : `bbox:${det.bbox.join(",")}`);
+
+    frames.forEach(({ detections }) => {
+      detections.forEach((det) => {
+        if (!det.direction || det.trackId == null) return; //trackId 없는 경우 제외
+        const dir: "up" | "down" = det.direction === "up" ? "up" : "down";
+        const key = makeKey(det);
+        const prevDir = countedDir.get(key);
+        if (prevDir && prevDir !== dir) {
+          init[prevDir].total = Math.max(0, init[prevDir].total - 1);
+          const prevTypeCount = init[prevDir].byType[det.cls] ?? 0;
+          if (prevTypeCount > 0) init[prevDir].byType[det.cls] = prevTypeCount - 1;
+        }
+        if (prevDir !== dir) {
+          init[dir].total += 1;
+          init[dir].byType[det.cls] = (init[dir].byType[det.cls] || 0) + 1;
+          countedDir.set(key, dir);
+        }
+      });
+    });
+    return init;
+  };
+
+  // 1분 간격 섹션 저장
+  useEffect(() => {
+    if (!cctvId || sectionBuffer.length === 0) return;
     const interval = setInterval(() => {
       const now = Math.floor(Date.now() / 1000);
-
-      // 마지막 저장 시간이 없으면 현재 시간으로 설정
       if (lastSaveTime === null) {
         setLastSaveTime(now);
         return;
       }
-
-      // 1분(60초) 경과 확인
       if (now - lastSaveTime >= 60 && currentMinuteData.length > 0) {
-        // 1분 간격 평균치 계산
-        const sortedData = [...currentMinuteData].sort((a, b) => a.timestamp - b.timestamp);
+        const sortedData = [...sectionBuffer].sort((a, b) => a.timestamp - b.timestamp);
         const startTimestamp = sortedData[0].timestamp;
         const endTimestamp = sortedData[sortedData.length - 1].timestamp;
-
         const startDate = new Date(startTimestamp * 1000);
         const minuteKey = `${startDate.getHours().toString().padStart(2, "0")}:${startDate.getMinutes().toString().padStart(2, "0")}`;
 
-        // 평균 차량 수 계산
-        const totalVehicleCount = sortedData.reduce((sum, update) => {
-          return sum + countUniqueTrackedVehicles(update.detections);
-        }, 0); // 11/27: 트래킹 아이디 카운터 유니크 기준으로 적용
-        const avgVehicleCount = Math.round(totalVehicleCount / sortedData.length); // 11/27: "프레임당 유니크 차량 수"의 평균 산출
+        const totalVehicleCount = sortedData.reduce((sum, update) => sum + countUniqueTrackedVehicles(update.detections), 0);
+        const avgVehicleCount = Math.round(totalVehicleCount / sortedData.length);
 
-        // 차량 유형별 평균 계산
         const typeCountsSum: Record<string, number> = {};
         sortedData.forEach((update) => {
           const breakdown = getVehicleTypeBreakdown(update.detections);
@@ -166,14 +231,12 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
           avgTypeBreakdown[type] = Math.round(sum / sortedData.length);
         });
 
-        // 평균 혼잡도 계산
-        const avgCongestionLevel = calculateCongestionLevel(avgVehicleCount);
+        const sectionDirBreakdown = buildDirectionalBreakdown(sortedData);
 
-        // 평균치 1개만 저장 (모든 개별 데이터는 저장하지 않음)
         const avgItem: AnalysisListItem = {
           timestamp: startTimestamp,
           formattedTime: `${minuteKey} 평균`,
-          congestionLevel: avgCongestionLevel,
+          congestionLevel: calculateCongestionLevel(avgVehicleCount),
           vehicleCount: avgVehicleCount,
           vehicleTypeBreakdown: avgTypeBreakdown,
         };
@@ -183,27 +246,21 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
           minuteKey,
           startTimestamp,
           endTimestamp,
-          items: [avgItem], // 평균치 1개만 저장
+          items: [avgItem],
           savedAt: now,
+          dirBreakdown: {
+            up: { ...sectionDirBreakdown.up, avgSpeed: dirMetrics.up.avgSpeed, avgDwell: dirMetrics.up.avgDwell },
+            down: { ...sectionDirBreakdown.down, avgSpeed: dirMetrics.down.avgSpeed, avgDwell: dirMetrics.down.avgDwell },
+          },
         };
-
-        // 저장된 섹션에 추가 (FIFO: 최대 10개)
-        setSavedSections((prev) => {
-          const updated = [...prev, section];
-          // 10개 초과 시 가장 오래된 것 제거
-          return updated.slice(-10);
-        });
-
-        // 현재 분 데이터 초기화
-        setCurrentMinuteData([]);
+        setSavedSections((prev) => [...prev, section].slice(-10));
+        setSectionBuffer([]); // 섹션 버퍼만 비움
         setLastSaveTime(now);
       }
-    }, 1000); // 1초마다 체크
-
+    }, 1000);
     return () => clearInterval(interval);
-  }, [cctvId, currentMinuteData, lastSaveTime]);
+  }, [cctvId, currentMinuteData, lastSaveTime, dirMetrics]);
 
-  // 최신 섹션 자동 펼치기
   useEffect(() => {
     if (savedSections.length > 0) {
       const latestSection = savedSections[savedSections.length - 1];
@@ -215,7 +272,6 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
     }
   }, [savedSections]);
 
-  // 자동 스크롤
   useEffect(() => {
     if (autoScroll && latestSectionRef.current && scrollContainerRef.current) {
       latestSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -225,29 +281,22 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
   const toggleSection = (sectionId: string) => {
     setExpandedSections((prev) => {
       const newSet = new Set(prev);
-      if (newSet.has(sectionId)) {
-        newSet.delete(sectionId);
-      } else {
-        newSet.add(sectionId);
-      }
+      if (newSet.has(sectionId)) newSet.delete(sectionId);
+      else newSet.add(sectionId);
       return newSet;
     });
   };
 
-  // 실시간 데이터를 리스트 아이템으로 변환
   const realtimeListItem: AnalysisListItem | null = useMemo(() => {
     if (!realtimeData) return null;
-
     const date = new Date(realtimeData.timestamp * 1000);
     const formattedTime = `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}:${date.getSeconds().toString().padStart(2, "0")}`;
-
-    const uniqueRealtimeCount = countUniqueTrackedVehicles(realtimeData.detections); // 11/27: 트래킹 유니크 카운터 변수
-
+    const uniqueRealtimeCount = countUniqueTrackedVehicles(realtimeData.detections);
     return {
       timestamp: realtimeData.timestamp,
       formattedTime,
-      congestionLevel: calculateCongestionLevel(uniqueRealtimeCount), // 11/27: 트래킹 유니크 카운터 변수
-      vehicleCount: uniqueRealtimeCount, // 11/27: 트래킹 유니크 카운터 변수 적용
+      congestionLevel: calculateCongestionLevel(uniqueRealtimeCount),
+      vehicleCount: uniqueRealtimeCount,
       vehicleTypeBreakdown: getVehicleTypeBreakdown(realtimeData.detections),
     };
   }, [realtimeData]);
@@ -255,7 +304,6 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
   const renderVehicleTypeBreakdown = (breakdown: { [type: string]: number }) => {
     const entries = Object.entries(breakdown);
     if (entries.length === 0) return <span className="text-gray-400 dark:text-gray-500">-</span>;
-
     return (
       <div className="flex flex-wrap gap-1">
         {entries.map(([type, count]) => (
@@ -291,34 +339,8 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
         </div>
       </div>
 
-      {/* 리스트 영역 - 높이 제한 및 내부 스크롤 */}
       <div className="flex-1 flex flex-col min-h-0 max-h-full overflow-hidden">
-        {/* 실시간 데이터 (상단 - 고정) */}
-        {realtimeListItem && (
-          <div className="flex-shrink-0 p-2 border-b-2 border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20">
-            <div className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2">실시간 데이터</div>
-            <table className="w-full text-xs">
-              <thead className="bg-blue-100 dark:bg-blue-900/40">
-                <tr>
-                  <th className="px-2 py-1 text-left">시간</th>
-                  <th className="px-2 py-1 text-left">혼잡도</th>
-                  <th className="px-2 py-1 text-left">차량 수</th>
-                  <th className="px-2 py-1 text-left">차량 유형</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="hover:bg-blue-100 dark:hover:bg-blue-900/40">
-                  <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{realtimeListItem.formattedTime}</td>
-                  <td className={`px-2 py-1 font-medium ${getCongestionColor(realtimeListItem.congestionLevel)}`}>{realtimeListItem.congestionLevel}%</td>
-                  <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{realtimeListItem.vehicleCount}대</td>
-                  <td className="px-2 py-1">{renderVehicleTypeBreakdown(realtimeListItem.vehicleTypeBreakdown)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* 저장된 데이터 (하단 - 스크롤 가능) */}
+        {/* 저장된 데이터 */}
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0">
           <div className="p-2">
             {savedSections.length === 0 ? (
@@ -331,6 +353,7 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
                 {savedSections.map((section, index) => {
                   const isExpanded = expandedSections.has(section.id);
                   const isLatest = index === savedSections.length - 1;
+                  const sectionDir = section.dirBreakdown || dirMetrics;
 
                   return (
                     <div
@@ -365,21 +388,51 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
                             <table className="w-full text-xs">
                               <thead className="bg-gray-50 dark:bg-gray-900">
                                 <tr>
-                                  <th className="px-2 py-1 text-left text-gray-700 dark:text-gray-300">시간</th>
+                                  <th className="px-2 py-1 text-left text-gray-700 dark:text-gray-300">방향</th>
+                                  <th className="px-2 py-1 text-left text-gray-700 dark:text-gray-300">총 차량 수</th>
                                   <th className="px-2 py-1 text-left text-gray-700 dark:text-gray-300">혼잡도</th>
-                                  <th className="px-2 py-1 text-left text-gray-700 dark:text-gray-300">차량 수</th>
-                                  <th className="px-2 py-1 text-left text-gray-700 dark:text-gray-300">차량 유형</th>
+                                  <th className="px-2 py-1 text-left text-gray-700 dark:text-gray-300">차량 유형별 수</th>
+                                  <th className="px-2 py-1 text-left text-gray-700 dark:text-gray-300">평균 속도</th>
+                                  <th className="px-2 py-1 text-left text-gray-700 dark:text-gray-300">정체 시간</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                                {section.items.map((item, idx) => (
-                                  <tr key={`${item.timestamp}-${idx}`} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                                    <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{item.formattedTime}</td>
-                                    <td className={`px-2 py-1 font-medium ${getCongestionColor(item.congestionLevel)}`}>{item.congestionLevel}%</td>
-                                    <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{item.vehicleCount}대</td>
-                                    <td className="px-2 py-1">{renderVehicleTypeBreakdown(item.vehicleTypeBreakdown)}</td>
-                                  </tr>
-                                ))}
+                                <tr className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                                  <td className="px-2 py-1 font-semibold text-emerald-500">상행</td>
+                                  <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{sectionDir.up.total}대</td>
+                                  <td className={`px-2 py-1 font-medium ${getCongestionColor(calculateCongestionLevel(sectionDir.up.total))}`}>
+                                    {calculateCongestionLevel(sectionDir.up.total)}%
+                                  </td>
+                                  <td className="px-2 py-1">
+                                    {Object.keys(sectionDir.up.byType || {}).length === 0 ? (
+                                      <span className="text-gray-400 dark:text-gray-500">데이터 없음</span>
+                                    ) : (
+                                      renderVehicleTypeBreakdown(sectionDir.up.byType)
+                                    )}
+                                  </td>
+                                  <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{sectionDir.up.avgSpeed?.toFixed ? sectionDir.up.avgSpeed.toFixed(1) : "0.0"} km/h</td>
+                                  <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{sectionDir.up.avgDwell?.toFixed ? sectionDir.up.avgDwell.toFixed(1) : "0.0"} s</td>
+                                </tr>
+                                <tr className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                                  <td className="px-2 py-1 font-semibold text-blue-500">하행</td>
+                                  <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{sectionDir.down.total}대</td>
+                                  <td className={`px-2 py-1 font-medium ${getCongestionColor(calculateCongestionLevel(sectionDir.down.total))}`}>
+                                    {calculateCongestionLevel(sectionDir.down.total)}%
+                                  </td>
+                                  <td className="px-2 py-1">
+                                    {Object.keys(sectionDir.down.byType || {}).length === 0 ? (
+                                      <span className="text-gray-400 dark:text-gray-500">데이터 없음</span>
+                                    ) : (
+                                      renderVehicleTypeBreakdown(sectionDir.down.byType)
+                                    )}
+                                  </td>
+                                  <td className="px-2 py-1 text-gray-900 dark:text-gray-100">
+                                    {sectionDir.down.avgSpeed?.toFixed ? sectionDir.down.avgSpeed.toFixed(1) : "0.0"} km/h
+                                  </td>
+                                  <td className="px-2 py-1 text-gray-900 dark:text-gray-100">
+                                    {sectionDir.down.avgDwell?.toFixed ? sectionDir.down.avgDwell.toFixed(1) : "0.0"} s
+                                  </td>
+                                </tr>
                               </tbody>
                             </table>
                           </div>
@@ -392,6 +445,64 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
             )}
           </div>
         </div>
+
+        {/* 실시간 누적 (하단 고정) */}
+        {realtimeListItem && (
+          <div className="flex-shrink-0 p-2 border-t-2 border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20">
+            <div className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2">실시간 방향별 누적</div>
+            <table className="w-full text-xs">
+              <thead className="bg-blue-100 dark:bg-blue-900/40">
+                <tr>
+                  <th className="px-2 py-1 text-left">방향</th>
+                  <th className="px-2 py-1 text-left">총 차량 수</th>
+                  <th className="px-2 py-1 text-left">차량 유형별</th>
+                  <th className="px-2 py-1 text-left">평균 속도</th>
+                  <th className="px-2 py-1 text-left">정체 시간</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="hover:bg-blue-100 dark:hover:bg-blue-900/40">
+                  <td className="px-2 py-1 font-semibold text-emerald-500">상행</td>
+                  <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{dirMetrics.up.total}대</td>
+                  <td className="px-2 py-1">
+                    {Object.keys(dirMetrics.up.byType).length === 0 ? (
+                      <span className="text-gray-400 dark:text-gray-500">데이터 없음</span>
+                    ) : (
+                      <div className="flex flex-wrap gap-1">
+                        {Object.entries(dirMetrics.up.byType).map(([type, count]) => (
+                          <span key={`up-${type}`} className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-200 rounded">
+                            {type}: {count}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{dirMetrics.up.avgSpeed.toFixed(1)} km/h</td>
+                  <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{dirMetrics.up.avgDwell.toFixed(1)} s</td>
+                </tr>
+                <tr className="hover:bg-blue-100 dark:hover:bg-blue-900/40">
+                  <td className="px-2 py-1 font-semibold text-blue-500">하행</td>
+                  <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{dirMetrics.down.total}대</td>
+                  <td className="px-2 py-1">
+                    {Object.keys(dirMetrics.down.byType).length === 0 ? (
+                      <span className="text-gray-400 dark:text-gray-500">데이터 없음</span>
+                    ) : (
+                      <div className="flex flex-wrap gap-1">
+                        {Object.entries(dirMetrics.down.byType).map(([type, count]) => (
+                          <span key={`down-${type}`} className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 rounded">
+                            {type}: {count}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{dirMetrics.down.avgSpeed.toFixed(1)} km/h</td>
+                  <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{dirMetrics.down.avgDwell.toFixed(1)} s</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
