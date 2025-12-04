@@ -37,10 +37,10 @@ const Header: React.FC = () => {
   };
 
   return (
-    <header className="fixed top-2 left-2 right-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 px-6 py-2 shadow-lg rounded-lg">
+    <header className="fixed top-2 left-2 right-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 px-6 py-2 shadow-lg rounded-lg z-50">
       <div className="flex items-center justify-between text-gray-900 dark:text-gray-100" style={{ minHeight: "48px" }}>
         {/* 좌측: Palantir 로고 */}
-        <Link to="/dashboard" className="flex items-center">
+        <Link to="/kakao-map" className="flex items-center">
           <span className="text-gray-900 dark:text-gray-100 font-bold text-2xl">Palantir</span>
         </Link>
 

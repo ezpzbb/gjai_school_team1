@@ -162,99 +162,112 @@ const KakaoMap: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    console.log('KakaoMap: Checking mapRef:', !!mapRef.current, 'KAKAO_API_KEY:', !!KAKAO_API_KEY);
-    const loadKakaoScript = (retries = 3, delay = 1000) => {
-      if (!KAKAO_API_KEY) {
-        console.error('KakaoMap: KAKAO_API_KEY is not defined in .env');
-        setError('지도 API 키가 설정되지 않았습니다.');
-        return;
-      }
-
-      if (window.kakao && window.kakao.maps) {
-        console.log('KakaoMap: Kakao Maps SDK already loaded');
-        window.kakao.maps.load(() => {
-          if (mapRef.current) {
-            console.log('KakaoMap: Map container found, initializing map');
-            initializeMap();
+    console.log("KakaoMap: Component mounted");
+    console.log("KakaoMap: Checking mapRef:", !!mapRef.current, "KAKAO_API_KEY:", !!KAKAO_API_KEY);
+  
+    if (!KAKAO_API_KEY) {
+      console.error("KakaoMap: KAKAO_API_KEY is missing in .env");
+      setError("지도 API 키가 설정되지 않았습니다.");
+      return;
+    }
+  
+    const scriptId = "kakao-map-sdk";
+  
+    const loadSdk = () => {
+      return new Promise<void>((resolve, reject) => {
+        // 이미 SDK가 로드된 경우
+        if (window.kakao && window.kakao.maps) {
+          console.log("KakaoMap: Kakao Maps SDK already loaded");
+          window.kakao.maps.load(() => resolve());
+          return;
+        }
+  
+        // 이미 script 태그가 존재하는 경우
+        const existingScript = document.getElementById(scriptId);
+        if (existingScript) {
+          console.log("KakaoMap: SDK script already exists, waiting for load");
+          existingScript.addEventListener("load", () => {
+            if (window.kakao && window.kakao.maps) {
+              window.kakao.maps.load(() => resolve());
+            } else {
+              reject("Kakao maps object missing after load");
+            }
+          });
+          return;
+        }
+  
+        // 새 script 로드
+        console.log("KakaoMap: Loading Kakao Maps SDK");
+        const script = document.createElement("script");
+        script.id = scriptId;
+        script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_API_KEY}&autoload=false`;
+        script.async = true;
+  
+        script.onload = () => {
+          console.log("KakaoMap: Kakao Maps SDK script loaded");
+          if (window.kakao && window.kakao.maps) {
+            window.kakao.maps.load(() => resolve());
           } else {
-            console.error('KakaoMap: Map container not found');
-            setError('지도 컨테이너를 찾을 수 없습니다.');
+            reject("Kakao maps object missing");
           }
-        });
-        return;
-      }
-
-      const existingScript = document.getElementById('kakao-map-sdk');
-      if (existingScript) {
-        console.log('KakaoMap: Kakao Maps SDK script already exists, waiting for load');
-        existingScript.addEventListener('load', initializeMapHandler);
-        return;
-      }
-
-      console.log('KakaoMap: Loading Kakao Maps SDK');
-      const script = document.createElement('script');
-      script.id = 'kakao-map-sdk';
-      script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_API_KEY}&autoload=false`;
-      script.async = true;
-      script.onload = () => {
-        console.log('KakaoMap: Kakao Maps SDK script loaded');
-        initializeMapHandler();
-      };
-      script.onerror = () => {
-        console.error(`KakaoMap: Failed to load Kakao Map SDK. Retrying (${retries} left)...`);
-        if (retries > 0) {
-          setTimeout(() => loadKakaoScript(retries - 1, delay), delay);
-        } else {
-          setError('지도 SDK를 로드하지 못했습니다.');
-        }
-      };
-      document.head.appendChild(script);
-    };
-
-    const initializeMapHandler = () => {
-      console.log('KakaoMap: initializeMapHandler called');
-      if (!window.kakao || !window.kakao.maps) {
-        console.error('KakaoMap: Kakao Maps SDK not loaded');
-        setError('지도 SDK가 로드되지 않았습니다.');
-        return;
-      }
-      window.kakao.maps.load(() => {
-        console.log('KakaoMap: Kakao Maps SDK loaded');
-        if (mapRef.current) {
-          console.log('KakaoMap: Map container found, initializing map');
-          initializeMap();
-        } else {
-          console.error('KakaoMap: Map container not found');
-          setError('지도 컨테이너를 찾을 수 없습니다.');
-        }
+        };
+  
+        script.onerror = () => {
+          console.error("KakaoMap: Failed to load Kakao Map SDK");
+          reject("SDK load error");
+        };
+  
+        document.head.appendChild(script);
       });
     };
-
-    console.log('KakaoMap: Component mounted');
-    loadKakaoScript();
-
+  
+    loadSdk()
+      .then(() => {
+        console.log("KakaoMap: SDK loaded successfully");
+  
+        if (mapRef.current) {
+          console.log("KakaoMap: Initializing map");
+          initializeMap();
+        } else {
+          console.error("KakaoMap: Map container not found");
+          setError("지도 컨테이너를 찾을 수 없습니다.");
+        }
+      })
+      .catch((err) => {
+        console.error("KakaoMap: SDK load failed:", err);
+        setError("지도 SDK를 로드하지 못했습니다.");
+      });
+  
     return () => {
-      console.log('KakaoMap: Component unmounted');
+      console.log("KakaoMap: Component unmounted");
+  
       // 리사이즈 핸들러 제거
       if (mapInstance.current && (mapInstance.current as any).__resizeHandler) {
-        window.removeEventListener('resize', (mapInstance.current as any).__resizeHandler);
+        window.removeEventListener("resize", (mapInstance.current as any).__resizeHandler);
       }
+  
+      // 마커 제거
       markersRef.current.forEach((marker) => marker.setMap(null));
       markersRef.current = [];
+  
       eventMarkersRef.current.forEach((marker) => marker.setMap(null));
       eventMarkersRef.current = [];
+  
+      // 오버레이 제거
       if (overlayRef.current) {
         overlayRef.current.setMap(null);
         overlayRef.current = null;
       }
+  
       mapInstance.current = null;
-      setIsMapInitialized(false); // 지도 초기화 상태 초기화
-      const script = document.getElementById('kakao-map-sdk');
-      if (script) {
-        script.remove();
-      }
+      setIsMapInitialized(false);
+  
+      // SDK script 제거 (원한다면 제거)
+      const script = document.getElementById(scriptId);
+      if (script) script.remove();
     };
   }, [KAKAO_API_KEY]);
+  
 
   useEffect(() => {
     console.log('KakaoMap: cctvLocations updated:', cctvLocations.length, 'isMapInitialized:', isMapInitialized);

@@ -2,11 +2,11 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 
-# 패키지 설치 캐시 최적화
+# Install dependencies (cache optimized)
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# 소스와 ts 설정 복사 후 빌드
+# Copy source & tsconfig and build
 COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build
@@ -14,13 +14,14 @@ RUN npm run build
 # prod stage
 FROM node:20-alpine AS prod
 WORKDIR /app
-ENV NODE_ENV=production
-ENV PORT=3001
 
-# FFmpeg 설치 (TS 파일에서 프레임 추출용)
+ENV NODE_ENV=production
+ENV PORT=3002
+
+# FFmpeg for frame extraction
 RUN apk add --no-cache ffmpeg
 
-# 프로덕션 의존성만 설치
+# Copy production deps
 COPY cctv_data.xlsx /app/cctv_data.xlsx
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev \
@@ -28,8 +29,15 @@ RUN npm ci --omit=dev \
  && npm prune --omit=dev \
  && npm cache clean --force
 
-# 빌드 산출물만 전달
+# Copy built files
 COPY --from=build /app/dist ./dist
 
-EXPOSE 3001
+# 🔥 IMPORTANT: copy certificates
+# backend/certs → /app/certs
+COPY certs ./certs
+
+# Optional: tell Node where the cert is stored
+ENV UTIC_CA_PATH=/app/certs/utic.pem
+
+EXPOSE 3002
 CMD ["node", "dist/server.js"]
