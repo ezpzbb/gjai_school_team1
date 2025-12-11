@@ -1,7 +1,6 @@
 version: "3.8"
 
 services:
-  # 정적 웹서버
   nginx:
     image: nginx:alpine
     container_name: nginx
@@ -18,7 +17,6 @@ services:
     networks:
       - app_networks
 
-  # 웹용 백엔드
   backend:
     build:
       context: ./backend
@@ -28,18 +26,17 @@ services:
     depends_on:
       - mysql
     env_file:
-      - ./backend/.env
+      - ./.env
     volumes:
       - ./backend/certs:/app/certs:ro # 인증서 파일 마운트 (읽기 전용)
       - ./backend/uploads:/app/uploads # 프레임 이미지 저장 경로
     expose:
-      - "3001"
+      - "3002"
     ports:
-      - "3001:3001"
+      - "3002:3002"
     networks:
       - app_networks
 
-  # 모델 학습 및 서빙(fastAPI)
   model:
     build:
       context: ./traffic_model
@@ -47,30 +44,30 @@ services:
     container_name: model
     restart: always
     env_file:
-      - ./traffic_model/.env
-      - ./backend/.env # url값을 받기 위해 db 연동 (backend .env 활용)
+      - ./.env
+    volumes:
+      # 🔥 Host 모델 파일 → Container YOLO 모델 경로로 바인딩
+      - ./models/test.pt:/app/infra/models/yolo/v1/test.pt
     expose:
       - "8000"
     networks:
       - app_networks
 
-  # 프론드엔트
   frontend:
     container_name: frontend
     restart: always
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    depends_on:
-      - backend
+      args:
+        VITE_KAKAO_API_KEY: ${VITE_KAKAO_API_KEY}
     env_file:
-      - ./frontend/.env
+      - ./.env
     expose:
       - "3000"
     networks:
       - app_networks
 
-  # 데이터베이스
   mysql:
     image: mysql:8.0
     container_name: mysql

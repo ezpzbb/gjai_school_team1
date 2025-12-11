@@ -4,9 +4,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # 모델 경로와 클래스명 설정 (가중치 경로 또는 모델명)
-MODEL_PATH = os.getenv(
-    "MODEL_PATH", "./traffic_model/infra/models/yolo/v1")  # yolo.pt 또는 커스텀.pt
-MODEL_NAME = os.getenv("MODEL_NAME", "model")
+MODEL_PATH = os.getenv("MODEL_PATH", "./traffic_model/models")
+MODEL_NAME = os.getenv("MODEL_NAME", "test.pt")
+
 YOLO_CLASSES = os.getenv(
     "YOLO_CLASSES", "승용차,버스,트럭,오토바이(자전거),분류없음")  # CSV
 # conf_thres 값은 0.25 이상인 detection은 유지. 그 이하는 삭제

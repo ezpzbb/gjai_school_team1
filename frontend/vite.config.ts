@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": {
-        target: "http://localhost:3001", // 모든 /api 요청을 3001로 프록시
+        target: "http://localhost:3002", // 모든 /api 요청을 3001로 프록시
         changeOrigin: true,
         secure: false,
       },

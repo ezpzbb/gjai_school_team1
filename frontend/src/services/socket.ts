@@ -3,7 +3,7 @@ import { EventItem } from "../types/event";
 import { NotificationData, AccidentNotificationData } from "../types/notification";
 import { VehicleUpdatePayload } from "../types/vehicle";
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3001";
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3002";
 
 export interface AnalyzedImagePayload {
   cctvId: number;
