@@ -255,6 +255,7 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
         };
         setSavedSections((prev) => [...prev, section].slice(-10));
         setSectionBuffer([]); // 섹션 버퍼만 비움
+        setCurrentMinuteData([]);
         setLastSaveTime(now);
       }
     }, 1000);
@@ -411,7 +412,7 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
                                     )}
                                   </td>
                                   <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{sectionDir.up.avgSpeed?.toFixed ? sectionDir.up.avgSpeed.toFixed(1) : "0.0"} km/h</td>
-                                  <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{sectionDir.up.avgDwell?.toFixed ? sectionDir.up.avgDwell.toFixed(1) : "0.0"} s</td>
+                                  <td className="px-2 py-1 text-gray-900 dark:text-gray-100"> {((sectionDir.up.avgDwell ?? 0) / 60).toFixed(1)} 분</td>
                                 </tr>
                                 <tr className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                                   <td className="px-2 py-1 font-semibold text-blue-500">하행</td>
@@ -429,9 +430,7 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
                                   <td className="px-2 py-1 text-gray-900 dark:text-gray-100">
                                     {sectionDir.down.avgSpeed?.toFixed ? sectionDir.down.avgSpeed.toFixed(1) : "0.0"} km/h
                                   </td>
-                                  <td className="px-2 py-1 text-gray-900 dark:text-gray-100">
-                                    {sectionDir.down.avgDwell?.toFixed ? sectionDir.down.avgDwell.toFixed(1) : "0.0"} s
-                                  </td>
+                                  <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{((sectionDir.up.avgDwell ?? 0) / 60).toFixed(1)} 분</td>
                                 </tr>
                               </tbody>
                             </table>
@@ -478,7 +477,7 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
                     )}
                   </td>
                   <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{dirMetrics.up.avgSpeed.toFixed(1)} km/h</td>
-                  <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{dirMetrics.up.avgDwell.toFixed(1)} s</td>
+                  <td className="px-2 py-1 text-gray-900 dark:text-gray-100"> {((dirMetrics.up.avgDwell ?? 0) / 60).toFixed(1)} 분</td>
                 </tr>
                 <tr className="hover:bg-blue-100 dark:hover:bg-blue-900/40">
                   <td className="px-2 py-1 font-semibold text-blue-500">하행</td>
@@ -497,7 +496,7 @@ const AnalysisListView: React.FC<AnalysisListViewProps> = ({ cctvId }) => {
                     )}
                   </td>
                   <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{dirMetrics.down.avgSpeed.toFixed(1)} km/h</td>
-                  <td className="px-2 py-1 text-gray-900 dark:text-gray-100">{dirMetrics.down.avgDwell.toFixed(1)} s</td>
+                  <td className="px-2 py-1 text-gray-900 dark:text-gray-100"> {((dirMetrics.up.avgDwell ?? 0) / 60).toFixed(1)} 분</td>
                 </tr>
               </tbody>
             </table>

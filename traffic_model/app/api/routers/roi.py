@@ -12,6 +12,8 @@ router = APIRouter(prefix="/view", tags=["view"])
 class DirectionalRoiBody(BaseModel):
     upstream: Optional[List[List[float]]] = None
     downstream: Optional[List[List[float]]] = None
+    refWidth: Optional[int] = None
+    refHeight: Optional[int] = None
 
 
 @router.get("/roi")
@@ -23,6 +25,8 @@ def get_roi(cctv_id: int = Query(..., ge=1)):
     return {
         "upstream": roi["upstream"].tolist() if roi["upstream"] is not None else None,
         "downstream": roi["downstream"].tolist() if roi["downstream"] is not None else None,
+        "refWidth": roi.get("ref_width"),
+        "refHeight": roi.get("ref_height"),
     }
 
 
@@ -31,5 +35,6 @@ def set_roi(cctv_id: int, body: DirectionalRoiBody):
     """
     프론트에서 찍은 좌표를 ROI 폴리곤으로 저장
     """
-    set_directional_roi(cctv_id, body.upstream, body.downstream)
+    set_directional_roi(cctv_id, body.upstream,
+                        body.downstream, body.refWidth, body.refHeight,)
     return {"success": True}

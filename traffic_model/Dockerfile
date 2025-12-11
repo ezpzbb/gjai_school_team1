@@ -4,6 +4,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 libglib2.0-0 fontconfig fonts-noto-cjk fonts-nanum \
  && fc-cache -f -v && rm -rf /var/lib/apt/lists/*
 
+# FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
+
+# ENV DEBIAN_FRONTEND=noninteractive
+# RUN apt-get update && apt-get install -y --no-install-recommends \
+#     python3.11 python3.11-venv python3-pip \
+#     libgl1 libglib2.0-0 fontconfig fonts-noto-cjk fonts-nanum \
+#     && rm -rf /var/lib/apt/lists/*
+
+
     
 WORKDIR /app
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \

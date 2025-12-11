@@ -48,7 +48,8 @@ class YOLOEngine(InferenceEngine):
             iou=IOU_THRES,
             verbose=False,
             persist=True,                # ByteTrack 상태 유지
-            tracker=self.tracker_config  # ByteTrack 설정 사용
+            tracker=self.tracker_config,  # ByteTrack 설정 사용
+            device=0
         )[0]
 
         out: List[Dict[str, Any]] = []

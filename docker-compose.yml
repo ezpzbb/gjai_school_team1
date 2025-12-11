@@ -30,7 +30,7 @@ services:
     env_file:
       - ./backend/.env
     volumes:
-      # - ./backend/certs:/app/certs:ro # 인증서 파일 마운트 (읽기 전용)
+      - ./backend/certs:/app/certs:ro # 인증서 파일 마운트 (읽기 전용)
       - ./backend/uploads:/app/uploads # 프레임 이미지 저장 경로
     expose:
       - "3001"

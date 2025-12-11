@@ -33,16 +33,26 @@ def get_directional_roi(cctv_id: int):
     # 하위 호환: roiPolygon 키가 있으면 상행으로 사용
     upstream = cfg.get("upstream") or cfg.get("roiPolygon")
     downstream = cfg.get("downstream")
+    ref_w = cfg.get("ref_width")
+    ref_h = cfg.get("ref_height")
     return {
         "upstream": np.array(upstream, dtype=np.int32) if upstream else None,
         "downstream": np.array(downstream, dtype=np.int32) if downstream else None,
+        "ref_width": ref_w,
+        "ref_height": ref_h,
     }
 
 
-def set_directional_roi(cctv_id: int, upstream: List[List[float]] | None, downstream: List[List[float]] | None) -> None:
+def set_directional_roi(cctv_id: int, upstream: List[List[float]] | None, downstream: List[List[float]] | None, ref_width: int | None = None,
+                        ref_height: int | None = None) -> None:
     cfg = load_roi_config()
-    cfg[str(cctv_id)] = {"upstream": upstream, "downstream": downstream}
+    cfg[str(cctv_id)] = {"upstream": upstream, "downstream": downstream,
+                         "ref_width": ref_width, "ref_height": ref_height, }
     save_roi_config(cfg)
+
+    print(
+        f"[roi_store] ROI updated cctv_id={cctv_id} ref={ref_width}x{ref_height}")
+
     print(
         f"[roi_store] ROI updated for cctv_id={cctv_id}: up={len(upstream or [])}, down={len(downstream or [])}")
 

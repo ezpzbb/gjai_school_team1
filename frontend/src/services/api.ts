@@ -1,30 +1,25 @@
-import { CCTV } from '../types/cctv';
-import { Favorite } from '../types/Favorite';
-import {
-  AnalyzedTimeRange,
-  CongestionDataPoint,
-  VehicleStatisticsByType,
-  DetectionStatistics,
-} from '../types/dashboard';
-import { createApiUrl } from '../config/apiConfig';
+import { CCTV } from "../types/cctv";
+import { Favorite } from "../types/Favorite";
+import { AnalyzedTimeRange, CongestionDataPoint, VehicleStatisticsByType, DetectionStatistics } from "../types/dashboard";
+import { createApiUrl } from "../config/apiConfig";
 
 const cache: { [key: string]: { data: any; timestamp: number } } = {};
 const CACHE_DURATION = 5 * 60 * 1000; // 5분 캐시
 
 export const fetchCCTVLocations = async (retries = 3, delay = 2000): Promise<{ success: boolean; data: CCTV[] }> => {
-  const cacheKey = 'cctv_locations';
+  const cacheKey = "cctv_locations";
   const cached = cache[cacheKey];
   if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-    console.log('fetchCCTVLocations: Returning cached data', cached.data);
+    console.log("fetchCCTVLocations: Returning cached data", cached.data);
     return cached.data;
   }
 
   const attemptFetch = async (attempt: number): Promise<{ success: boolean; data: CCTV[] }> => {
     try {
-      console.log('fetchCCTVLocations: Fetching data');
-      const response = await fetch(createApiUrl('/api/cctv/locations'), {
+      console.log("fetchCCTVLocations: Fetching data");
+      const response = await fetch(createApiUrl("/api/cctv/locations"), {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
       });
       if (!response.ok) {
@@ -32,14 +27,14 @@ export const fetchCCTVLocations = async (retries = 3, delay = 2000): Promise<{ s
       }
       const result = await response.json();
       if (!result.success || !Array.isArray(result.data)) {
-        throw new Error('CCTV locations response is invalid');
+        throw new Error("CCTV locations response is invalid");
       }
       cache[cacheKey] = { data: result, timestamp: Date.now() };
-      console.log('fetchCCTVLocations: Data fetched successfully', result);
+      console.log("fetchCCTVLocations: Data fetched successfully", result);
       return result;
     } catch (error: any) {
-      console.error('fetchCCTVLocations: Error fetching data:', error);
-      if (error.message.includes('429') && attempt > 0) {
+      console.error("fetchCCTVLocations: Error fetching data:", error);
+      if (error.message.includes("429") && attempt > 0) {
         console.log(`fetchCCTVLocations: Retrying (${attempt} retries left)...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
         return attemptFetch(attempt - 1);
@@ -52,17 +47,17 @@ export const fetchCCTVLocations = async (retries = 3, delay = 2000): Promise<{ s
 };
 
 export const getUserFavorites = async (retries = 3, delay = 2000): Promise<Favorite[]> => {
-  const token = localStorage.getItem('token');
-  const cacheKey = token ? `user_favorites_${token}` : 'user_favorites';
+  const token = localStorage.getItem("token");
+  const cacheKey = token ? `user_favorites_${token}` : "user_favorites";
   const cached = cache[cacheKey];
   if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-    console.log('getUserFavorites: Returning cached data', cached.data);
+    console.log("getUserFavorites: Returning cached data", cached.data);
     return cached.data;
   }
 
   const attemptFetch = async (attempt: number): Promise<Favorite[]> => {
     try {
-      const response = await fetch(createApiUrl('/api/favorites/user/me'), {
+      const response = await fetch(createApiUrl("/api/favorites/user/me"), {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -72,14 +67,14 @@ export const getUserFavorites = async (retries = 3, delay = 2000): Promise<Favor
       }
       const data = await response.json();
       if (!Array.isArray(data)) {
-        throw new Error('User favorites response is not an array');
+        throw new Error("User favorites response is not an array");
       }
       cache[cacheKey] = { data, timestamp: Date.now() };
-      console.log('getUserFavorites: Data fetched successfully, count:', data.length, data);
+      console.log("getUserFavorites: Data fetched successfully, count:", data.length, data);
       return data;
     } catch (error: any) {
-      console.error('getUserFavorites: Error fetching data:', error);
-      if (error.message.includes('429') && attempt > 0) {
+      console.error("getUserFavorites: Error fetching data:", error);
+      if (error.message.includes("429") && attempt > 0) {
         console.log(`getUserFavorites: Retrying (${attempt} retries left)...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
         return attemptFetch(attempt - 1);
@@ -92,12 +87,12 @@ export const getUserFavorites = async (retries = 3, delay = 2000): Promise<Favor
 };
 
 export const addFavorite = async (cctv_id: number): Promise<Favorite> => {
-  const token = localStorage.getItem('token');
-  console.log('addFavorite: Adding favorite for cctv_id:', cctv_id);
-  const response = await fetch(createApiUrl('/api/favorites'), {
-    method: 'POST',
+  const token = localStorage.getItem("token");
+  console.log("addFavorite: Adding favorite for cctv_id:", cctv_id);
+  const response = await fetch(createApiUrl("/api/favorites"), {
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ cctv_id }),
@@ -113,12 +108,12 @@ export const addFavorite = async (cctv_id: number): Promise<Favorite> => {
 };
 
 export const removeFavorite = async (cctv_id: number): Promise<void> => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem("token");
   if (!token) {
-    throw new Error('No authentication token found');
+    throw new Error("No authentication token found");
   }
   const response = await fetch(createApiUrl(`/api/favorites/me/${cctv_id}`), {
-    method: 'DELETE',
+    method: "DELETE",
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -139,31 +134,31 @@ export const removeFavorite = async (cctv_id: number): Promise<void> => {
 };
 
 export const searchCCTVLocations = async (query: string): Promise<CCTV[]> => {
-  if (!query || query.trim() === '') {
+  if (!query || query.trim() === "") {
     return [];
   }
 
   try {
-    console.log('searchCCTVLocations: Searching with query:', query);
+    console.log("searchCCTVLocations: Searching with query:", query);
     const response = await fetch(createApiUrl(`/api/cctv/search?q=${encodeURIComponent(query)}`), {
       headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const result = await response.json();
     if (!result.success || !Array.isArray(result.data)) {
-      throw new Error('Search response is invalid');
+      throw new Error("Search response is invalid");
     }
-    
-    console.log('searchCCTVLocations: Search results:', result.data);
+
+    console.log("searchCCTVLocations: Search results:", result.data);
     return result.data;
   } catch (error: any) {
-    console.error('searchCCTVLocations: Error searching:', error);
+    console.error("searchCCTVLocations: Error searching:", error);
     throw error;
   }
 };
@@ -174,7 +169,7 @@ export const searchCCTVLocations = async (query: string): Promise<CCTV[]> => {
  * 분석 완료 시간대 조회
  */
 export const getAnalyzedTimeRanges = async (cctvId: number): Promise<AnalyzedTimeRange[]> => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem("token");
   try {
     const response = await fetch(createApiUrl(`/api/dashboard/cctv/${cctvId}/analyzed-time-ranges`), {
       headers: {
@@ -186,11 +181,11 @@ export const getAnalyzedTimeRanges = async (cctvId: number): Promise<AnalyzedTim
     }
     const result = await response.json();
     if (!result.success || !result.data?.timeRanges) {
-      throw new Error('Invalid response format');
+      throw new Error("Invalid response format");
     }
     return result.data.timeRanges;
   } catch (error: any) {
-    console.error('getAnalyzedTimeRanges: Error fetching data:', error);
+    console.error("getAnalyzedTimeRanges: Error fetching data:", error);
     throw error;
   }
 };
@@ -198,31 +193,24 @@ export const getAnalyzedTimeRanges = async (cctvId: number): Promise<AnalyzedTim
 /**
  * 혼잡도 데이터 조회
  */
-export const getCongestionData = async (
-  cctvId: number,
-  startTime: string,
-  endTime: string
-): Promise<CongestionDataPoint[]> => {
-  const token = localStorage.getItem('token');
+export const getCongestionData = async (cctvId: number, startTime: string, endTime: string): Promise<CongestionDataPoint[]> => {
+  const token = localStorage.getItem("token");
   try {
-    const response = await fetch(
-      createApiUrl(`/api/dashboard/cctv/${cctvId}/congestion?startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`),
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
+    const response = await fetch(createApiUrl(`/api/dashboard/cctv/${cctvId}/congestion?startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`), {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     const result = await response.json();
     if (!result.success || !Array.isArray(result.data)) {
-      throw new Error('Invalid response format');
+      throw new Error("Invalid response format");
     }
     return result.data;
   } catch (error: any) {
-    console.error('getCongestionData: Error fetching data:', error);
+    console.error("getCongestionData: Error fetching data:", error);
     throw error;
   }
 };
@@ -230,31 +218,24 @@ export const getCongestionData = async (
 /**
  * 차량 통계 데이터 조회
  */
-export const getVehicleStatistics = async (
-  cctvId: number,
-  startTime: string,
-  endTime: string
-): Promise<VehicleStatisticsByType[]> => {
-  const token = localStorage.getItem('token');
+export const getVehicleStatistics = async (cctvId: number, startTime: string, endTime: string): Promise<VehicleStatisticsByType[]> => {
+  const token = localStorage.getItem("token");
   try {
-    const response = await fetch(
-      createApiUrl(`/api/dashboard/cctv/${cctvId}/vehicles?startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`),
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
+    const response = await fetch(createApiUrl(`/api/dashboard/cctv/${cctvId}/vehicles?startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`), {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     const result = await response.json();
     if (!result.success || !Array.isArray(result.data)) {
-      throw new Error('Invalid response format');
+      throw new Error("Invalid response format");
     }
     return result.data;
   } catch (error: any) {
-    console.error('getVehicleStatistics: Error fetching data:', error);
+    console.error("getVehicleStatistics: Error fetching data:", error);
     throw error;
   }
 };
@@ -262,31 +243,28 @@ export const getVehicleStatistics = async (
 /**
  * 객체 유형별 통계 조회
  */
-export const getDetectionStatistics = async (
-  cctvId: number,
-  startTime: string,
-  endTime: string
-): Promise<DetectionStatistics[]> => {
-  const token = localStorage.getItem('token');
+export const getDetectionStatistics = async (cctvId: number, startTime: string, endTime: string): Promise<DetectionStatistics[]> => {
+  const token = localStorage.getItem("token");
   try {
-    const response = await fetch(
-      createApiUrl(`/api/dashboard/cctv/${cctvId}/detections?startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`),
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
+    const response = await fetch(createApiUrl(`/api/dashboard/cctv/${cctvId}/detections?startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`), {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     const result = await response.json();
     if (!result.success || !Array.isArray(result.data)) {
-      throw new Error('Invalid response format');
+      throw new Error("Invalid response format");
     }
-    return result.data;
+    return result.data.map((item: any) => ({
+      object_text: String(item.object_text || ""),
+      avg_speed_kmh: Number(item.avg_speed_kmh ?? item.avgSpeedKmh ?? 0),
+      congestion_time_sec: Number(item.congestion_time_sec ?? item.congestionTimeSec ?? 0),
+    }));
   } catch (error: any) {
-    console.error('getDetectionStatistics: Error fetching data:', error);
+    console.error("getDetectionStatistics: Error fetching data:", error);
     throw error;
   }
 };

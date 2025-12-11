@@ -7,6 +7,17 @@ import DashboardHeader from "../components/Dashboard/DashboardHeader";
 import CongestionChart from "../components/Dashboard/CongestionChart";
 import VehicleCountChart from "../components/Dashboard/VehicleCountChart";
 import ObjectTypeChart from "../components/Dashboard/ObjectTypeChart";
+import { CCTV } from "../types/cctv";
+
+type SectionState = {
+  cctv: CCTV;
+  timeRange?: { start: string; end: string };
+  congestion?: CongestionDataPoint[];
+  vehicle?: VehicleStatisticsByType[];
+  detection?: DetectionStatistics[];
+  loading: boolean;
+  error?: string | null;
+};
 
 const DashBoardPage: React.FC = () => {
   const { favorites, getCctvById } = useData();
@@ -40,6 +51,50 @@ const DashBoardPage: React.FC = () => {
     vehicles: null as string | null,
     detections: null as string | null,
   });
+
+  const [sections, setSections] = useState<Record<number, SectionState>>({});
+
+  // 즐겨찾기별 데이터 일괄 로드
+  useEffect(() => {
+    const load = async () => {
+      const favCctvs = favorites.map((f) => getCctvById(f.cctv_id)).filter((c): c is CCTV => !!c);
+      const next: Record<number, SectionState> = {};
+
+      await Promise.all(
+        favCctvs.map(async (cctv) => {
+          try {
+            const ranges = await getAnalyzedTimeRanges(cctv.cctv_id);
+            if (!ranges.length) return;
+            const minStart = ranges.reduce((a, r) => (a < r.start ? a : r.start), ranges[0].start);
+            const maxEnd = ranges.reduce((a, r) => (a > r.end ? a : r.end), ranges[0].end);
+
+            const [cong, veh, det] = await Promise.all([
+              getCongestionData(cctv.cctv_id, minStart, maxEnd),
+              getVehicleStatistics(cctv.cctv_id, minStart, maxEnd),
+              getDetectionStatistics(cctv.cctv_id, minStart, maxEnd),
+            ]);
+
+            next[cctv.cctv_id] = {
+              cctv,
+              timeRange: { start: minStart, end: maxEnd },
+              congestion: cong,
+              vehicle: veh,
+              detection: det,
+              loading: false,
+              error: null,
+            };
+          } catch (e: any) {
+            next[cctv.cctv_id] = { cctv, loading: false, error: e.message };
+          }
+        })
+      );
+
+      setSections(next);
+    };
+
+    if (favorites.length) load();
+    else setSections({});
+  }, [favorites, getCctvById]);
 
   // CCTV 선택 시 시간대 목록 조회
   useEffect(() => {
@@ -236,6 +291,28 @@ const DashBoardPage: React.FC = () => {
     };
   }, [sidebarCollapsed]);
 
+  const toVehicleTypeData = (vehicle?: VehicleStatisticsByType[]) => {
+    if (!vehicle || vehicle.length === 0) return [];
+    const grouped: Record<string, VehicleStatisticsByType[]> = {};
+    vehicle.forEach((item) => {
+      (grouped[item.timestamp] = grouped[item.timestamp] || []).push(item);
+    });
+    const timestamps = Object.keys(grouped).sort();
+    const vehicleTypes = ["승용차", "버스", "트럭", "오토바이(자전거)"];
+    return vehicleTypes
+      .map((type) => {
+        const data: number[] = [];
+        const tsList: string[] = [];
+        timestamps.forEach((ts) => {
+          const hit = grouped[ts].find((v) => v.object_text === type);
+          data.push(hit ? hit.count : 0);
+          tsList.push(ts);
+        });
+        return { label: type, data, timestamps: tsList };
+      })
+      .filter((d) => d.data.some((c) => c > 0));
+  };
+
   return (
     <div className="flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden transition-all duration-300" style={containerStyle}>
       <div className="flex-1 flex flex-col p-3 min-h-0 overflow-hidden">
@@ -262,8 +339,44 @@ const DashBoardPage: React.FC = () => {
 
         {/* 빈 상태 */}
         {!selectedCctvId && (
-          <div className="flex-1 flex items-center justify-center rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-white/60 dark:bg-gray-800/60 text-gray-500 dark:text-gray-300 min-h-0">
-            CCTV를 선택해주세요.
+          <div className="flex-1 flex flex-col gap-3 overflow-y-auto">
+            {favorites.length === 0 && (
+              <div className="flex-1 flex items-center justify-center rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-white/60 dark:bg-gray-800/60 text-gray-500 dark:text-gray-300 min-h-0">
+                즐겨찾기를 추가하면 대시보드가 표시됩니다.
+              </div>
+            )}
+
+            {Object.values(sections).map((s) => {
+              const vehicleTypeDataSection = toVehicleTypeData(s.vehicle);
+
+              return (
+                <div key={s.cctv.cctv_id} className="rounded-lg border p-3 bg-white dark:bg-gray-800">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{s.cctv.location}</h3>
+                    {s.timeRange && (
+                      <span className="text-xs text-gray-500">
+                        {new Date(s.timeRange.start).toLocaleString([], { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })} ~{" "}
+                        {new Date(s.timeRange.end).toLocaleString([], { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    )}
+                  </div>
+                  {s.error && <div className="text-red-500 text-sm">{s.error}</div>}
+                  {!s.error && (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                      <div className="col-span-2 h-64">
+                        <CongestionChart data={s.congestion || []} isLoading={s.loading} />
+                      </div>
+                      <div className="col-span-1 h-64">
+                        <VehicleCountChart vehicleTypeData={vehicleTypeDataSection} isLoading={s.loading} />
+                      </div>
+                      <div className="col-span-1 lg:col-span-3 h-72">
+                        <ObjectTypeChart data={s.detection || []} isLoading={s.loading} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 

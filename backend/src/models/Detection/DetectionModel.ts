@@ -7,6 +7,9 @@ export interface Detection {
   bounding_box: string; // "x,y,w,h" 또는 JSON
   detected_at: Date;
   object_text: string; // "person", "car", "bicycle"
+  track_id?: number | null;
+  speed_kmh?: number | null;
+  dwell_seconds?: number;
 }
 
 export interface DetectionInput {
@@ -15,11 +18,13 @@ export interface DetectionInput {
   bounding_box: string;
   detected_at?: Date;
   object_text: string;
+  track_id?: number | null;
+  speed_kmh?: number | null;
+  dwell_seconds?: number;
 }
 
 export interface DetectionStatistics {
   object_text: string;
-  count: number;
-  percentage?: number;
+  avg_speed_kmh: number;
+  congestion_time_sec: number;
 }
-

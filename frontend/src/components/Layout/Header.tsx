@@ -9,6 +9,17 @@ const Header: React.FC = () => {
   const { isLoggedIn, user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const pathname = location.pathname;
+  const [hideHeader, setHideHeader] = useState(false);
+
+  // body에 hide-header 클래스가 붙는지 감시해 헤더 노출 제어
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const update = () => setHideHeader(document.body.classList.contains("hide-header"));
+    update();
+    const observer = new MutationObserver(update);
+    observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
 
   // 유저 메뉴 상태
   const [menuOpen, setMenuOpen] = useState(false);
@@ -36,12 +47,14 @@ const Header: React.FC = () => {
     setMenuOpen((o) => !o);
   };
 
+  if (hideHeader) return null;
+
   return (
-    <header className="fixed top-2 left-2 right-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 px-6 py-2 shadow-lg rounded-lg">
+    <header className="fixed top-2 left-2 right-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 px-6 py-2 shadow-lg rounded-lg z-40">
       <div className="flex items-center justify-between text-gray-900 dark:text-gray-100" style={{ minHeight: "48px" }}>
         {/* 좌측: Palantir 로고 */}
-        <Link to="/dashboard" className="flex items-center">
-          <span className="text-gray-900 dark:text-gray-100 font-bold text-2xl">Palantir</span>
+        <Link to="/dashboard" className="flex items-center gap-2">
+          <img src="/icons/logo_w.png" className="h-8 w-auto object-contain rounded-[100%] ml-[100%]" />
         </Link>
 
         {/* 중앙: 네비게이션 (대시보드, 지도, CCTV) */}
@@ -70,7 +83,7 @@ const Header: React.FC = () => {
         {/* 우측: 알림, 다크모드, 프로필/로그인 */}
         <div className="flex items-center space-x-4 ml-auto">
           {/* 알림 버튼 */}
-          <div>
+          <div className="relative z-50">
             <NotificationBell />
           </div>
           {/* 다크모드 전환 버튼 */}

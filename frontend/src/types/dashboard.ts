@@ -28,7 +28,6 @@ export interface VehicleStatisticsByType {
 
 export interface DetectionStatistics {
   object_text: string;
-  count: number;
-  percentage?: number;
+  avg_speed_kmh: number;
+  congestion_time_sec: number;
 }
-

@@ -10,7 +10,9 @@ import os
 import time
 import cv2
 from PIL import ImageFont, Image, ImageDraw
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
+from collections import defaultdict
+from math import hypot
 
 
 router = APIRouter()
@@ -18,6 +20,10 @@ engine = YOLOEngine()
 
 BACKEND_BASE = os.getenv("BACKEND_BASE", "http://localhost:3001")
 _FONT: Optional[ImageFont.FreeTypeFont] = None
+
+PIXEL_TO_METER = 0.05  # 프런트와 동일 스케일로 교체
+TrackState = Dict[int, Dict[int, Dict[str, float]]]
+TRACK_STATE: TrackState = defaultdict(dict)  # cctv_id -> track_id -> state
 
 
 def _load_korean_font(font_size: int = 20) -> ImageFont.FreeTypeFont:
@@ -162,6 +168,39 @@ def _draw_live_style(img_rgb: np.ndarray, detections, roi_dir=None) -> np.ndarra
     return np.array(combined)
 
 
+def _enrich_with_speed_and_dwell(cctv_id: int, timestamp: float, preds: List[Dict[str, Any]]):
+    """
+    preds: track_id, bbox[x1,y1,x2,y2], cls, conf, direction 포함
+    반환: speed_kmh, dwell_seconds가 추가된 리스트
+    """
+    state = TRACK_STATE[cctv_id]
+    enriched = []
+    for d in preds:
+        tid = d.get("track_id")
+        bbox = d["bbox"]
+        cx = (bbox[0] + bbox[2]) / 2
+        cy = (bbox[1] + bbox[3]) / 2
+        speed_kmh = None
+        dwell_seconds = 0
+
+        if tid is not None:
+            prev = state.get(tid)
+            if prev:
+                dt = timestamp - prev["t"]
+                if dt > 0:
+                    dist_px = hypot(cx - prev["cx"], cy - prev["cy"])
+                    speed_kmh = ((dist_px * PIXEL_TO_METER) / dt) * 3.6
+                dwell_seconds = max(0, timestamp - prev["first_t"])
+                prev.update({"t": timestamp, "cx": cx, "cy": cy})
+            else:
+                state[tid] = {"cx": cx, "cy": cy,
+                              "t": timestamp, "first_t": timestamp}
+
+        enriched.append({**d, "speed_kmh": speed_kmh,
+                        "dwell_seconds": dwell_seconds})
+    return enriched
+
+
 @router.post("/frame")
 async def analyze_frame(
     image: UploadFile = File(...),
@@ -212,6 +251,22 @@ async def analyze_frame(
         roi_dir = get_directional_roi(cctv_id)
         seen_dir = {"upstream": set(), "downstream": set()}
 
+        ref_w = roi_dir.get("ref_width") or int(
+            os.getenv("ROI_REF_WIDTH", "1280"))
+        ref_h = roi_dir.get("ref_height") or int(
+            os.getenv("ROI_REF_HEIGHT", "720"))
+        cur_h, cur_w = img_array.shape[:2]
+        scale_x = cur_w / ref_w if ref_w else 1.0
+        scale_y = cur_h / ref_h if ref_h else 1.0
+
+        def _scale_roi(pts: np.ndarray) -> np.ndarray:
+            return np.round(pts * np.array([scale_x, scale_y])).astype(np.int32)
+
+        if roi_dir["upstream"] is not None:
+            roi_dir["upstream"] = _scale_roi(roi_dir["upstream"])
+        if roi_dir["downstream"] is not None:
+            roi_dir["downstream"] = _scale_roi(roi_dir["downstream"])
+
         def _direction_for_bbox(bbox, roi_dir):
             cx = (bbox[0] + bbox[2]) / 2.0
             cy = (bbox[1] + bbox[3]) / 2.0
@@ -252,14 +307,25 @@ async def analyze_frame(
         annotated_img_pil.save(img_byte_arr, format="JPEG", quality=95)
         annotated_img_bytes = img_byte_arr.getvalue()
 
+        timestamp = time.time()  # 초 단위 유지
+        enriched_preds = _enrich_with_speed_and_dwell(
+            cctv_id, timestamp, preds)
+
         payload = {
             "cctvId": cctv_id,
             "frameId": frame_id,
-            "timestamp": time.time(),
+            "timestamp": timestamp,
             "detections": [
-                {"trackId": d.get("track_id"), "cls": d["cls"], "conf": float(d["conf"]), "bbox": d["bbox"].tolist() if hasattr(
-                    d["bbox"], "tolist") else d["bbox"], "direction": d.get("direction")}
-                for d in preds
+                {
+                    "trackId": det.get("track_id"),
+                    "cls": det["cls"],
+                    "conf": float(det["conf"]),
+                    "bbox": det["bbox"].tolist() if hasattr(det["bbox"], "tolist") else det["bbox"],
+                    "direction": det.get("direction"),
+                    "speed_kmh": det.get("speed_kmh"),
+                    "dwell_seconds": det.get("dwell_seconds"),
+                }
+                for det in enriched_preds
             ],
             "roiPolygon": None,
         }

@@ -4,6 +4,10 @@ export interface VehicleDetectionItem {
   conf: number;
   bbox: [number, number, number, number];
   direction?: "up" | "down" | null;
+  speed_kmh?: number | null;
+  speedKmh?: number | null;
+  dwell_seconds?: number;
+  dwellSeconds?: number;
 }
 
 export interface VehicleUpdatePayload {

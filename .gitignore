@@ -88,3 +88,5 @@ backend/certs/
 backend/uploads/frames/
 backend/Uploads/frames/
 **/frames/
+
+estsoft-22_deployment.yaml

@@ -32,6 +32,19 @@ const FavoritePageContent: React.FC = () => {
   const [roiCctvId, setRoiCctvId] = useState<number | null>(null);
   const [roiStreamUrl, setRoiStreamUrl] = useState<string | null>(null);
 
+  // ROI 모달 열릴 때 헤더 숨김
+  useEffect(() => {
+    const cls = "hide-header";
+    if (roiModalOpen) {
+      document.body.classList.add(cls);
+    } else {
+      document.body.classList.remove(cls);
+    }
+    return () => {
+      document.body.classList.remove(cls);
+    };
+  }, [roiModalOpen]);
+
   const handleOpenRoiEditor = (cctvId: number, streamUrl: string | null) => {
     if (!streamUrl) return;
     setRoiCctvId(cctvId);

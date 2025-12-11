@@ -4,6 +4,10 @@ export interface VehicleDetectionItem {
   bbox: [number, number, number, number];
   trackId?: number | null;
   direction?: "up" | "down" | null; // 11/27: 추가
+  speed_kmh?: number | null;
+  speedKmh?: number | null; // 카멜 케이스도 수신 허용
+  dwell_seconds?: number;
+  dwellSeconds?: number;
 }
 
 export interface VehicleUpdatePayload {

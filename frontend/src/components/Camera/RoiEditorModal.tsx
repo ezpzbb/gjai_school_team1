@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
 import { CircularProgress } from "../common/CircularProgress";
 
@@ -26,17 +26,29 @@ const RoiEditorModal: React.FC<RoiEditorModalProps> = ({ cctvId, streamUrl, onCl
   const [isSaving, setIsSaving] = useState(false);
   const [savingProgress, setSavingProgress] = useState(0);
 
+  const [videoSize, setVideoSize] = useState({ w: 0, h: 0 });
+
+  const resetRoiState = () => {
+    setUpPoints([]);
+    setDownPoints([]);
+  };
+
+  const handleClose = useCallback(() => {
+    resetRoiState();
+    onClose();
+  }, [onClose]);
+
   // ESC로 닫기
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        onClose();
+        handleClose();
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
+  }, [handleClose]);
 
   // hls 초기화를 통해 모달창에서 비디오 재생 안정화
   useEffect(() => {
@@ -140,14 +152,20 @@ const RoiEditorModal: React.FC<RoiEditorModalProps> = ({ cctvId, streamUrl, onCl
       const video = videoRef.current;
       const canvas = canvasRef.current;
       if (!video || !canvas) return;
-      canvas.width = video.clientWidth || video.videoWidth || 0;
-      canvas.height = video.clientHeight || video.videoHeight || 0;
+      const w = video.clientWidth || video.videoWidth || 0;
+      const h = video.clientHeight || video.videoHeight || 0;
+      canvas.width = w;
+      canvas.height = h;
+      setVideoSize({ w: video.videoWidth || w, h: video.videoHeight || h }); // 드로잉용 원본 크기
     };
 
     syncSize();
     window.addEventListener("resize", syncSize);
+    const video = videoRef.current;
+    if (video) video.addEventListener("loadedmetadata", syncSize);
     return () => {
       window.removeEventListener("resize", syncSize);
+      if (video) video.removeEventListener("loadedmetadata", syncSize);
     };
   }, []);
 
@@ -196,7 +214,24 @@ const RoiEditorModal: React.FC<RoiEditorModalProps> = ({ cctvId, streamUrl, onCl
 
     drawPoly(upPoints, "upstream");
     drawPoly(downPoints, "downstream");
-  }, [upPoints, downPoints]);
+  }, [upPoints, downPoints, videoSize]);
+
+  useEffect(() => {
+    const fetchROI = async () => {
+      try {
+        const res = await fetch(`/model/view/roi?cctv_id=${cctvId}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const roi = await res.json();
+        setUpPoints(roi.upstream || []);
+        setDownPoints(roi.downstream || []);
+      } catch (e) {
+        console.warn("ROI load failed:", e);
+        setUpPoints([]);
+        setDownPoints([]);
+      }
+    };
+    fetchROI();
+  }, [cctvId]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -247,10 +282,16 @@ const RoiEditorModal: React.FC<RoiEditorModalProps> = ({ cctvId, streamUrl, onCl
     }, 100);
 
     try {
+      const video = videoRef.current;
+      const refWidth = video?.videoWidth || canvasRef.current?.width || 0;
+      const refHeight = video?.videoHeight || canvasRef.current?.height || 0;
+
+      const body = { upstream: upPoints, downstream: downPoints, refWidth, refHeight };
+
       const res = await fetch(`/model/view/roi?cctv_id=${cctvId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ upstream: upPoints, downstream: downPoints }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       alert("ROI가 저장되었습니다.");
@@ -275,7 +316,7 @@ const RoiEditorModal: React.FC<RoiEditorModalProps> = ({ cctvId, streamUrl, onCl
         justifyContent: "center",
         zIndex: 9997,
       }}
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div
         style={{
@@ -421,7 +462,7 @@ const RoiEditorModal: React.FC<RoiEditorModalProps> = ({ cctvId, streamUrl, onCl
           >
             {isSaving ? "저장 중..." : "저장"}
           </button>
-          <button onClick={onClose} style={{ marginLeft: "auto", color: "#666", border: "none", fontSize: 24, cursor: "pointer" }} aria-label="Close ROI Editor">
+          <button onClick={handleClose} style={{ marginLeft: "auto", color: "#666", border: "none", fontSize: 24, cursor: "pointer" }} aria-label="Close ROI Editor">
             ×
           </button>
         </div>

@@ -200,8 +200,8 @@ export const setupDetectionRoutes = (dbPool: Pool): Router => {
 
         // detection 테이블에 저장 및 detection_id 수집
         const insertSql = `
-          INSERT INTO detection (frame_id, confidence, bounding_box, detected_at, object_text)
-          VALUES (?, ?, ?, FROM_UNIXTIME(?), ?)
+          INSERT INTO detection (frame_id, confidence, bounding_box, detected_at, object_text, track_id, speed_kmh, dwell_seconds)
+          VALUES (?, ?, ?, FROM_UNIXTIME(?), ?, ?, ?, ?)
         `;
 
         const detectionIds: number[] = [];
@@ -209,12 +209,19 @@ export const setupDetectionRoutes = (dbPool: Pool): Router => {
 
         for (const det of detections) {
           const bboxText = JSON.stringify(det.bbox || []);
+          const speedKmh = det.speed_kmh ?? det.speedKmh ?? null;
+          const dwellSeconds = det.dwell_seconds ?? det.dwellSeconds ?? 0;
+          const trackId = det.trackId ?? null;
+
           const [result] = await conn.query(insertSql, [
             actualFrameId, // 올바른 frame_id 사용
             det.conf,
             bboxText,
             tsSec,
             det.cls, // object_text로 저장
+            trackId,
+            speedKmh,
+            dwellSeconds,
           ]);
 
           const insertId = (result as any).insertId;

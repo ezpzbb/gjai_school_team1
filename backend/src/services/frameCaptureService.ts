@@ -76,15 +76,15 @@ export class FrameCaptureService {
     this.imageStoragePath = process.env.FRAME_STORAGE_PATH || path.resolve(__dirname, "../../uploads/frames");
 
     // 큐 시스템 환경변수
-    this.MAX_FRAME_QUEUE_SIZE = parseInt(process.env.MAX_FRAME_QUEUE_SIZE || "5", 10);
-    this.QUEUE_WARNING_THRESHOLD = parseInt(process.env.QUEUE_WARNING_THRESHOLD || "4", 10);
-    this.QUEUE_STOP_THRESHOLD = parseInt(process.env.QUEUE_STOP_THRESHOLD || "5", 10);
-    this.MAX_IMAGE_WIDTH = parseInt(process.env.MAX_IMAGE_WIDTH || "1280", 10);
-    this.MAX_IMAGE_HEIGHT = parseInt(process.env.MAX_IMAGE_HEIGHT || "720", 10);
-    this.JPEG_QUALITY = parseInt(process.env.JPEG_QUALITY || "85", 10);
+    this.MAX_FRAME_QUEUE_SIZE = parseInt(process.env.MAX_FRAME_QUEUE_SIZE || "12", 10);
+    this.QUEUE_WARNING_THRESHOLD = parseInt(process.env.QUEUE_WARNING_THRESHOLD || "8", 10);
+    this.QUEUE_STOP_THRESHOLD = parseInt(process.env.QUEUE_STOP_THRESHOLD || "10", 10);
+    this.MAX_IMAGE_WIDTH = parseInt(process.env.MAX_IMAGE_WIDTH || "608", 10);
+    this.MAX_IMAGE_HEIGHT = parseInt(process.env.MAX_IMAGE_HEIGHT || "342", 10);
+    this.JPEG_QUALITY = parseInt(process.env.JPEG_QUALITY || "65", 10);
     this.USE_HLS_DIRECT_STREAM = process.env.USE_HLS_DIRECT_STREAM !== "false"; // 기본값: true
     this.HLS_RECONNECT_DELAY = parseInt(process.env.HLS_RECONNECT_DELAY || "5000", 10);
-    this.HLS_FRAME_RATE = parseInt(process.env.HLS_FRAME_RATE || "1", 10); // 기본 1 FPS
+    this.HLS_FRAME_RATE = parseInt(process.env.HLS_FRAME_RATE || "12", 10); // 기본 1 FPS
     this.HLS_TIMEOUT = parseInt(process.env.HLS_TIMEOUT || "30", 10); // 기본 30초
 
     // 최적화: axios 인스턴스 생성 (연결 재사용)
@@ -475,7 +475,8 @@ export class FrameCaptureService {
     try {
       // 이미지 최적화 (리사이즈, 압축, 메타데이터 제거)
       const optimizedFrameBuffer = await sharp(frameItem.frameBuffer)
-        .resize(this.MAX_IMAGE_WIDTH, this.MAX_IMAGE_HEIGHT, {
+        .resize({
+          width: this.MAX_IMAGE_WIDTH,
           fit: "inside",
           withoutEnlargement: true,
         })
@@ -553,7 +554,7 @@ export class FrameCaptureService {
    * 최적화: 연결 재사용, 타임아웃 조정, 에러 핸들링 개선
    */
   private async sendFrameToModel(cctvId: number, frameId: number, frameBuffer: Buffer): Promise<void> {
-    const MAX_RETRIES = parseInt(process.env.MODEL_SERVER_MAX_RETRIES || "2", 10);
+    const MAX_RETRIES = parseInt(process.env.MODEL_SERVER_MAX_RETRIES || "1", 10);
     const RETRY_DELAY = parseInt(process.env.MODEL_SERVER_RETRY_DELAY || "1000", 10);
 
     let lastError: any = null;
@@ -574,7 +575,7 @@ export class FrameCaptureService {
             ...formData.getHeaders(),
             Connection: "keep-alive",
           },
-          timeout: parseInt(process.env.MODEL_SERVER_TIMEOUT || "10000", 10),
+          timeout: parseInt(process.env.MODEL_SERVER_TIMEOUT || "20000", 10),
           maxContentLength: Infinity,
           maxBodyLength: Infinity,
         });
@@ -671,12 +672,12 @@ export class FrameCaptureService {
     // -q:v 2: JPEG 품질 (2 = 높은 품질)
     // -timeout: 네트워크 타임아웃 (마이크로초 단위)
     // -reconnect 관련: 자동 재연결 설정
-    const frameInterval = Math.max(1, Math.floor(30 / this.HLS_FRAME_RATE)); // 30fps 기준 샘플링 간격
+    // const frameInterval = Math.max(1, Math.round(30 / this.HLS_FRAME_RATE)); // target FPS에 가깝게 반올림
     const ffmpegArgs = [
       "-i",
       m3u8Url,
       "-vf",
-      `select='not(mod(n,${frameInterval}))'`,
+      `fps=${this.HLS_FRAME_RATE}`,
       "-vsync",
       "0",
       "-f",
